@@ -1,0 +1,364 @@
+.ascii {
+    color: #0F0;
+    font-family: monospace;
+    font-size: 18px;
+}
+
+textarea {
+    color: #fff;
+}
+
+.ascii table {
+    border: 2px solid #8F8;
+    display: inline-block;
+    vertical-align: top;
+    -moz-user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select:none;
+    user-select:none;
+}
+
+#gametitle {
+    color: #0F0;
+    font-family: monospace;
+    font-size: 32px;
+    text-align: center;
+}
+
+#gametitle small {
+    color: #686;
+    font-size: 16px;
+}
+
+#initial_menu {
+    color: #0A0;
+    font-family: monospace;
+    font-size: 18px;
+    text-align: center;
+}
+
+.start_button {
+    border: 1px solid #8F8;
+    background: rgba(0, 0, 0, 0.8);
+    margin: 1.5em;
+    padding: 2em;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+.start_button:hover {
+    background-color: rgba(40, 40, 80, 0.8);
+    color: #0F0;
+}
+
+#inventory {
+    font-family: monospace;
+    color: #0F0;
+    position: fixed;
+    left: 10px;
+    top: 75px;
+    width: 492px;
+    height: 492px;
+    background: #000;
+    border: 1px solid #0F0;
+    display: none;
+}
+
+#inventory_list {
+    list-style: none;
+    padding: 0;
+}
+
+#inventory_list li {
+    cursor: pointer;
+}
+
+#inventory_list li:hover {
+    background-color: #040;
+}
+
+#help {
+    color: #0F0;
+    font-family: monospace;
+    padding: 4px;
+    background: #000;
+    border: 1px solid #0F0;
+    position: fixed;
+    left: 10px;
+    top: 75px;
+    width: 492px;
+    height: 492px;
+    display: none;
+}
+
+#help_button {
+    color: #0F0;
+    font-size: 16px;
+    font-family: monospace;
+    padding: 7px 10px;
+    background: #030;
+    border: 1px solid #0F0;
+    border-radius: 100% 100%;
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+}
+
+.wood {
+    color: #A37936;
+}
+
+.lava {
+    color: #F80;
+    -webkit-animation: lava-anim 5s infinite;
+    animation: lava-anim 5s infinite;
+}
+
+@-webkit-keyframes lava-anim {
+    0% { color: #F80; }
+    25% { color: #FE0; }
+    50% { color: #F80; }
+    75% { color: #FE0; }
+    100% { color: #F80; }
+}
+
+@keyframes lava-anim {
+    0% { color: #F80; }
+    25% { color: #FE0; }
+    50% { color: #F80; }
+    75% { color: #FE0; }
+    100% { color: #F80; }
+}
+
+.acid {
+    color: #0A0;
+    -webkit-animation: acid-anim 5s infinite;
+    animation: acid-anim 5s infinite;
+}
+
+@-webkit-keyframes acid-anim {
+    0% { color: #0A0; }
+    25% { color: #0F6; }
+    50% { color: #0A0; }
+    75% { color: #0F6; }
+    100% { color: #0A0; }
+}
+
+@keyframes acid-anim {
+    0% { color: #0A0; }
+    25% { color: #0F6; }
+    50% { color: #0A0; }
+    75% { color: #0F6; }
+    100% { color: #0A0; }
+}
+
+.water {
+    color: #04F;
+    -webkit-animation: water-anim 5s infinite;
+    animation: water-anim 5s infinite;
+}
+
+@-webkit-keyframes water-anim {
+    0% { color: #04F; }
+    25% { color: #08A; }
+    50% { color: #04F; }
+    75% { color: #08A; }
+    100% { color: #04F; }
+}
+
+@keyframes water-anim {
+    0% { color: #04F; }
+    25% { color: #08A; }
+    50% { color: #04F; }
+    75% { color: #08A; }
+    100% { color: #04F; }
+}
+
+.ascii #term td {
+    cursor: cell;
+}
+
+.ascii #term td:hover{
+    outline: 1px solid #F00;
+    -webkit-animation: sel-anim 100ms infinite;
+    animation: sel-anim 100ms infinite;
+}
+
+@-webkit-keyframes sel-anim {
+    0% { outline-color: #F00; }
+    50% { outline-color: #880; }
+    100% { outline-color: #F00; }
+}
+
+@keyframes sel-anim {
+    0% { outline-color: #F00; }
+    50% { outline-color: #880; }
+    100% { outline-color: #F00; }
+}
+
+.ascii #status {
+    border: 2px solid #8F8;
+    width: 400px;
+    display: inline-block;
+    vertical-align: top;
+    padding-left: 1em;
+    padding-right: 1em;
+}
+
+.ascii #players {
+    border: 2px solid #8F8;
+    width: 200px;
+    display: inline-block;
+    vertical-align: top;
+    padding-left: 1em;
+    padding-right: 1em;
+}
+
+.ascii .attrbar {
+    float: right;
+}
+
+.ascii .attrbar  .low {
+    color: #F00;
+}
+
+.ascii .attrbar  .mid {
+    color: #FF0;
+}
+
+.ascii .attrbar  .high {
+    color: #0F0;
+}
+
+.ascii .attrbar  .uhigh {
+    color: #88F;
+}
+
+.shroud {
+    color: #888;
+    /*-webkit-filter: blur(1px);
+    -moz-filter: blur(1px);
+    -o-filter: blur(1px);
+    -ms-filter: blur(1px);
+    filter: blur(1px);*/
+}
+
+.sight {
+    color: #4C4;
+}
+
+.myself {
+    box-shadow: 0px 0px 0px 0.5px #FF0;
+}
+
+.status_berserk {
+    -webkit-animation: berserk-anim 200ms infinite;
+    animation: berserk-anim 200ms infinite;
+}
+
+@-webkit-keyframes berserk-anim {
+    0% {text-shadow: 0 0 0px #F00}
+    10% {text-shadow: 1px 0 0px #F00}
+    20% {text-shadow: 0 -1px 0px #F00}
+    30% {text-shadow: -1px -1px 0px #F00}
+    40% {text-shadow: -1px 0px 0px #F00}
+    50% {text-shadow: 1px 2px 0px #F00}
+    60% {text-shadow: -1px 1px 0px #F00}
+    70% {text-shadow: 2px 0px 0px #F00}
+    80% {text-shadow: 1px -1px 0px #F00}
+    90% {text-shadow: 0px -2px 0px #F00}
+    100% {text-shadow: 1px 0px 0px #F00}
+} 
+
+@keyframes berserk-anim {
+    0% {text-shadow: 0 0 0px #F00}
+    10% {text-shadow: 1px 0 0px #F00}
+    20% {text-shadow: 0 -1px 0px #F00}
+    30% {text-shadow: -1px -1px 0px #F00}
+    40% {text-shadow: -1px 0px 0px #F00}
+    50% {text-shadow: 1px 2px 0px #F00}
+    60% {text-shadow: -1px 1px 0px #F00}
+    70% {text-shadow: 2px 0px 0px #F00}
+    80% {text-shadow: 1px -1px 0px #F00}
+    90% {text-shadow: 0px -2px 0px #F00}
+    100% {text-shadow: 1px 0px 0px #F00}
+}
+
+.particle-ammo-9mm-bullets, .particle-ammo-9mm {
+    color: #F00;
+    text-shadow: 0px 0px 2px #FF0;
+}
+
+.particle-ammo-12ga {
+    color: #F00;
+    text-shadow: 0px 0px 2px #FF0;
+}
+
+.low-level-item {
+    color: #999;
+}
+
+.low-level-ammo {
+    color: #999;
+}
+
+.mid-level-item {
+    color: #C99;
+}
+
+.mid-level-ammo {
+    color: #C99;
+}
+
+.high-level-ammo {
+    color: #CC7;
+}
+
+.tip {
+    background: #111;
+    font-family: 'Lucida Console', monospace;
+    color: #0F0;
+    padding: 3px;
+}
+
+.modal-body .list-group-item {
+    cursor: pointer;
+}
+
+#ganymedeSprite {
+    animation: ganymede 50s linear infinite;
+    -webkit-animation: ganymede 50s linear infinite;
+    transform: rotate(-20deg);
+}
+
+@-webkit-keyframes ganymede {
+    from {left: -20%; top: 50%; transform: scale(1.2, 1.2) rotate(-20deg) }
+    to {left: 120%; top: -20%; transform: scale(0.9, 0.9) rotate(20deg) }
+}
+
+@keyframes ganymede {
+    from {left: -20%; top: 50%; transform: scale(1.2, 1.2) rotate(-20deg) }
+    to {left: 120%; top: -20%; transform: scale(0.9, 0.9) rotate(20deg) }
+}
+
+.star_anim_layer0 {
+    animation: anim_layers 250s linear infinite;
+    -webkit-animation: anim_layers 250s linear infinite;
+}
+
+.star_anim_layer1 {
+    animation: anim_layers 125s linear infinite;
+    -webkit-animation: anim_layers 125s linear infinite;
+}
+
+.star_anim_layer2 {
+    animation: anim_layers 60s linear infinite;
+    -webkit-animation: anim_layers 60s linear infinite;
+}
+
+@-webkit-keyframes anim_layers {
+    from {transform: translate(-3000px, 300px)}
+    to {transform: translate(3000px, -300px)}
+}
+

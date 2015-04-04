@@ -1,0 +1,2223 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Ganymede Gate</title>
+<link rel="stylesheet" href="/css/style">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width, initial-scale=0.6, maximum-scale=0.6, user-scalable=0"/>
+</script>
+</head>
+<body style="background: #000; overflow: hidden">
+
+<div class="ascii">
+<div id="term" style="display: inline">
+</div>
+</div>
+<a class="twitter-share-button"
+  href="https://twitter.com/share?url=http://ganymedegate.com&via=johnvillarz&text=Played Ganymede Gate a pre-alpha multiplayer roguelike on development, come join me!&hashtags=roguelike">
+Tweet
+</a>
+
+<div id="players" style="display: none">
+<p><b>Players</b></p>
+<div id="player_list">
+</div>
+</div>
+
+<div style="width: 100%" id="announce">
+</div>
+
+<script type="text/javascript">
+window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.getElementById(id)){return}js=d.createElement(s);js.id=id;js.src="https://platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);return window.twttr||(t={_e:[],ready:function(f){t._e.push(f)}})}(document,"script","twitter-wjs"));
+</script>
+
+<script id="default-fs" type="x-shader/x-fragment">
+    precision mediump float;
+    
+    uniform vec2 fontSize;
+    uniform sampler2D uFont, uGlyphs, uForeground, uBackground;
+    uniform float damageRadius;
+    uniform float uWidthDistort;
+    uniform float uConsoleCharWidth;
+
+    void main(void) {
+        //float x = gl_FragCoord.x / fontSize.x / 96.0 /* Console char width*/ * uWidthDistort;
+        float x = gl_FragCoord.x / fontSize.x / uConsoleCharWidth * uWidthDistort;
+        float y = gl_FragCoord.y / 512.0;
+        
+        float cx = fract(gl_FragCoord.x / fontSize.x) / 16.0;
+        float cy = fract(gl_FragCoord.y / fontSize.y) / 16.0;
+        
+        vec4 glyph = texture2D(uGlyphs, vec2(x, y));
+        
+        // That green and red channel mingling? Yeah that's because some
+        // mobile devices have less than 8 bits per channel
+        float gp = floor(glyph.r * 256.0 + floor((glyph.g * 16.0) * 256.0)) / 16.0;
+        float gy = 0.9375 - (floor(gp) / 16.0);
+        float gx = gp - floor(gp);
+        
+        vec4 fnt = texture2D(uFont, vec2(gx + cx, gy + cy));
+        vec4 fg = texture2D(uForeground, vec2(x, y));
+        vec4 bg = texture2D(uBackground, vec2(x, y));
+        
+        gl_FragColor = mix(fg, bg, fnt.a); // MULTIPLY BY THIS TO GET SCANLINES! YAY! * (pow(mod(gl_FragCoord.y, 3.0), 2.0)/6.0 + 0.95)
+        
+        // These "if"s are for the damage radius around the screen edge
+        float v = damageRadius;
+        if (gl_FragCoord.x <= v){
+            float d = (v - gl_FragCoord.x) / 20.0;
+            
+            gl_FragColor.r = gl_FragColor.r + d;
+        } else if ((gl_FragCoord.x >= (512.0 - v)) && (gl_FragCoord.x <= 512.0)) {
+            float d = (v - (512.0 - gl_FragCoord.x)) / 20.0;
+            
+            gl_FragColor.r = gl_FragColor.r + d;
+        }
+        
+        if ((gl_FragCoord.y <= v) && (gl_FragCoord.x <= 512.0)) {
+            float d = (v - gl_FragCoord.y) / 20.0;
+            
+            gl_FragColor.r = gl_FragColor.r + d;
+        } else if ((gl_FragCoord.y >= (512.0 - v)) && (gl_FragCoord.x <= 512.0)) {
+            float d = (v - (512.0 - gl_FragCoord.y)) / 20.0;
+            
+            gl_FragColor.r = gl_FragColor.r + d;
+        }
+    }
+</script>
+
+<script id="rtt-fs" type="x-shader/x-fragment">
+    precision mediump float;
+    
+    uniform sampler2D uTexture;
+    uniform float uViewportWidth;
+    uniform float uViewportHeight;
+    uniform float uWidthDistort;
+
+    void main(void) {
+        float x = gl_FragCoord.x / uViewportWidth * uWidthDistort;
+        float y = gl_FragCoord.y / uViewportHeight;
+        
+        vec4 tx = texture2D(uTexture, vec2(x, y));
+        
+        gl_FragColor = tx;
+    }
+</script>
+
+<script id="rtt-2xsai-fs" type="x-shader/x-fragment">
+    precision mediump float;
+    
+    uniform sampler2D uTexture;
+    uniform float uViewportWidth;
+    uniform float uViewportHeight;
+    uniform float uWidthDistort;
+    
+// Adapted form https://github.com/libretro/common-shaders/blob/master/xsai/super-2xsai.cg
+    const vec3 dtt = vec3(65536,255,1);
+    
+    /*  GET_RESULT function                            */
+    /*  Copyright (c) 1999-2001 by Derek Liauw Kie Fa  */
+    /*  License: GNU-GPL                               */
+    int GET_RESULT(float A, float B, float C, float D)
+    {
+        int x = 0;
+        int y = 0;
+        int r = 0;
+        
+        if (A == C) {
+            x+=1;
+        } else if (B == C) {
+            y+=1;
+        }
+        
+        if (A == D) {
+            x+=1; 
+        } else if (B == D) {
+            y+=1;
+        }
+        
+        if (x <= 1) {
+            r+=1; 
+        }
+        if (y <= 1) {
+            r-=1;
+        }
+        
+        return r;
+    } 
+
+
+    float reduce(vec3 color)
+    { 
+        return dot(color, dtt);
+    }
+
+
+    void main(void)
+    {
+        vec2 texCoord = vec2(gl_FragCoord.x / uViewportWidth * uWidthDistort, gl_FragCoord.y / uViewportHeight);
+        
+        // get texel size   	
+        vec2 ps = vec2(0.999/ 8.0 /* font width */ / 96.0 /* console char width */ * uWidthDistort, 0.999/512.0);
+        
+        // calculating offsets, coordinates
+
+        vec2 dx = vec2( ps.x, 0.0); 
+        vec2 dy = vec2( 0.0, ps.y);
+        vec2 g1 = vec2( ps.x,ps.y);
+        vec2 g2 = vec2(-ps.x,ps.y);	
+        
+        vec2 pixcoord  = texCoord/ps;
+        vec2 fp        = fract(pixcoord);
+        vec2 pC4       = texCoord-fp*ps;
+        vec2 pC8       = pC4+g1;
+
+        
+
+        // Reading the texels
+
+        vec3 C0 = texture2D(uTexture,pC4-g1).xyz; 
+        vec3 C1 = texture2D(uTexture,pC4-dy).xyz;
+        vec3 C2 = texture2D(uTexture,pC4-g2).xyz;
+        vec3 D3 = texture2D(uTexture,pC4-g2+dx).xyz;
+        vec3 C3 = texture2D(uTexture,pC4-dx).xyz;
+        vec3 C4 = texture2D(uTexture,pC4   ).xyz;
+        vec3 C5 = texture2D(uTexture,pC4+dx).xyz;
+        vec3 D4 = texture2D(uTexture,pC8-g2).xyz;
+        vec3 C6 = texture2D(uTexture,pC4+g2).xyz;
+        vec3 C7 = texture2D(uTexture,pC4+dy).xyz;
+        vec3 C8 = texture2D(uTexture,pC4+g1).xyz;
+        vec3 D5 = texture2D(uTexture,pC8+dx).xyz;
+        vec3 D0 = texture2D(uTexture,pC4+g2+dy).xyz;
+        vec3 D1 = texture2D(uTexture,pC8+g2).xyz;
+        vec3 D2 = texture2D(uTexture,pC8+dy).xyz;
+        vec3 D6 = texture2D(uTexture,pC8+g1).xyz;
+
+        vec3 p00,p10,p01,p11;
+
+
+        // reducing float3 to float
+        
+        float c0 = reduce(C0);float c1 = reduce(C1);
+        float c2 = reduce(C2);float c3 = reduce(C3);
+        float c4 = reduce(C4);float c5 = reduce(C5);
+        float c6 = reduce(C6);float c7 = reduce(C7);
+        float c8 = reduce(C8);float d0 = reduce(D0);
+        float d1 = reduce(D1);float d2 = reduce(D2);
+        float d3 = reduce(D3);float d4 = reduce(D4);
+        float d5 = reduce(D5);float d6 = reduce(D6);
+
+
+
+
+        /*              Super2xSaI code               */
+        /*  Copied from the Dosbox source code        */
+        /*  Copyright (C) 2002-2007  The DOSBox Team  */
+        /*  License: GNU-GPL                          */
+        /*  Adapted by guest(r) on 19.4.2007          */
+
+         
+        if (c7 == c5 && c4 != c8) {
+            p11 = p01 = C7;
+        } else if (c4 == c8 && c7 != c5) {
+            p11 = p01 = C4;
+        } else if (c4 == c8 && c7 == c5) {
+            int r = 0;
+            r += GET_RESULT(c5,c4,c6,d1);
+            r += GET_RESULT(c5,c4,c3,c1);
+            r += GET_RESULT(c5,c4,d2,d5);
+            r += GET_RESULT(c5,c4,c2,d4);
+
+            if (r > 0)
+                p11 = p01 = C5;
+            else if (r < 0)
+                p11 = p01 = C4;
+            else {
+                p11 = p01 = 0.5*(C4+C5);
+            }
+        } else {
+            if (c5 == c8 && c8 == d1 && c7 != d2 && c8 != d0)
+                p11 = 0.25*(3.0*C8+C7);
+            else if (c4 == c7 && c7 == d2 && d1 != c8 && c7 != d6)
+                p11 = 0.25*(3.0*C7+C8);
+            else
+                p11 = 0.5*(C7+C8);
+
+            if (c5 == c8 && c5 == c1 && c4 != c2 && c5 != c0)
+                p01 = 0.25*(3.0*C5+C4);
+            else if (c4 == c7 && c4 == c2 && c1 != c5 && c4 != d3)
+                p01 = 0.25*(3.0*C4+C5);
+            else
+                p01 = 0.5*(C4+C5);
+        }
+
+        if (c4 == c8 && c7 != c5 && c3 == c4 && c4 != d2)
+            p10 = 0.5*(C7+C4);
+        else if (c4 == c6 && c5 == c4 && c3 != c7 && c4 != d0)
+            p10 = 0.5*(C7+C4);
+        else
+            p10 = C7;
+
+        if (c7 == c5 && c4 != c8 && c6 == c7 && c7 != c2)
+            p00 = 0.5*(C7+C4);
+        else if (c3 == c7 && c8 == c7 && c6 != c4 && c7 != c0)
+            p00 = 0.5*(C7+C4);
+        else
+            p00 = C4;
+
+
+        // Distributing the four products
+        
+        if (fp.x < 0.50)
+            { if (fp.y < 0.50) p10 = p00;}
+        else
+            { if (fp.y < 0.50) p10 = p01; else p10 = p11;}
+
+
+        // OUTPUT
+        gl_FragColor = vec4(p10, 1);
+    }
+    ////// End of super 2xsai
+    
+    
+    /*void main(void) {
+        float x = gl_FragCoord.x / uViewportWidth;
+        float y = gl_FragCoord.y / uViewportHeight;
+        
+        vec4 tx = texture2D(uTexture, vec2(x, y));
+        
+        gl_FragColor = tx;
+    }*/
+</script>
+
+<script id="default-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+
+    void main(void) {
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+    }
+</script>
+
+<div id="shaders-edit" style="position: fixed; right: 0px; bottom: 0px; width: 500px; height: 100%; background: #444; color: #fff; display: none;">
+<h2>Shaders!</h2>
+<h3>Fragment</h3>
+<textarea id="fs-edit" rows="15" cols="60" wrap="off" style="background: #000; font-family: monospace; color #ddd;" onfocus="disableGameInput()" onblur="enableGameInput()"></textarea><br>
+<h3>Vertex</h3>
+<textarea id="vs-edit" rows="15" cols="60" wrap="off" style="background: #000; font-family: monospace; color #ddd;" onfocus="disableGameInput()" onblur="enableGameInput()"></textarea><br>
+<button onclick="updateShaders()">Update</button>
+</div>
+
+<script src="/js/jquery"></script>
+<script src="/js/ASCIITerminal"></script>
+<script src="/js/ascii_mapping"></script>
+<script src="/js/traceline"></script>
+<script src="/js/pako_inflate.min"></script>
+<script src="/js/gl-matrix"></script>
+<script src="/js/soundjs"></script>
+<script src="/js/rexsprite"></script>
+<script>
+var player = {
+}
+var colorMap = {
+    "lava": {"color": "FF8800", "cycle": "882200", "msscale": 4000},
+    "plasma": {"color": "FF00FF", "cycle": "880088", "msscale": 1000},
+    "wood": {"color": "A37936"},
+    "dirt": {"color": "936926"},
+    "acid": {"color": "008800", "cycle": "44FF00", "msscale": 1500},
+    "water": {"color": "0044FF", "cycle": "002288", "msscale": 2000},
+    "smoke": {"color": "888888", "cycle": "444444", "msscale": 1000},
+    "fire": {"color": "FF0000", "cycle": "CC8800", "msscale": 200},
+    "particle-ammo-9mm-bullets": {"color": "FF0000"},
+    "particle-ammo-9mm": {"color": "FF0000"},
+    "particle-ammo-12ga": {"color": "FF0000"},
+    "particle-ammo-Gasoline-tank": {"color": "FF4400", "cycle": "882200", "msscale": 500},
+    "low-level-item": {"color": "999999"},
+    "low-level-ammo": {"color": "999999"},
+    "mid-level-item": {"color": "CC9999"},
+    "mid-level-ammo": {"color": "CC9999"},
+    "high-level-ammo": {"color": "CCCC77"},
+    "heal": {"color": "E00000"},
+    "heal-big": {"color": "FF4494"},
+    "good-weapon": {"color": "FFEB69", "cycle": "DEC628", "msscale": 1000},
+    "standard-weapon": {"color": "28DE9E", "cycle": "15BD82", "msscale": 1000},
+    "dangerous-weapon": {"color": "D86000", "cycle": "804000", "msscale": 1000},
+}
+
+var sndVolume = 0.1
+var bgm
+
+function fgColorFromColorMapRule(rule, timeModifier) {
+    var col = rule
+    
+    if ("cycle" in col) {
+        var h0 = timeModifier & 0x3F
+        var h1 = (timeModifier >> 6) & 0x3F
+        var h16 = ((h0 | h1) ^ (timeModifier)) & 0xFFF
+        
+        var cycle_a = Date.now() / col.msscale + h16 / 16.0
+        cycle_a -= Math.trunc(cycle_a)
+        var cycle_aneg = 1.0 - cycle_a
+
+        var col0 = hexToColor(col.color)
+        var col1 = hexToColor(col.cycle)
+        var r0 = ((col0 & 0x00FF0000) >> 16) & 0xFF
+        var g0 = ((col0 & 0x0000FF00) >> 8) & 0xFF
+        var b0 = ((col0 & 0x000000FF)) & 0xFF
+        
+        var r1 = ((col1 & 0x00FF0000) >> 16) & 0xFF
+        var g1 = ((col1 & 0x0000FF00) >> 8) & 0xFF
+        var b1 = ((col1 & 0x000000FF)) & 0xFF
+        
+        var rt = r0 * cycle_aneg + r1 * cycle_a
+        var gt = g0 * cycle_aneg + g1 * cycle_a
+        var bt = b0 * cycle_aneg + b1 * cycle_a
+        
+        return [rt, gt, bt]
+    } else {
+        return col.color
+    }
+}
+
+var ownUsername
+var displaySizeX = 64
+var displaySizeY = 64
+var turn = 0
+var minCoords = {x: 0, y: 0}
+var particles
+var gameStarted = false
+var terminal
+var showDamage = 0
+var useSounds = true
+var playerAttrs
+var titleSprite
+var gplusSprite
+var twitterSprite
+var redditSprite
+var lighthouseSprite
+var ganymedeSprite
+var menuSel = 0
+var currentMenu = 0
+var menuOptionsNumber = 4
+var lastClick = [-1, -1]
+var lastMove = [-1, -1]
+var destinationMovement
+var tutorialSeen = false
+var tutorialPage = 0
+
+var weaponSprites = {}
+
+var playerClasses = [
+        {id: "marine", name: "Marine", description: "Most versatile class, without too much bonuses"},
+        {id: "heavy", name: "Heavy Weapons", description: "Has bonuses on chainguns and rocket launchers"},
+        {id: "swords", name: "Swordmaster", description: "Masters all knife-like weapons, from a butter knife to a lightsaber"},
+        {id: "melee", name: "Melee", description: "Pipes, bats, power-fists and bare fists. Everything that's close up and personal is best suited for this one"},
+        {id: "tech", name: "Technician", description: "Can repair doors and computers"},
+        {id: "engy", name: "Engineer", description: "Can hack computers and robots"},
+        {id: "medic", name: "Medic", description: "Can heal nearby party members"},
+        {id: "spy", name: "Spy", description: "Disappears when not moving for 3 turns"},
+        {id: "explo", name: "Explosives", description: "Can arm/disarm bombs, mines and explosive traps"},
+        {id: "sniper", name: "Sniper", description: "Can see farther than any class and has natural precision"},
+        {id: "psychic", name: "Psychic", description: "Can resist psychic attacks and in some cases, control enemies"},
+        {id: "civil", name: "Civilian", description: "Hardest, craziest way to play the game"},
+    ]
+var itemsPerMenu = [4, playerClasses.length + 2, 5, 3, 3]
+
+var level = []
+var cssRules = {}
+
+var playerDivs = {}
+
+var queuedAnns = []
+var queuedInterval = null
+var playerPickClass = "marine"
+var currentTips = []
+var clearTipsTimeout = null
+var showingInventory = false
+var inventoryIndex = 0
+var inventoryList
+var opsColsFg = {true: [0, 255, 0], false: [64, 96, 64]}
+var opsColsBg = {true: [64, 64, 128], false: [32, 32, 32]}
+var menuStars = []
+
+var announcements = []
+
+function queueAnnouncements(msgs) {
+    announcements = announcements.concat(msgs)
+}
+
+function announceMsg(msg) {
+    announcements.push(msg)
+}
+
+function pickClass(cls) {
+    playerPickClass = cls
+}
+
+function start() {
+    localStorage.username = ownUsername
+    localStorage.chartype = playerPickClass
+    
+    if (bgm) {
+        bgm.stop()
+    }
+    
+    send({
+        type: 'start',
+        username: ownUsername,
+        player_class: playerPickClass
+    })
+    
+    return false
+}
+
+function pos(ndx, ndy) {
+    var npos = {x: player.pos.x, y: player.pos.y}
+    if (typeof(ndx) != 'undefined') {
+        npos.x += ndx
+    }
+    
+    if (typeof(ndy) != 'undefined') {
+        npos.y += ndy
+    }
+    
+    send({
+        type: 'pos',
+        pos: npos
+    })
+}
+
+function tryMoveTowardsDestination() {
+    if (destinationMovement != undefined) {
+        var dx = 0, dy = 0
+        
+        if (player.pos.x < destinationMovement[0]) {
+            dx = 1
+        } else if (player.pos.x > destinationMovement[0]) {
+            dx = -1
+        }
+        
+        if (player.pos.y < destinationMovement[1]) {
+            dy = 1
+        } else if (player.pos.y > destinationMovement[1]) {
+            dy = -1
+        }
+        
+        if ((dx != 0) || (dy != 0)) {
+            pos(dx, dy)
+        } else {
+            destinationMovement = undefined
+        }
+    }
+}
+
+function use() {
+    if (gameStarted) {
+        if (showingInventory) {
+            useInventory(inventoryIndex)
+        } else {
+            send({
+                type: 'use'
+            })
+        }
+    } else {
+        menuUse()
+    }
+}
+
+function grab() {
+    send({
+        type: 'grab'
+    })
+}
+
+function fire() {
+    waitTarget(function(x, y) {
+            send({
+                type: 'fire',
+                tgt: {x: x, y: y}
+                })
+        })
+    announceMsg("Click over a cell to target")
+}
+
+function reload() {
+    send({
+        type: 'reload'
+    })
+}
+
+function updateInventory() {
+    send({
+        type: 'inventory'
+    })
+}
+
+function useInventory(idx) {
+    send({
+        type: 'useInventory',
+        index: idx
+    })
+}
+
+function clearTips() {
+    clearTipsTimeout = null
+
+    for (var i=0; i < currentTips.length; i++) {
+        currentTips[i].remove()
+    }
+    
+    currentTips = []
+}
+
+function showTips() {
+    if (clearTipsTimeout != null) {
+        clearTimeout(clearTipsTimeout)
+        clearTips()
+        return
+    }
+
+
+    // First, collect all the "tippable" entities
+    // TODO: The items should be classified if they are on sight or not
+    var tip_items = []
+    for (var y=0; y < displaySizeY; y++) {
+        var row = level[y + minCoords.y]
+        for (var x=0; x < displaySizeX; x++) {
+            var tile = row[x + minCoords.x]
+            
+            if (tile.character || tile.item) {
+                var o = absolutePosToWindow(x + minCoords.x, y + minCoords.y)
+                o.tile = tile
+                tip_items.push(o)
+            }
+        }
+    }
+    
+    // TODO: Check that the boxes don't collide!
+    var bod = $(document.body)
+    for (var i=0; i < tip_items.length; i++) {
+        var o = tip_items[i]
+        var tip = $("<div>")
+        if ((typeof(o.tile.character) != "undefined") && (o.tile.character != null)) {
+            tip.text(o.tile.character.username)
+        }
+        
+        if ((typeof(o.tile.item) != "undefined") && (o.tile.item != null)) {
+            tip.text(o.tile.item.name || o.tile.item.ammoType)
+        }
+        
+        tip.css('position', 'fixed')
+        tip.addClass('tip')
+        o.left += 16
+        tip.offset(o)
+        bod.append(tip)
+        currentTips.push(tip)
+    }
+    
+    clearTipsTimeout = setTimeout(clearTips, 1000)
+}
+
+function toggleInventory() {
+    
+    if (showingInventory) {
+        showingInventory = false
+    } else {
+        updateInventory()
+        showingInventory = true
+    }
+}
+
+function fillInventory(list) {
+    var invlst = $("#inventory_list")
+    
+    invlst.empty()
+    for (var i=0; i < list.length; i++) {
+        var li = $("<li>")
+        var item = list[i]
+        var line
+        if (item.type == 'ammo') {
+            line = $('<span>')
+            line.text()
+            line.css('color', '#990')
+        } else if (item.type == 'weapon') {
+            line = $('<span>')
+            line.text()
+            line.css('color', '#D00')
+        }
+        li.append(line)
+        li.click((function(idx) {
+            return function() {
+                useInventory(idx)
+            }
+        })(i))
+        invlst.append(li)
+    }
+}
+
+function drawInventory() {
+    drawAsciiText(1, 0, 'Inventory', [0, 255, 0], [0, 0, 0])
+    if (inventoryList) {
+        inventoryIndex = Math.min(Math.max(0, inventoryIndex), inventoryList.length - 1)
+        for (var i=0; i < inventoryList.length; i++) {
+            var item = inventoryList[i]
+            var txt = ''
+            var fgcol = [0, 0, 0]
+            
+            if (item.type == 'ammo') {
+                txt = item.ammoType + ' (' + item.amount + ') x' + item.minDamageMult + '-' + item.maxDamageMult
+                fgcol = [153, 153, 0]
+            } else if (item.type == 'weapon') {
+                txt = item.name + ' dmg: ' + item.damage[0] + '-' + item.damage[1] + ' (' + item.ammoType + ' ' + item.ammo + '/' + item.ammoMax+ ')'
+                fgcol = [221, 0, 0]
+            } else {
+                txt = item.name
+                fgcol = [64, 192, 0]
+            }
+            
+            drawAsciiText(1, 2 + i * 2, txt, fgcol, opsColsBg[i == inventoryIndex])
+        }
+    }
+}
+
+var onClickTarget
+function waitTarget(fn) {
+    if (onClickTarget) {
+        // Autoselect target
+        var sightFov = player.fov
+        var sf2 = sightFov * sightFov
+        var foundTarget = false
+        var selx, sely, seld2 = sf2*2
+        
+        for (var y=-sightFov; y < sightFov; y++) {
+            var ty = player.pos.y + y
+            
+            if ((ty >= 0) && (ty < level.length)) {
+                var yy = y*y
+                for (var x=-sightFov; x < sightFov; x++) {
+                    var tx = player.pos.x + x
+                    if ((tx >= 0) && (tx < level[0].length)) {
+                        var d2 = x*x + yy
+                        
+                        if ((d2 <= sf2) && (d2 != 0)) {
+                            var tile = level[ty][tx]
+                            
+                            if (tile.character) {
+                                // TODO: Check the character is aggresive to us
+                                if (d2 < seld2) {
+                                    selx = tx
+                                    sely = ty
+                                    seld2 = d2
+                                    foundTarget = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (foundTarget) {
+            onClickTarget(selx, sely, true)
+        }
+    } else {
+        // Wait target selection
+        onClickTarget = function(x, y, direct) {
+            // Correct x and y relative to the player position display
+            if (!direct) {
+                x = player.pos.x + (x - player.cpos.x)
+                y = player.pos.y + (y - player.cpos.y)
+            }
+            fn(x, y)
+            onClickTarget = null
+        }
+    }
+}
+
+function moveToDest(x, y) {
+    var x = player.pos.x + (x - player.cpos.x)
+    var y = player.pos.y + (y - player.cpos.y)
+    
+    destinationMovement = [x, y]
+    
+    tryMoveTowardsDestination()
+}
+
+function clickCell(x, y) {
+    lastClick = [x, y]
+    if ((typeof(onClickTarget) != "undefined")&&(onClickTarget != null)) {
+        onClickTarget(x, y)
+    } else if (gameStarted && (x < displaySizeX)) {
+        moveToDest(x, y)
+    }
+}
+
+function moveCell(x, y) {
+    lastMove = [x, y]
+}
+
+function updateWeapon(w) {
+    if (typeof(w) != "undefined") {
+        currentWeapon = w
+     }
+}
+
+function randomColorBetween(c0, c1) {
+    var a = Math.random()
+    var a1 = 1 - a
+    
+    c0 = hexToColor(c0)
+    c1 = hexToColor(c1)
+    
+    var r0 = ((c0 & 0x00FF0000) >> 16) & 0xFF
+    var g0 = ((c0 & 0x0000FF00) >> 8) & 0xFF
+    var b0 = ((c0 & 0x000000FF)) & 0xFF
+    
+    var r1 = ((c1 & 0x00FF0000) >> 16) & 0xFF
+    var g1 = ((c1 & 0x0000FF00) >> 8) & 0xFF
+    var b1 = ((c1 & 0x000000FF)) & 0xFF
+    
+    return [
+        Math.floor(a * r0 + a1 * r1),
+        Math.floor(a * g0 + a1 * g1),
+        Math.floor(a * b0 + a1 * b1),
+    ]
+}
+
+function spawnTrail(tr, x, y) {
+    if (tr) {
+        var cell = level[y][x]
+        var num = 1 + Math.random() * tr.num
+        var part = {}
+        
+        for (var i=0; i < num; i++) {
+            part.route = TraceLine(x, y, 
+                Math.round(x + (Math.random() * tr.spread[0]) - tr.spread[0]/2),
+                Math.round(y + (Math.random() * tr.spread[1]) - tr.spread[1]/2)).reverse()
+            part.routeStart = Date.now() + tr.delay * Math.random()
+            part.timeGranule = (tr.ttl * Math.random()) / (part.route.length + 1)
+            part.bg = randomColorBetween(tr.from, tr.to)
+            part.fg = [0,0,0]
+            part.pix = 0
+            part.cssClass = ''
+            part.trail = false
+            
+            cell.particles.push(part)
+        }
+    }
+}
+
+function updateDisplay() {
+    if (gameStarted) {
+        updateDisplayGameStarted()
+    } else if (currentMenu == 0) {
+        updateDisplayMenu()
+    } else if (currentMenu == 1) {
+        // Char select
+        updateCharMenu()
+    } else if (currentMenu == 2) {
+        // Options
+        updateOptionsMenu()
+    } else if (currentMenu == 3) {
+        // Fundraiser
+        updateFundraiserMenu()
+    } else if (currentMenu == 4) {
+        // Tutorial
+        updateTutorial()
+    }
+}
+
+function aberrateColor(col) {
+    if (Math.random() < 0.3) {
+        return [
+            col[0] + Math.floor(Math.random() * 64),
+            col[1] + Math.floor(Math.random() * 64),
+            col[2] + Math.floor(Math.random() * 64)
+        ]
+    } else {
+        return col
+    }
+}
+
+function drawButtonWithText(x, y, txt, width, fg, bg, menuOp) {
+    var vpadtxt = Array(width + 1).join(" ")
+    var dw = width - txt.length
+    var lpad = Math.ceil(dw / 2) + 1
+    var rpad = Math.floor(dw / 2) + 1
+    
+    drawAsciiText(x, y, vpadtxt, fg, bg)
+    drawAsciiText(x, y + 1, Array(lpad).join(" ") + txt + Array(rpad).join(" "), fg, bg)
+    drawAsciiText(x, y + 2, vpadtxt, fg, bg)
+    
+    if ((lastClick[0] >= x)&&(lastClick[0] <= (x + width))&&
+        (lastClick[1] >= y)&&(lastClick[1] < (y + 3))) {
+        return true
+    } else {
+        if ((lastMove[0] >= x)&&(lastMove[0] <= (x + width))&&
+            (lastMove[1] >= y)&&(lastMove[1] < (y + 3))) {
+            if ((menuSel != menuOp)&&(editMode)) {
+                finishEditText()
+            }
+            menuSel = menuOp
+        }
+        return false
+    }
+}
+
+function drawEditWithHint(x, y, txt, hint, width, fg, bg, menuOp) {
+    var vpadtxt = Array(width + 1).join(" ")
+    
+    if (!txt || txt.length == 0) {
+        txt = hint
+    }
+    
+    var dw = width - txt.length
+    var lpad = Math.ceil(dw / 2) + 1
+    var rpad = Math.floor(dw / 2) + 1
+    
+    drawAsciiText(x, y, vpadtxt, fg, bg)
+    drawAsciiText(x, y + 1, Array(lpad).join(" ") + txt + Array(rpad).join(" "), fg, bg)
+    drawAsciiText(x, y + 2, vpadtxt, fg, bg)
+    
+    if ((lastClick[0] >= x)&&(lastClick[0] <= (x + width))&&
+        (lastClick[1] >= y)&&(lastClick[1] < (y + 3))) {
+        return true
+    } else {
+        if ((lastMove[0] >= x)&&(lastMove[0] <= (x + width))&&
+            (lastMove[1] >= y)&&(lastMove[1] < (y + 3))) {
+            if ((menuSel != menuOp)&&(editMode)) {
+                finishEditText()
+            }
+            menuSel = menuOp
+        }
+        return false
+    }
+}
+
+var editMode = false
+var editModeSingleLine = true
+var editCallback
+var editText
+var editCursorPos
+var cursorBlinkInterval
+function beginEditText(txt, cb) {
+    editMode = true
+    if (txt) {
+        editText = txt
+        editCursorPos = txt.length
+    } else {
+        editText = ""
+        editCursorPos = 0
+    }
+    
+    var nb = 0
+    cursorBlinkInterval = setInterval(function() {
+        if (editText.length > 0) {
+            if ((nb % 3) == 0) {
+                cb(editText.slice(0, editCursorPos-1) + '_' + editText.slice(editCursorPos))
+            } else {
+                cb(editText)
+            }
+        }
+        
+        nb += 1
+    }, 200)
+    
+    editCallback = function(key) {
+        if (key == 8) {
+            if (editCursorPos >= editText.length) {
+                editText = editText.slice(0, editText.length - 1)
+            } else {
+                editText = editText.slice(0, editCursorPos-1) + editText.slice(editCursorPos)
+            }
+            editCursorPos -= 1
+        } else if (key == 37) {
+            editCursorPos = Math.max(0, editCursorPos-1)
+        } else if (key == 39) {
+            editCursorPos = Math.min(editText.length, editCursorPos+1)
+        } else {
+            if (editCursorPos >= editText.length) {
+                editText += String.fromCharCode(key)
+            } else {
+                editText = editText.slice(0, editCursorPos-2) + String.fromCharCode(key) + editText.slice(editCursorPos-1)
+            }
+            editCursorPos += 1
+        }
+        
+        cb(editText)
+    }
+}
+
+function finishEditText() {
+    clearInterval(cursorBlinkInterval)
+    editCallback(39)
+    editMode = false
+}
+
+function drawButtonWithCheckAndText(x, y, txt, width, checked, fg, bg, menuOp) {
+    var vpadtxt = Array(width + 1).join(" ")
+    var dw = width - txt.length
+    var lpad = Math.ceil(dw / 2) + 1
+    var rpad = Math.floor(dw / 2) + 1
+    drawAsciiText(x, y, vpadtxt, fg, bg)
+    drawAsciiText(x, y + 1, Array(lpad).join(" ") + txt + Array(rpad).join(" "), fg, bg)
+    
+    terminal.setPixel(x + 1, y + 1, checked?254:255, fg, bg)
+    
+    drawAsciiText(x, y + 2, vpadtxt, fg, bg)
+    
+    if ((lastClick[0] >= x)&&(lastClick[0] <= (x + width))&&
+        (lastClick[1] >= y)&&(lastClick[1] < (y + 3))) {
+        return true
+    } else {
+        if ((lastMove[0] >= x)&&(lastMove[0] <= (x + width))&&
+            (lastMove[1] >= y)&&(lastMove[1] < (y + 3))) {
+            if ((menuSel != menuOp)&&(editMode)) {
+                finishEditText()
+            }
+            menuSel = menuOp
+        }
+        
+        return false
+    }
+}
+
+function drawStarsAndGanymede() {
+    if (menuStars.length == 0) {
+        var cols = [[140, 140, 140], [120, 120, 120], [70, 70, 70], [32, 32, 32]]
+        var pixis = [46, 7, 42, 15, 21, 233]
+        for (var i=0; i < 100; i++) {
+            var p = Math.floor(Math.random() * 4) + 1
+            var rpix = Math.random() * p/3
+            menuStars.push({
+                dv: p,
+                col: aberrateColor(cols[p-1]),
+                y: Math.floor(Math.random() * displaySizeY),
+                pix: pixis[Math.floor(rpix * rpix * pixis.length)],
+                phase: Math.random()
+            })
+        }
+    }
+    
+    var d = Date.now()
+    
+    for (var i=0; i < menuStars.length; i++) {
+        var star = menuStars[i]
+        var tg = ((d / (32000.0 * star.dv) + star.phase) % 1)
+        var px = Math.floor(tg * (displaySizeX + 64) - 32)
+        var py = Math.floor( -tg * 8 + star.y - 4)
+        terminal.setPixel(px, py, star.pix, star.col)
+    }
+    
+    if (ganymedeSprite) {
+        var tg = ((d / 24000.0) % 1)
+        var px = Math.floor( tg * (displaySizeX + 64) - 32)
+        var py = Math.floor( -tg * (displaySizeY / 2) + displaySizeY / 4 * 2)
+        drawRexSprite(px, py, ganymedeSprite)
+    }
+}
+
+function updateDisplayMenu() {
+    terminal.clear()
+    
+    drawStarsAndGanymede()
+    
+    if (titleSprite) {
+        drawRexSprite(Math.floor((displaySizeX + 32)/2) - 20, 0, titleSprite)
+    }
+        
+    if (tutorialSeen) {
+        if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 21, "Start", 12, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+            menuUse(0)
+        }
+    } else {
+        if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 21, "Tutorial", 12, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+            menuUse(0)
+        }
+    }
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 25, "Options", 12, opsColsFg[menuSel == 1], opsColsBg[menuSel == 1], 1)) {
+        menuUse(1)
+    }
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 29, "Fundraiser", 12, opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
+        menuUse(2)
+    }
+    
+    if (tutorialSeen) {
+        if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 33, "Tutorial", 12, opsColsFg[menuSel == 3], opsColsBg[menuSel == 3], 3)) {
+            menuUse(3)
+        }
+    } else {
+        if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 33, "Start", 12, opsColsFg[menuSel == 3], opsColsBg[menuSel == 3], 3)) {
+            menuUse(3)
+        }
+    }
+    
+    if (gplusSprite) {
+        drawRexSprite(((displaySizeX + 32)/2) - 27, 50, gplusSprite)
+    }
+    
+    if (twitterSprite) {
+        drawRexSprite(((displaySizeX + 32)/2) + 14, 50, twitterSprite)
+    }
+    
+    if (redditSprite) {
+        drawRexSprite(((displaySizeX + 32)/2) - 6, 50, redditSprite)
+    }
+    
+    /*for (var i=0; i < 256; i++) {
+        terminal.setPixel(i % 16, Math.floor(i / 16), i, [255, 255, 255], [0, 0, 0])
+    }*/
+    
+    drawAsciiText(0, displaySizeY-1, "Developed by ViciousRobotRodent.com - @johnvillarz - 2015", [128, 128, 128])
+}
+
+var charSprites = {}
+function updateCharMenu() {
+    terminal.clear()
+    drawStarsAndGanymede()
+    
+    drawAsciiText(1, 1, "Pick your class", [192, 255, 192])
+    
+    for (var i=0; i < playerClasses.length; i++) {
+        var selected = menuSel == i
+        var name = playerClasses[i].name
+        var id = playerClasses[i].id
+        
+        if (drawButtonWithText(1, 3 + i * 3, name, 16, opsColsFg[selected], opsColsBg[selected], i)) {
+            if (menuSel == i) {
+                menuUse(i)
+            } else {
+                menuSel = i
+                lastClick = [-1, -1]
+            }
+        }
+        
+        if (selected) {
+            if (id in charSprites) {
+                if (charSprites[id] != null) {
+                    drawRexSprite(18, 3, charSprites[id])
+                }
+            } else {
+                charSprites[id] = null
+                
+                var f = function(sid) {
+                    loadXpSprite("char" + sid, function(sp) { charSprites[sid] = sp })
+                }
+                f(id)
+            }
+        }
+    }
+    
+    if (drawEditWithHint(((displaySizeX + 32)/2) - 16, displaySizeY - 10, ownUsername, "Player's name", 32, opsColsFg[menuSel == playerClasses.length], opsColsBg[menuSel == playerClasses.length], playerClasses.length)) {
+        menuUse(playerClasses.length)
+    }
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == playerClasses.length+1], opsColsBg[menuSel == playerClasses.length+1], playerClasses.length+1)) {
+        menuUse(playerClasses.length+1)
+    }
+}
+
+function updateOptionsMenu() {
+    terminal.clear()
+    drawStarsAndGanymede()
+    
+    if (drawButtonWithCheckAndText(((displaySizeX + 32)/2) - 16, 21, "Duplicate console size", 32, localStorage.dupConSz == "true", opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+        menuUse(0)
+    }
+    
+    if (drawButtonWithCheckAndText(((displaySizeX + 32)/2) - 16, 25, "Use 2xSAI shader", 32, localStorage.use2xsai == "true", opsColsFg[menuSel == 1], opsColsBg[menuSel == 1], 1)) {
+        menuUse(1)
+    }
+    
+    if (drawButtonWithCheckAndText(((displaySizeX + 32)/2) - 16, 29, "Use Music", 32, localStorage.useMusic == "true", opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
+        menuUse(2)
+    }
+    
+    if (drawButtonWithCheckAndText(((displaySizeX + 32)/2) - 16, 33, "Use Sound", 32, localStorage.useSound == "true", opsColsFg[menuSel == 3], opsColsBg[menuSel == 3], 3)) {
+        menuUse(3)
+    }
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 4], opsColsBg[menuSel == 4], 4)) {
+        menuUse(4)
+    }
+    
+}
+
+function randInt(a, b) {
+    if (b) {
+        return Math.floor(Math.random() * (b-a) + a)
+    } else {
+        return Math.floor(Math.random() * a)
+    }
+}
+
+function updateFundraiserMenu() {
+    terminal.clear()
+    drawStarsAndGanymede()
+    
+    if (lighthouseSprite) {
+        drawRexSprite(6, 6, lighthouseSprite)
+    }
+    
+    drawAsciiText(20, 8, "Fundraiser driven with", [128, 128, 128])
+    drawAsciiText(20, 10, "Light", [190, 233, 255])
+    drawAsciiText(25, 10, "house", [255, 255, 255])
+    drawAsciiText(20, 12, "Raise money with Bitcoin", [128, 128, 128])
+    
+    drawAsciiText(20, 17, "Ganymede Gate needs your help to become the best space multiplayer", [255, 255, 255])
+    drawAsciiText(20, 18, "roguelike!! Development is chugging along nicely, but there's some", [255, 255, 255])
+    drawAsciiText(20, 19, "assets that need to be secured to make this project successful. So", [255, 255, 255])
+    drawAsciiText(20, 20, "this fundraiser has been started with that goal in mind.", [255, 255, 255])
+    drawAsciiText(20, 22, "Some of the most needed things at the moment are:", [255, 255, 255])
+    drawAsciiText(20, 24, " * Domain with dedicated server", [255, 255, 255])
+    drawAsciiText(20, 25, " * Reddit ads to attract new players", [255, 255, 255])
+    drawAsciiText(20, 26, " * Lobby system for distributed servers around the globe", [255, 255, 255])
+    drawAsciiText(20, 27, " * More art: Music, sprites, etc.", [255, 255, 255])
+    
+    drawAsciiText(20, 35, "Each donation counts!", [randInt(128, 255), randInt(128, 255), randInt(128, 255)])
+    drawAsciiText(20, 37, "Download Lighthouse for your platform, install and then download", [255, 255, 255])
+    drawAsciiText(20, 38, "the project to pledge and track progress.", [255, 255, 255])
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 14, "Download Lighthouse", 32, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+        menuUse(0)
+    }
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 10, "Download project", 32, opsColsFg[menuSel == 1], opsColsBg[menuSel == 1], 1)) {
+        menuUse(1)
+    }
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
+        menuUse(2)
+    }
+}
+    
+function updateTutorial() {
+    terminal.clear()
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 18, displaySizeY - 10, "<< Previous", 16, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+        menuUse(0)
+    }
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) + 2, displaySizeY - 10, "Next >>", 16, opsColsFg[menuSel == 1], opsColsBg[menuSel == 1], 1)) {
+        menuUse(1)
+    }
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
+        menuUse(2)
+    }
+}
+    
+function updateDisplayGameStarted() {
+    var sx0 = Math.min(Math.max(player.pos.x - displaySizeX/2, 0), level[0].length - displaySizeX)
+    var sy0 = Math.min(Math.max(player.pos.y - displaySizeY/2, 0), level.length - displaySizeY)
+    
+    minCoords.x = sx0
+    minCoords.y = sy0
+    
+    terminal.clear()
+
+    if (showingInventory) {
+        drawInventory()
+    } else {
+        for (var y=0; y < displaySizeY; y++) {
+            var levelRow = level[sy0 + y]
+            for (var x=0; x < displaySizeX; x++) {
+                var tile = levelRow[sx0 + x]
+                var shroud = false
+                var fg = "#AAAAAA"
+                var bg = undefined
+                var glyph = asciiMapping[" "]
+                
+                if (tile.turn) {
+                    if (tile.turn != turn) {
+                        shroud = true
+                    }
+                }
+                
+                
+                var cssClass = undefined
+                if (tile.particles.length > 0) {
+                    var ti = 0
+                    
+                    // trail: {from: "DDDDDD", to: "222222", ttl: 200, num: 3, inherit: false, velocity: [-0.25, 0.25]}
+                    
+                    while (ti < tile.particles.length) {
+                        var part = tile.particles[ti]
+                        glyph = part.pix
+                        cssClass = part.cssClass
+                        fg = part.fg || undefined
+                        bg = part.bg || undefined
+                        
+                        var ct = Date.now()
+                        
+                        if ((ct - part.routeStart) >= part.timeGranule) {
+                            if (part.trail) {
+                                spawnTrail(part.trail, sx0+x, sy0+y)
+                            }
+                            
+                            tile.particles.splice(ti, 1)
+                            part.routeStart = ct
+                            var pos = part.route.pop()
+                            if (pos) {
+                                if ((pos[1] >= 0)&&(pos[1] < level.length)&&
+                                    (pos[0] >= 0)&&(pos[0] < level[0].length)) {
+                                    level[pos[1]][pos[0]].particles.push(part)
+                                }
+                            }
+                        } else {
+                            ti++
+                        }
+                    }
+                } else if (tile.character) {
+                    if ((player.pos.x == x + sx0)&&(player.pos.y == y +sy0)) {
+                        player.cpos = {x: x, y: y}
+                    }
+                    
+                    glyph = tile.character.pix
+                    if (tile.character.color) {
+                        fg = tile.character.color
+                    }
+                    cssClass = tile.character.cssClass
+                } else if (tile.item) {
+                    glyph = tile.item.pix
+                    cssClass = tile.item.cssClass
+                } else if (tile.debris) {
+                    glyph = tile.debris.pix
+                    fg = tile.debris.color
+                    cssClass = tile.debris.cssClass
+                } else if (tile.tile) {
+                    glyph = tile.tile
+                    
+                    if (tile.fg) {
+                        fg = "#" + tile.fg
+                    }
+                    
+                    if (tile.bg) {
+                        bg = "#" + tile.bg
+                    }
+                    
+                    cssClass = tile.cssClass
+                }
+                
+                if (cssClass) {
+                    if (cssClass in colorMap) {
+                        var rule = colorMap[cssClass]
+                        
+                        if ((!tile.fg)&&("color" in rule)) {
+                            fg = fgColorFromColorMapRule(rule, x*y)
+                        }
+                        
+                        if ((!tile.bg)&&("backgroundColor" in rule)) {
+                            bg = rule.backgroundColor
+                        }
+                    } else if (cssClass in cssRules) {
+                        var rule = cssRules[cssClass]
+                        
+                        if ((!tile.fg)&&(rule.style.color.length > 0)) {
+                            fg = rule.style.color
+                        }
+                        
+                        if ((!tile.bg)&&(rule.style.backgroundColor.length > 0)) {
+                            bg = rule.style.backgroundColor
+                        }
+                    }
+                }
+                
+                if (shroud) {
+                    fg = "#333333"
+                    
+                    if (bg) {
+                        bg = "#000000"
+                    }
+                }
+                
+                terminal.setPixel(x, y, glyph, fg, bg)
+            }
+        }
+    }
+    
+    terminal.setPixelBg(lastMove[0], lastMove[1], [128, 0, 0])
+    
+    updateAttrs()
+    updateLogs()
+}
+
+function drawConsoleBar(x, y, w, h, percent) {
+    var cols = [[255, 0, 0], [255, 255, 0], [0, 255, 0], [0, 0, 255]]
+    
+    for (var iy=0; iy < h; iy++) {
+        for (var ix=0; ix < w; ix++) {
+            var p = ix / w
+            var cp = Math.floor(p*4)
+            var col = cols[cp]
+            
+            if (p < percent) {
+                terminal.setPixel(x + ix, y + iy, 178, col, [0,0,0])
+            } else {
+                terminal.setPixel(x + ix, y + iy, 178, [0,0,0], [64, 64, 64])
+            }
+        }
+    }
+}
+
+function pad(txt, l) {
+    while (txt.length < l) {
+        txt = " " + txt
+    }
+    
+    return txt
+}
+
+function drawAsciiText(x, y, txt, fg, bg) {
+    for (var i=0; i < txt.length; i++) {
+        var c = txt.charAt(i)
+        if (c in asciiMapping) {
+            terminal.setPixel(x + i, y, asciiMapping[c], fg, bg)
+        }
+    }
+}
+
+function drawRexSprite(x, y, spr) {
+    for (var l=0; l < spr.layers.length; l++) {
+        var layer = spr.layers[l]
+        
+        for (var iy=0; iy < layer.height; iy++) {
+            for (var ix=0; ix < layer.width; ix++) {
+                var ras = layer.raster[iy + ix * layer.height]
+                
+                if (!((ras.bg.r == 255) && (ras.bg.g == 0) && (ras.bg.b == 255))) {
+                    terminal.setPixel(x + ix, y + iy, ras.asciiCode,
+                        [ras.fg.r, ras.fg.g, ras.fg.b],
+                        [ras.bg.r, ras.bg.g, ras.bg.b])
+                }
+            }
+        }
+    }
+}
+
+function pruneWeaponName(name) {
+    return name.toLocaleLowerCase().replace(/\s/g, '')
+}
+
+function updateAttrs() {
+    if (playerAttrs) {
+        var y = 2
+        
+        drawAsciiText(displaySizeX + 2, y, "Plyr. " + ownUsername, [0, 255, 0], [0, 0, 0])
+        
+        drawAsciiText(displaySizeX + 2, y + 2, "HP " + pad(playerAttrs.hp.pos, 3) + "/" + playerAttrs.hp.max, [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(displaySizeX + 13, y + 2, 12, 1, playerAttrs.hp.pos / playerAttrs.hp.max)
+        
+        drawAsciiText(displaySizeX + 2, y + 4, "AR " + pad(playerAttrs.armor.pos, 3) + "/" + playerAttrs.armor.max, [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(displaySizeX + 13, y + 4, 12, 1, playerAttrs.armor.pos / playerAttrs.armor.max)
+        
+        drawAsciiText(displaySizeX + 2, y + 6, "ST " + pad(playerAttrs.strength.pos, 3) + "/" + playerAttrs.strength.max, [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(displaySizeX + 13, y + 6, 12, 1, playerAttrs.strength.pos / playerAttrs.strength.max)
+        
+        drawAsciiText(displaySizeX + 2, y + 8, "PR " + pad(playerAttrs.precision.pos, 3) + "/" + playerAttrs.precision.max, [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(displaySizeX + 13, y + 8, 12, 1, playerAttrs.precision.pos / playerAttrs.precision.max)
+        
+        drawAsciiText(displaySizeX + 2, y + 10, "SP " + pad(playerAttrs.speed.pos, 3) + "/" + playerAttrs.speed.max, [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(displaySizeX + 13, y + 10, 12, 1, playerAttrs.speed.pos / playerAttrs.speed.max)
+        
+        drawAsciiText(displaySizeX + 2, y + 13, "Weapon", [0, 255, 0], [0, 0, 0])
+        drawAsciiText(displaySizeX + 2, y + 15, currentWeapon.name, [0, 255, 0], [0, 0, 0])
+        drawAsciiText(displaySizeX + 2, y + 16, currentWeapon.ammoType, [0, 255, 0], [0, 0, 0])
+        drawAsciiText(displaySizeX + 2, y + 17, "Ammo " + pad(currentWeapon.ammo, 3) + "/" + currentWeapon.ammoMax, [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(displaySizeX + 15, y + 17, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax)
+        drawAsciiText(displaySizeX + 2, y + 18, "Dmg. " + currentWeapon.damage[0] + " - " + currentWeapon.damage[1], [0, 255, 0], [0, 0, 0])
+        
+        if (!(currentWeapon.name in weaponSprites)) {
+            weaponSprites[currentWeapon.name] = undefined
+            
+            var f = function(weap) {
+                loadXpSprite(pruneWeaponName(weap), function(sp) { weaponSprites[weap] = sp })
+            }
+            f(currentWeapon.name)
+        } else if (weaponSprites[currentWeapon.name]) {
+            var spr = weaponSprites[currentWeapon.name]
+            
+            drawRexSprite(displaySizeX + 2, y + 20, spr)
+        }
+    }
+}
+
+function updateLogs() {
+    drawAsciiText(displaySizeX + 2, 38, "Game log", [0, 255, 0], [0, 0, 0])
+    
+    var m = announcements.length-1
+    var l = Math.min(m, displaySizeY - 40)
+    for (var i=0; i < l; i++) {
+        var ann = announcements[m - i]
+        
+        if (ann.length >= 30 ) {
+            var granule = 400
+            var tmln = granule * (ann.length + 8 - 30)
+            var p = Math.floor(((Date.now() % tmln) / granule)) - 4
+            if (p < 0) {
+                p = 0
+            } else if ((p + 30) >= ann.length) {
+                p = ann.length - 30
+            }
+            
+            ann = ann.slice(p, p+64)
+        }
+        
+        drawAsciiText(displaySizeX + 2, 40 + i, ann, [64, 200, 64], [0, 0, 0])
+    }
+} 
+            
+
+function absolutePosToWindow(x, y) {
+    /*if (x < minCoords.x) {
+        x = minCoords.x
+    } else if (x >= minCoords.x + displaySizeX) {
+        x = minCoords.x + displaySizeX - 1
+    }
+    
+    if (y < minCoords.y) {
+        y = minCoords.y
+    } else if (y >= minCoords.y + displaySizeY) {
+        y = minCoords.y + displaySizeY - 1
+    }
+    
+    var tx = x - minCoords.x
+    var ty = y - minCoords.y
+    
+    var table = $("#term")
+    var cl = $(table[0].rows[ty].cells[tx])
+    
+    return cl.offset()*/
+    
+}
+
+function spawnParticles() {
+    if (typeof(particles) != "undefined") {
+        for (var i=0; i < particles.length; i++) {
+            var part = particles[i]
+
+            if (part.movType == "instant") {
+                if (!part.route) {
+                    part.route = TraceLine(part.ox, part.oy, part.dx, part.dy).reverse()
+                    part.routeStart = Date.now() + part.delay
+                    part.timeGranule = part.ttl / part.route.length
+                }
+                
+                var pos = part.route[part.route.length - 1]
+                if (pos) {
+                    if ((pos[1] >= 0)&&(pos[1] < level.length)&&
+                            (pos[0] >= 0)&&(pos[0] < level[0].length)) {
+                        level[pos[1]][pos[0]].particles.push(part)
+                    }
+                }
+            }
+        }
+    }
+}
+
+function initAsciiDisplay(id, w, h) {
+    terminal = new ASCIITerminal({
+        font: './static/CGA8x8thick.png',
+        target: 'term',
+        console: {width: w + 32, height: h},
+        consoleScale: (localStorage.dupConSz == "true")?2:1,
+        use2xsai: localStorage.use2xsai == "true"
+    })
+    
+    terminal.ready(function() {
+        render()
+    })
+    
+    terminal.on('click', function(x, y) {
+        clickCell(x, y)
+    })
+    
+    terminal.on('mousemove', function(x, y) {
+        moveCell(x, y)
+    })
+}
+
+var handlers = {
+    init: function(obj) {
+        player.pos = obj.pos
+        
+        for (var y=0; y < obj.dim.h; y++) {
+            var row = Array.apply(null, new Array(obj.dim.w+1)).map(function(){return {particles: []}})
+            level.push(row)
+        }
+        
+        var lst = $("#player_list")
+        for (var i=0; i < obj.player_list.length; i++) {
+            var plyr = obj.player_list[i]
+            if (!(plyr.username in playerDivs)) {
+                var dv = $("<div>")
+                dv.text(plyr.username)
+                
+                lst.append(dv)
+                if (plyr.username == ownUsername) {
+                    dv.css("color", "#04f")
+                } else {
+                    dv.css("color", "#ff0")
+                }
+                playerDivs[plyr.username] = dv
+            }
+        }
+        
+        useSounds = localStorage.useSound == "true"
+        gameStarted = true
+        pos()
+    },
+    pos: function(obj) {
+        player.pos.x = obj.plyr_pos.x
+        player.pos.y = obj.plyr_pos.y
+        player.fov = obj.fov
+        turn++
+        
+        for (var y=0; y < obj.scope.length; y++) {
+            var py = y + obj.pos.y
+            
+            if ((py >= 0)&&(py < level.length)) {
+                for (var x=0; x < obj.scope[y].length; x++) {
+                    var px = x + obj.pos.x
+                    
+                    if ((px >= 0) && (px < level[y + obj.pos.y].length)) {
+                        if (obj.scope[y][x]) {
+                            var sc = obj.scope[y][x]
+                            sc.turn = turn
+                            sc.particles = level[py][px].particles
+                            level[py][px] = sc
+                        }
+                    }
+                }
+            }
+        }
+        
+        particles = obj.particles
+        
+        if (typeof(obj.attrs) != "undefined") {
+            playerAttrs = obj.attrs
+        }
+        
+        updateWeapon(obj.weapon)
+        
+        updateDisplay()
+        
+        if ("damaged" in obj) {
+            showDamage = obj.damaged?30:0
+        }
+        
+        if ("inventory" in obj) {
+            inventoryList = obj.inventory
+        }
+        
+        if (useSounds) {
+            for (var i=0; i < obj.snds.length; i++) {
+                var snd = obj.snds[i]
+                
+                createjs.Sound.play(snd.s, {
+                    volume: snd.v/128.0,
+                    pan: snd.p/128.0,
+                    delay: snd.d
+                })
+            }
+        }
+        
+        spawnParticles()
+        tryMoveTowardsDestination() // If there's a standing command, move
+    },
+    new_player: function(obj) {
+        announceMsg("Player " + obj.username + " joined the game!")
+        var lst = $("#player_list")
+        var dv = $("<div>")
+        dv.text(obj.username + " (" + obj.player_class + ")")
+        
+        if (obj.username == ownUsername) {
+            dv.css("color", "#04f")
+        } else {
+            dv.css("color", "#ff0")
+        }
+        
+        lst.append(dv)
+        playerDivs[obj.username] = dv
+    },
+    player_left: function(obj) {
+        announceMsg("Player " + obj.username + " left the game!")
+        var dv = playerDivs[obj.username]
+        dv.remove()
+    },
+    player_died: function(obj) {
+        var dv = playerDivs[obj.username]
+        dv.css("color", "#800")
+        if (typeof(obj.reason) != "undefined") {
+            if (obj.reason == "lava") {
+                announceMsg("Player " + obj.username + " took a dive into lava")
+            } else if (obj.reason == "acid") {
+                announceMsg("Player " + obj.username + " decided to shed some skin on acid")
+            } else if (obj.reason == "plasma") {
+                announceMsg("Player " + obj.username + "'s subatomic particles got disorganized")
+            } else if (obj.reason == "9mm") {
+                announceMsg("Player " + obj.username + " bled through tiny holes")
+            } else if (obj.reason == "9mm FMJ") {
+                announceMsg("Player " + obj.username + " internal organs failed")
+            } else if (obj.reason == "12ga shells") {
+                announceMsg("Player " + obj.username + " was splattered on the walls")
+            } else {
+                announceMsg("Player " + obj.username + " died: " + obj.reason)
+            }
+        } else {
+            announceMsg("Player " + obj.username + " died")
+        }
+    },
+    player_downstairs: function(obj) {
+        var dv = playerDivs[obj.username]
+        dv.css("color", "#FFF")
+        announceMsg("Player " + obj.username + " went downstairs")
+    },
+    inventory: function(obj) {
+        inventoryList = obj.inventory
+    }
+}
+
+var wsPortPart = ""
+if (window.location.hostname.indexOf("ganymedegate") >= 0) {
+    // OpenShift needs the WebSocket to connect to port 8000
+    wsPortPart = ":8000"
+}
+
+var sock = new WebSocket("ws://" + window.location.hostname + wsPortPart)
+var totalChars = 0
+sock.onopen = function (event) {
+    //
+}
+
+sock.onmessage = function (event) {
+    totalChars += event.data.length
+    //console.log("~" + (totalChars/1024) + " Kb")*/
+    var msg = JSON.parse(pako.inflate(event.data, { to: 'string' }))
+    
+    if (typeof(msg.type) != 'undefined') {
+        handlers[msg.type](msg)
+    }
+    
+    if (typeof(msg.msgs) != 'undefined') {
+        queueAnnouncements(msg.msgs)
+    }
+}
+
+sock.onclose =  function (event) {
+    console.log("Close: " + event)
+}
+
+sock.onerror =  function (event) {
+    console.log("Error: " + event)
+}
+
+function send(obj) {
+    sock.send(JSON.stringify(obj))
+}
+
+var fnCommands = {
+    up: function() {
+        if (gameStarted) {
+            if (showingInventory) {
+                inventoryIndex--
+            } else {
+                pos(0, -1)
+            }
+        } else {
+            menuSel = menuSel - 1
+            if (menuSel < 0) {
+                menuSel += menuOptionsNumber
+            }            
+        }
+    },
+    down: function() {
+        if (gameStarted) {
+            if (showingInventory) {
+                inventoryIndex++
+            } else {
+                pos(0, 1)
+            }
+        } else {
+            menuSel = (menuSel + 1) % menuOptionsNumber
+        }
+    },
+    left: function() {
+        if (gameStarted) {
+            if (showingInventory) {
+            } else {
+                pos(-1, 0)
+            }
+        }
+    },
+    right: function() {
+        if (gameStarted) {
+            if (showingInventory) {
+            } else {
+                pos(1, 0)
+            }
+        }
+    },
+    upleft: function() {
+        if (gameStarted) {
+            if (showingInventory) {
+            } else {
+                pos(-1, -1)
+            }
+        }
+    },
+    upright: function() {
+        if (gameStarted) {
+            if (showingInventory) {
+            } else {
+                pos(1, -1)
+            }
+        }
+    },
+    downright: function() {
+        if (gameStarted) {
+            if (showingInventory) {
+            } else {
+                pos(1, 1)
+            }
+        }
+    },
+    downleft: function() {
+        if (gameStarted) {
+            if (showingInventory) {
+            } else {
+                pos(-1, 1)
+            }
+        }
+    },
+    wait: function() {
+        pos(0, 0)
+    },
+}
+
+var kb_hnd = {
+    // Up group
+    "Up": fnCommands.up,
+    "k": fnCommands.up,
+    "U+004B": fnCommands.up,
+    "w": fnCommands.up,
+    "U+0057": fnCommands.up,
+    
+    // Down group
+    "Down": fnCommands.down,
+    "j": fnCommands.down,
+    "U+004A": fnCommands.down,
+    "s": fnCommands.down,
+    "U+0053": fnCommands.down,
+    
+    // Left group
+    "Left": fnCommands.left,
+    "h": fnCommands.left,
+    "U+0048": fnCommands.left,
+    "a": fnCommands.left,
+    "U+0041": fnCommands.left,
+    
+    // Right group
+    "Right": fnCommands.right,
+    "l": fnCommands.right,
+    "U+004C": fnCommands.right,
+    "d": fnCommands.right,
+    "U+0044": fnCommands.right,
+    
+    // Upleft group
+    "Home": fnCommands.upleft,
+    "y": fnCommands.upleft,
+    "U+0059": fnCommands.upleft,
+    "q": fnCommands.upleft,
+    "U+0051": fnCommands.upleft,
+    
+    // Upright group
+    "PageUp": fnCommands.upright,
+    "u": fnCommands.upright,
+    "U+0055": fnCommands.upright,
+    "e": fnCommands.upright,
+    "U+0045": fnCommands.upright,
+    
+    // Downright group
+    "PageDown": fnCommands.downright,
+    "n": fnCommands.downright,
+    "U+004E": fnCommands.downright,
+    "c": fnCommands.downright,
+    "U+0043": fnCommands.downright,
+    
+    // Downleft group
+    "End": fnCommands.downleft,
+    "b": fnCommands.downleft,
+    "U+0042": fnCommands.downleft,
+    "z": fnCommands.downleft,
+    "U+005A": fnCommands.downleft,
+    
+    // Wait group
+    "Clear": fnCommands.wait,
+    ".": fnCommands.wait,
+    "U+002E": fnCommands.wait,
+    "x": fnCommands.wait,
+    "U+0058": fnCommands.wait,
+    
+    " ": use,
+    "U+0020": use,
+    
+    "g": grab,
+    "U+0047": grab,
+    
+    "f": fire,
+    "U+0046": fire,
+    
+    "r": reload,
+    "U+0052": reload,
+    
+    "U+00BA": showTips, // Tab
+    "i": toggleInventory,
+    "U+0049": toggleInventory
+}
+
+function render() {
+    updateDisplay()
+    if (terminal) {
+        terminal.render(showDamage)
+        if (showDamage > 0) {
+            showDamage--
+        }
+    }
+    requestAnimationFrame(render)
+}
+
+var preventNextKeypress = false
+var gameInputEnabled = true
+
+function disableGameInput() {
+    gameInputEnabled = false
+}
+
+function enableGameInput() {
+    gameInputEnabled = true
+}
+
+var fundRaiserAddress = "1Fir4FKRCzeU3fmZf5zpWvadhhXEMGMr9N"
+var fundRaiserURI = "https://api.biteasy.com/blockchain/v1/addresses/"
+var bavgUSDURI = "https://api.bitcoinaverage.com/ticker/global/USD/"
+var fundRaiserTarget = 1500
+var fundRaiserBar = "fndRaise"
+function updateFundRaiser() {
+    $.ajax(fundRaiserURI + fundRaiserAddress, {
+        dataType: 'json',
+        success: function(dataFR) {
+        
+            $.ajax(bavgUSDURI, {
+                dataType: 'json',
+                success: function(dataBA) {
+                    var tgt = fundRaiserTarget
+                    var balance = dataFR.data.total_received / 100000000.0 * dataBA.last
+                 
+                    updateBar("fndRaise", balance, tgt)
+                }
+            })
+        },
+        error: function(data) {
+        }
+    })
+}
+
+function collectStyleSheetRules() {
+    for (var rl=0; rl < document.styleSheets.length; rl++) {
+        var rules = document.styleSheets[rl].rules
+        
+        if ((rules) && (typeof(rules.length) != "undefined")) {
+            for (var i=0; i < rules.length; i++) {
+                var rule = rules[i]
+                if (rule.selectorText && (rule.selectorText.charAt(0) == '.')) {
+                    cssRules[rule.selectorText.slice(1)] = rule
+                }
+            }
+        }
+    }
+}
+
+function toggle_help() {
+    $("#help").toggle()
+}
+
+function updateShaders() {
+    var fs = $("#fs-edit").val()
+    var vs = $("#vs-edit").val()
+    
+    ASCIITerminal.util.fragmentShaders["default"] = fs
+    ASCIITerminal.util.vertexShaders["default"] = vs
+    
+    terminal.gl.shaderProgram = ASCIITerminal.util.initShaders(terminal.gl)[0]
+}
+
+function setupMusic() {
+    if (localStorage.useMusic == "true") {
+        if (!bgm) {
+            bgm = createjs.Sound.play("seedybg", {
+                        volume: 0.5,
+                        loop: -1
+                    })
+        } else {
+            bgm.play()
+        }
+        
+    } else {
+        bgm.stop()
+    }
+}
+
+function menuUse(n) {
+    if (typeof(n) != "undefined") {
+        menuSel = n
+        lastClick = [-1, -1]
+    }
+    
+    if (currentMenu == 0) {
+        // Start menu
+        if (menuSel == 0) {
+            if (!tutorialSeen) {
+                tutorialSeen = true
+                localStorage.tutorialSeen = true
+                currentMenu = 4
+                menuSel = 1
+                tutorialPage = 0
+            } else {
+                currentMenu = 1
+                menuSel = 0
+            }
+        } else if (menuSel == 1) {
+            currentMenu = 2
+            menuSel = 0
+        } else if (menuSel == 2) {
+            currentMenu = 3
+            menuSel = 0
+        } else if (menuSel == 3) {
+            if (!tutorialSeen) {
+                currentMenu = 1
+                menuSel = 0
+            } else {
+                tutorialSeen = true
+                localStorage.tutorialSeen = true
+                currentMenu = 4
+                menuSel = 1
+                tutorialPage = 0
+            }
+        }
+    } else if (currentMenu == 1) {
+        // Char select
+        if (menuSel == (itemsPerMenu[currentMenu] - 1)) {
+            currentMenu = 0
+            menuSel = 0
+        } else if (menuSel == (itemsPerMenu[currentMenu] - 2)) {
+            beginEditText(ownUsername, function(x) {
+                ownUsername = x
+            })
+        } else {
+            playerPickClass = playerClasses[menuSel].id
+            start()
+        }
+    } else if (currentMenu == 2) {
+        // Options
+        if (menuSel == (itemsPerMenu[currentMenu] - 1)) {
+            currentMenu = 0
+            menuSel = 1
+        } else if (menuSel == 0) {
+            localStorage.dupConSz = !(localStorage.dupConSz == "true")
+        } else if (menuSel == 1) {
+            localStorage.use2xsai = !(localStorage.use2xsai == "true")
+        } else if (menuSel == 2) {
+            localStorage.useMusic = !(localStorage.useMusic == "true")
+            setupMusic()
+        } else if (menuSel == 3) {
+            localStorage.useSound = !(localStorage.useSound == "true")
+        }
+    } else if (currentMenu == 3) {
+        // Fundraiser
+        if (menuSel == 0) {
+            window.open("https://www.vinumeris.com/lighthouse")
+        } else if (menuSel == 1) {
+            window.open("https://lighthouse.bitseattle.com/lighthouse-projects/ganymede-gate-fundraiser.lighthouse-project")
+        } else if (menuSel == (itemsPerMenu[currentMenu] - 1)) {
+            currentMenu = 0
+            menuSel = 2
+        }
+    } else if (currentMenu == 4) {
+        if (menuSel == 0) {
+            tutorialPage = tutorialPage - 1
+        } else if (menuSel == 1) {
+            tutorialPage = tutorialPage + 1
+        } else if (menuSel == (itemsPerMenu[currentMenu] - 1)) {
+            currentMenu = 0
+            menuSel = 0
+        }
+    }
+    
+    menuOptionsNumber = itemsPerMenu[currentMenu]
+}
+
+function loadXpSprite(name, callback) {
+    $.ajax("./static/" + name + ".xp", {
+        success: function(data) {
+            data = pako.inflate(atob(data))
+            data.alreadyDecompressed = true
+            var sp = new rexSprite.RexSprite(data)
+            
+            callback(sp)
+        }
+    })
+}
+
+$(document).ready(function () {
+    $(document).keyup(function (event) {
+        if (!editMode) {
+            event = window.event || event
+            var k = event.keyIdentifier || event.key
+            if (k in kb_hnd) {
+                kb_hnd[k]()
+                event.preventDefault()
+            }
+        } else {
+            event = window.event || event
+            
+            if ((event.keyCode == 8)||
+                (event.keyCode == 37)||
+                (event.keyCode == 39)) {
+                editCallback(event.keyCode)
+                event.preventDefault()
+            }
+        }
+    })
+    
+    $(document).keydown(function (event) {
+        if (!editMode) {
+            event = window.event || event
+            var k = event.keyIdentifier || event.key
+            if (k in kb_hnd) {
+                preventNextKeypress == true
+                event.preventDefault()
+            }
+        } else {
+            event = window.event || event
+            
+            if ((event.keyCode == 8)||
+                (event.keyCode == 37)||
+                (event.keyCode == 39)) {
+                event.preventDefault()
+            }
+        }
+    })
+    
+    $(document).keypress(function (event) {
+        if (!editMode) {//(gameStarted && gameInputEnabled) {
+            event = window.event || event
+            var k = event.keyIdentifier || event.key
+            
+            if (preventNextKeypress || (k in kb_hnd)) {
+                preventNextKeypress = false
+                event.preventDefault()
+            }
+        } else {
+            event = window.event || event
+            editCallback(event.charCode)
+            event.preventDefault()
+        }
+        
+        if ((event.keyCode == 44)) {
+            $("#shaders-edit").toggle()
+        }
+    })
+    
+    //collectStyleSheetRules()
+
+    $("#fs-edit").val(ASCIITerminal.util.fragmentShaders["default"])
+    $("#vs-edit").val(ASCIITerminal.util.vertexShaders["default"])
+    
+    /*setInterval(updateFundRaiser, 120000)
+    updateBar("fndRaise", 0, fundRaiserTarget)
+    updateFundRaiser()*/
+    
+    if (localStorage.inited == "true") {
+        pickClass(localStorage.chartype)
+        tutorialSeen = localStorage.tutorialSeen == "true"
+    } else {
+        localStorage.inited = true
+        localStorage.dupConSz = false
+        localStorage.use2xsai = false
+        localStorage.useMusic = true
+        localStorage.useSound = true
+        localStorage.tutorialSeen = false
+        
+        pickClass("marine")
+    }
+    
+    loadXpSprite("title", function(sp) { titleSprite = sp })
+    loadXpSprite("ganymede", function(sp) { ganymedeSprite = sp })
+    loadXpSprite("gplus", function(sp) { gplusSprite = sp })
+    loadXpSprite("twitter", function(sp) { twitterSprite = sp })
+    loadXpSprite("reddit", function(sp) { redditSprite = sp })
+    loadXpSprite("lighthouse", function(sp) { lighthouseSprite = sp })
+    
+    initAsciiDisplay('term', displaySizeX, displaySizeY)
+    
+    createjs.Sound.registerSound("./wav/9mmpistol.wav", "9mmpistol")
+    createjs.Sound.registerSound("./wav/rpg.wav", "rpg")
+    createjs.Sound.registerSound("./wav/shotgun.wav", "shotgun")
+    createjs.Sound.registerSound("./wav/pickup.wav", "pickup")
+    createjs.Sound.registerSound("./wav/empty_gun.wav", "empty_gun")
+    createjs.Sound.registerSound("./wav/dirt_step.wav", "dirt_step")
+    createjs.Sound.registerSound("./wav/reload.wav", "reload")
+    createjs.Sound.registerSound("./wav/hit.wav", "hit")
+    createjs.Sound.registerSound("./wav/gibs.wav", "gibs")
+    createjs.Sound.registerSound("./wav/open_door.wav", "open_door")
+    createjs.Sound.registerSound("./wav/switch.wav", "switch")
+    
+    // Laser sounds
+    createjs.Sound.registerSound("./wav/laserPistol.wav", "laserPistol")
+    createjs.Sound.registerSound("./wav/laserRifle.wav", "laserRifle")
+    createjs.Sound.registerSound("./wav/laserHeavy.wav", "laserHeavy")
+    createjs.Sound.registerSound("./wav/laserGatling.wav", "laserGatling")
+    
+    // Plasma sounds
+    createjs.Sound.registerSound("./wav/plasmaPistol.wav", "plasmaPistol")
+    createjs.Sound.registerSound("./wav/plasmaRifle.wav", "plasmaRifle")
+    createjs.Sound.registerSound("./wav/plasmaLauncher.wav", "plasmaLauncher")
+    createjs.Sound.registerSound("./wav/plasmaGatling.wav", "plasmaGatling")
+    
+    createjs.Sound.on("fileload", function() {
+        setupMusic()
+    })
+    createjs.Sound.registerSound("./wav/seedybg.wav", "seedybg")
+})
+
+function goFullScreen() {
+    if (
+        document.fullscreenEnabled || 
+        document.webkitFullscreenEnabled || 
+        document.mozFullScreenEnabled ||
+        document.msFullscreenEnabled
+        ) {
+        var i = document.getElementById("term");
+         
+        // go full-screen
+        if (i.requestFullscreen) {
+            i.requestFullscreen();
+        } else if (i.webkitRequestFullscreen) {
+            i.webkitRequestFullscreen();
+        } else if (i.mozRequestFullScreen) {
+            i.mozRequestFullScreen();
+        } else if (i.msRequestFullscreen) {
+            i.msRequestFullscreen();
+        }
+    }
+}
+</script>
+<script src="https://apis.google.com/js/platform.js" async defer></script>
+</body>
+</html>

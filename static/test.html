@@ -1,0 +1,59 @@
+<html>
+<head>
+</head>
+<body style="background: #000">
+
+<div id="term"></div>
+
+<script type="text/javascript" src="../templates/ASCIITerminal.js"></script>
+<script type="text/javascript">
+var terminal = new ASCIITerminal({
+    font: './CGA8x8thick.png',
+    target: 'term',
+    console: {width: 80, height: 80}
+})
+
+var f = 0
+function render() {
+    if ((f % 10) <= 5) {
+        if ((f % 2) == 0) {
+            terminal.clear(2, "#FF0000", "#00FF00")
+        } else {
+            terminal.clear(1, "#FF0000", "#00FF00")
+        }
+    } else {
+        var randomColor = function() {
+            if (Math.random() < 0.3) {
+                return undefined
+            }
+            
+            var ret = ""
+            for (var i=0; i < 6; i++) {
+                ret = ret + (Math.floor(Math.random() * 16)).toString(16)
+            }
+            
+            return "#" + ret
+        }
+        
+        for (var y=0; y < terminal.console.height; y++) {
+            for (var x=0; x < terminal.console.width; x++) {
+                terminal.setPixel(x, y, Math.floor(Math.random() * 255), randomColor(), randomColor())
+            }
+        }
+    }
+    
+    f++
+    terminal.render()
+    
+    requestAnimationFrame(render)
+}
+
+terminal.ready(function() {
+    render()
+})
+
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,42 @@
+{
+  "name": "MultiRL",
+  "version": "1.0.1",
+  "description": "Multiplayer Roguelike Engine",
+  "keywords": [
+    "OpenShift",
+    "Node.js",
+    "application",
+    "openshift"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "John Villar",
+    "email": "johnvillarzavatti@gmail.com",
+    "url": "http://www.viciousrobotrodent.com/"
+  },
+  "homepage": "http://www.viciousrobotrodent.com/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openshift/origin-server"
+  },
+
+  "engines": {
+    "node": ">= 0.6.0",
+    "npm": ">= 1.0.0"
+  },
+  
+  "files": ["conf/", "rex_sprites/", "sounds/", "static/", "templates/"],
+
+  "dependencies": {
+    "ws": "0.4.32",
+    "colors": "1.0.3",
+    "pako": "0.2.5",
+    "singlebyte": "1.0.13",
+    "buffer": "3.0.1"
+  },
+  "devDependencies": {},
+  "bundleDependencies": [],
+
+  "private": false,
+  "main": "mrl.js"
+}

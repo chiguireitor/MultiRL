@@ -1,6 +1,6 @@
 {
   "name": "MultiRL",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Multiplayer Roguelike Engine",
   "keywords": [
     "OpenShift",
@@ -17,7 +17,7 @@
   "homepage": "http://www.viciousrobotrodent.com/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/openshift/origin-server"
+    "url": "https://github.com/chiguireitor/MultiRL.git"
   },
 
   "engines": {

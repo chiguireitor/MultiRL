@@ -460,6 +460,13 @@ var handlers = { // These are the RPC handlers that the client can invoke
             }
         }
     }),
+    cheat: saferpc(function(ws, obj) {
+        if (gameDefs.allowCheating) {
+            if (obj.fn == 'nextlevel') {
+                nextLevel()
+            }
+        }
+    }),
 }
 
 function initObjects() {
@@ -659,6 +666,19 @@ function init() {
     weapons.registerPassableFn(passable)
     weapons.registerLevel(level)
     
+    resetLevel()
+    
+    console.log("Game " + "READY".green)
+}
+ 
+function resetLevel() { 
+    var w = gameDefs.level.width
+    var h = gameDefs.level.height
+    
+    while (level.length > 0) {
+        level.pop()
+    }        
+    
     for (var y=0; y < h; y++) {
         var row = Array.apply(null, new Array(w)).map(function(){return ((y==0)||(y==(h-1)))?{tile: asciiMapping['#']}:{tile: asciiMapping['.']}})
         row[0].tile = asciiMapping['#']
@@ -699,7 +719,7 @@ function init() {
         }
     }
     
-    var numItems = Math.random()*gameDefs.level.randomNumberItems + gameDefs.level.minNumberItems
+    var numItems = Math.random()*gameDefs.level.randomNumberItems*currentLevel + gameDefs.level.minNumberItems
     while (numItems > 0) {
         var x0 = Math.floor(Math.random() * level[0].length)
         var y0 = Math.floor(Math.random() * level.length)
@@ -743,26 +763,28 @@ function init() {
         sprites["deployship"].draw(level, startXPos - 2, startYPos - 5)
         sprites["baseentry"].draw(level, w - (startXPos - 2), h - (startYPos - 5))
     } else {
-        startXPos = Math.random() * (w - 8) + 4
-        startYPos = Math.random() * (h - 8) + 4
+        startXPos = Math.floor(Math.random() * (w - 8) + 4)
+        startYPos = Math.floor(Math.random() * (h - 8) + 4)
     }
     
-    aiState = new ai(
-        level, 
-        traceable, 
-        passable, 
-        activable,
-        activableTiles,
-        inflictMeleeDamage, 
-        spawnGibs)
+    if (aiState) {
+        aiState.purge()
+    } else {
+        aiState = new ai(
+            level, 
+            traceable, 
+            passable, 
+            activable,
+            activableTiles,
+            inflictMeleeDamage, 
+            spawnGibs)
+    }
     
     var numEnemies = gameDefs.level.numEnemies
     while (numEnemies > 0) {
         spawnRandomEnemy()
         numEnemies--
     }
-    
-    console.log("Game " + "READY".green)
 }
 
 function sign(n) {
@@ -1073,6 +1095,49 @@ function processTurnIfAvailable() {
     if (wss.clients.length == 0) {
         console.log('Stopping game ' + 'NOW!'.red)
         stopGameAndRestart()
+    } else {
+        checkLevelRestart()
+    }
+}
+
+function checkLevelRestart() {
+    var everyoneReady = true
+    
+    for (var i=0; i < wss.clients.length; i++) {
+        var c = wss.clients[i]
+        everyoneReady &= c.player.readyForNextLevel
+    }
+    
+    if (everyoneReady) {
+        nextLevel()
+    }
+}
+
+function nextLevel() {
+    currentLevel++
+    resetLevel()
+ 
+    wss.broadcast(JSON.stringify({type: 'new_level'}))
+ 
+    for (var i=0; i < wss.clients.length; i++) {
+        var c = wss.clients[i]
+
+        c.player.readyForNextLevel = false
+        
+        var dx = c.clientnum % 4
+        var dy = Math.floor(c.clientnum / 4)
+        c.player.pos = {x: startXPos + dx, y: startYPos + dy}
+        
+        level[c.player.pos.y][c.player.pos.x].character = c.player
+        
+        var msg = {
+            type: 'init',
+            pos: c.player.pos,
+            dim: {w: level[0].length, h: level.length},
+            player_list: wss.clients.map(function(x) { if (x.player) { return {username: x.player.username}} } )
+        }
+    
+        c.sendPako(JSON.stringify(msg))
     }
 }
 
@@ -1292,38 +1357,12 @@ function loadCachedFiles() {
         cssPage['style'] = data
     })
 
-    fs.readFile('templates/bootstrap.min.css', 'utf-8', function (err,data) {
-        if (err) {
-            return console.log("ERROR: ".red + "Couldn't cache css page!")
-        }
-        
-        cssPage['bootstrap'] = data
-    })
-
-
-
     fs.readFile('templates/pako_inflate.min.js', 'utf-8', function (err,data) {
         if (err) {
             return console.log("ERROR: ".red + "Couldn't cache js page!")
         }
         
         cachedJs["pako_inflate.min"] = data
-    })
-
-    fs.readFile('templates/move.min.js', 'utf-8', function (err,data) {
-        if (err) {
-            return console.log("ERROR: ".red + "Couldn't cache js page!")
-        }
-        
-        cachedJs["move.min"] = data
-    })
-
-    fs.readFile('templates/bootstrap.min.js', 'utf-8', function (err,data) {
-        if (err) {
-            return console.log("ERROR: ".red + "Couldn't cache js page!")
-        }
-        
-        cachedJs["bootstrap.min"] = data
     })
 
     fs.readFile('templates/jquery-2.1.1.min.js', 'utf-8', function (err,data) {
@@ -1381,47 +1420,6 @@ function loadCachedFiles() {
         
         cachedJs["rexsprite"] = data
     })
-
-
-    /*fs.readFile('static/qrcode.png', function (err,data) {
-        if (err) {
-            return console.log("ERROR: ".red + "Couldn't cache image!")
-        }
-        
-        staticFiles["qrcode.png"] = [data, "image/png"]
-    })
-
-    fs.readFile('static/CGA8x8thick.png', function (err,data) {
-        if (err) {
-            return console.log("ERROR: ".red + "Couldn't cache image!")
-        }
-        
-        staticFiles["CGA8x8thick.png"] = [data, "image/png"]
-    })
-    
-    fs.readFile('static/ganymede_ascii.png', function (err,data) {
-        if (err) {
-            return console.log("ERROR: ".red + "Couldn't cache image!")
-        }
-        
-        staticFiles["ganymede_ascii.png"] = [data, "image/png"]
-    })
-    
-    fs.readFile('static/flamethrower.xp', function (err,data) {
-        if (err) {
-            return console.log("ERROR: ".red + "Couldn't cache image!")
-        }
-        
-        staticFiles["flamethrower.xp"] = [data.toString('base64'), "application/octet-stream"]
-    })
-    
-    fs.readFile('static/9mmpistol.xp', function (err,data) {
-        if (err) {
-            return console.log("ERROR: ".red + "Couldn't cache image!")
-        }
-        
-        staticFiles["9mmpistol.xp"] = [data.toString('base64'), "application/octet-stream"]
-    })*/
     
     fs.readdir('./static', function (err, files) {
         if (!err) {
@@ -1605,6 +1603,7 @@ function stopGameAndRestart() {
     }
     gameStarted = false
     hasBeenInited = false
+    currentLevel = 0
     
     level = []
     aiState = null

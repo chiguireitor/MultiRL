@@ -50,6 +50,7 @@ module.exports = {
     plasmaDamage: 15,
     lavaDamage: 5,
     acidDamage: 1,
+    allowCheating: false,
     spawnPoolMaxRadius: 8,
     playerBaseFov: 10, // WARNING: too high a value can hog all the server bandwidth
     level: {
@@ -62,8 +63,8 @@ module.exports = {
         maxRivers: 6, // Max number of rivers, can be of water, acid or lava
         minLevers: 20, // Minimum number of levers in the level
         randomLevers: 4, // Max random number of levers to add to the level
-        minNumberItems: 30,
-        randomNumberItems: 30,
+        minNumberItems: 5,
+        randomNumberItems: 5, // This gets multiplied by the level number
         numSpritesToTryFit: 20, // How much sprites the level generator will try to fit
         numEnemies: 50, // Number of enemies to keep alive at all times
     }

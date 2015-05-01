@@ -56,6 +56,10 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
     
     this.agents = []
     
+    this.purge = function() {
+        this.agents = []
+    }
+    
     this.instantiate = function(x, y, name, pix, color, attrs, weapon, inventory, customDecision) {
         if (!attrs.speed) {
             attrs.speed = {pos: 0}

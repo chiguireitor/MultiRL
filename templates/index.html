@@ -544,6 +544,13 @@ function fire() {
     announceMsg("Click over a cell to target")
 }
 
+function cheat(fn) {
+    send({
+        type: 'cheat',
+        fn: fn
+        })
+}
+
 function reload() {
     send({
         type: 'reload'
@@ -1544,6 +1551,8 @@ function initAsciiDisplay(id, w, h) {
 
 var handlers = {
     init: function(obj) {
+        announceMsg("Initializing game")
+        console.log(obj)
         player.pos = obj.pos
         
         for (var y=0; y < obj.dim.h; y++) {
@@ -1551,7 +1560,7 @@ var handlers = {
             level.push(row)
         }
         
-        var lst = $("#player_list")
+        /*var lst = $("#player_list")
         for (var i=0; i < obj.player_list.length; i++) {
             var plyr = obj.player_list[i]
             if (!(plyr.username in playerDivs)) {
@@ -1566,7 +1575,7 @@ var handlers = {
                 }
                 playerDivs[plyr.username] = dv
             }
-        }
+        }*/
         
         useSounds = localStorage.useSound == "true"
         gameStarted = true
@@ -1647,8 +1656,8 @@ var handlers = {
     },
     player_left: function(obj) {
         announceMsg("Player " + obj.username + " left the game!")
-        var dv = playerDivs[obj.username]
-        dv.remove()
+        /*var dv = playerDivs[obj.username]
+        dv.remove()*/
     },
     player_died: function(obj) {
         var dv = playerDivs[obj.username]
@@ -1680,7 +1689,14 @@ var handlers = {
     },
     inventory: function(obj) {
         inventoryList = obj.inventory
-    }
+    },
+    new_level: function(obj) {
+        announceMsg("You enter a new level!")
+        gameStarted = false
+        while (level.length > 0) {
+            level.pop()
+        }
+    },
 }
 
 var wsPortPart = ""

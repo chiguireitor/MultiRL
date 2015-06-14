@@ -47,7 +47,456 @@ var aids = require('./aids.js')
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var effects = require('./effects.js')
 
+var fs = require('fs')
+var rex = require('./rex_sprite.js')
+var determinist = require('./determinist.js')
+
+var zlib = require('zlib')
+
+var onecolor = require('onecolor')
+
 var items = []
+
+var defaultNameStructure = {
+    'fn': 'concatenate', 
+    val: [{"var": "subaspect"}, {"var": "aspect"}, {"var": "category"}, {"var": "parent"}]
+}
+
+var itemDefs = require('./conf/itemDefs.js')
+var categories = itemDefs.categories
+var templates = itemDefs.templates
+
+function camelCase(name) {
+    var words = name.split(' ')
+    return words.map(function(x) {
+        if (x.length > 3) {
+            return  x[0].toUpperCase() + x.slice(1)
+        } else {
+            return x
+        }
+    }).join(' ')
+}
+
+var currentRandomGen
+var generatorFunctions = {
+    "random-pick": function(array, context) {
+        var val = array[currentRandomGen.randomIntRange(0, array.length)] //Math.floor(Math.random() * array.length)]
+        
+        if (typeof(val) == "object") {
+            if (('score' in val) && ('aspect' in val)) {
+                context.addAspect(val.aspect, val.score)
+            }
+            
+            if (('subscore' in val) && ('subaspect' in val)) {
+                context.addSubAspect(val.subaspect, val.subscore)
+            }
+            
+            if ('additional' in val) {
+                context.addProperties(val.additional)
+            }
+            
+            return val.val
+        } else {
+            return val
+        }
+    },
+    "concatenate": function(array, context) {
+        var joinChar = " "
+        if ((typeof(array) == "object") && !(Array.isArray(array))) {
+            if (array.nospace) {
+                joinChar = ""
+            }
+            
+            array = array.array
+        }
+        
+        return array.map(function(x) {
+            if ((typeof(x) === "object") && ('var' in x)) {
+                if (x['var'] in context) {
+                    return context[x['var']]
+                } else {
+                    return ''
+                }
+            } else {
+                return x
+            }
+        }).reduce(function(p, x) { if (x != "") { return p.concat([x]) } else { return p } }, [])
+          .join(joinChar)
+          .trim()
+    },
+    "random": function(params, context) {
+        var v = currentRandomGen.random()//Math.random()
+        
+        if ('aspects' in params) {
+            var asps = params.aspects[Math.round(v * (params.aspects.length-1))]
+            context.addAspect(asps.name, asps.score)
+        }
+		
+        if ('subaspects' in params) {
+            var subs = params.subaspects[Math.round(v * (params.subaspects.length-1))]
+            context.addSubAspect(subs.name, subs.score)
+        }
+        return v * (params.range[1] - params.range[0]) + params.range[0]
+    },
+	// {fn: "random-null", "subaspect": "grenade launcher", "score": 50, "probability": 0.1, "val": {"ammoType": "M2 grenades", "ammoMax": 1, "volume": 5}, "precisionFactor": 0.4, "sndOnFire": "smg_grenade"},
+	"random-null": function(params, context) {
+		if (currentRandomGen.random() <= params.probability) { //Math.random() <= params.probability) {
+			if ('aspect' in params) {
+				context.addAspect(params.aspect, params.score)
+			}
+			
+			if ('subaspect' in params) {
+				context.addSubAspect(params.subaspect, params.score)
+			}
+			
+			return params.val
+		}
+	},
+    "random-int": function(range) {
+        return currentRandomGen.randomIntRange(range[0], range[1]) //Math.floor(Math.random() * (range[1] - range[0])) + range[1]
+    }
+}
+
+function matchesRanges(ranges, pix) {
+	var fg = onecolor([pix.fg.r, pix.fg.g, pix.fg.b, 255])
+	var bg = onecolor([pix.bg.r, pix.bg.g, pix.bg.b, 255])
+	
+	var matchesFg = false
+	var matchesBg = false
+	for (var i=0; i < ranges.length; i++) {
+		var range = ranges[i]
+		var fgSM = false
+		var fgVM = false
+		var bgSM = false
+		var bgVM = false
+		
+		if ('s' in range) {
+			var s0 = range.s[0]/255.0
+			var s1 = range.s[1]/255.0
+			
+			if ((s0 <= fg.saturation()) && (fg.saturation() <= s1)) {
+				fgSM = true
+			}
+			
+			if ((s0 <= bg.saturation()) && (bg.saturation() <= s1)) {
+				bgSM = true
+			}
+		}
+		
+		if ('v' in range) {
+			var v0 = range.v[0]/255.0
+			var v1 = range.v[1]/255.0
+			
+			if ((v0 <= fg.value()) && (fg.value() <= v1)) {
+				fgVM = true
+			}
+			
+			if ((v0 <= bg.value()) && (bg.value() <= v1)) {
+				bgVM = true
+			}
+		}
+		
+		matchesFg |= fgSM && fgVM
+		matchesBg |= bgSM && bgVM
+	}
+	
+	return [matchesFg, matchesBg]
+}
+
+function toneMap(map, tex, r, g, b) {
+	var col = onecolor([r, g, b, 255])
+	var colO = {
+		h: col.hue(),
+		s: col.saturation(),
+		v: col.value()
+	}
+	var colD = {
+		h: tex.hue(),
+		s: tex.saturation(),
+		v: tex.value() * colO.v
+	}
+	
+	for (var i=0; i < map.length; i++) {
+		var rule = map[i]
+		
+		colD[rule.destination] = colO[rule.origin] * rule.factor + colD[rule.destination]
+	}
+	
+	col = onecolor([0,0,0, 255])
+		.hue(colD.h)
+		.saturation(colD.s)
+		.value(colD.v)
+	
+	return [Math.floor(col.red() * 255),
+		Math.floor(col.green() * 255),
+		Math.floor(col.blue() * 255)]
+}
+
+var toneTextures
+function loadToneTextures() {
+	toneTextures = []
+	
+	var files = fs.readdirSync('./rex_sprites/item_gen/tone_textures')
+	
+	for (var i=0; i < files.length; i++) {
+		var fn = files[i]
+		
+		var name = fn.split('.').slice(0, -1).join('.')
+		var data = fs.readFileSync('./rex_sprites/item_gen/tone_textures/' + fn)
+		var ret = new rex.RexSprite(data)
+		toneTextures.push(ret)
+	}
+}
+
+function generate(spath, params, id) {
+	if (!toneTextures) {
+		loadToneTextures()
+	}
+    var path = spath.split("/")
+	
+    var nd = templates
+    var parent = ''
+    var const_fn
+	
+	var rndGeni = new determinist.IdRandomizer(id)
+    
+    // Walk the tree and find the to-be-generated template
+    while (!(('isleaf' in nd) && (nd.isleaf)) && path.length > 0) {
+        var evnn = path[0]
+        
+        if (evnn == '*') {
+            var possel = []
+            for (x in nd) {
+                if (nd.hasOwnProperty(x) && (x != "_const_fn")) {
+                    possel.push(x)
+                }
+            }
+            
+            parent = possel[rndGeni.randomIntRange(0, possel.length)]
+            nd = nd[parent]
+        } else {
+            parent = evnn
+            nd = nd[evnn]
+        }
+        
+        if ('_const_fn' in nd) {
+            const_fn = nd['_const_fn']
+        }
+        
+        path = path.slice(1)
+    }
+    
+    var meetsParams = false
+    var iterations = 0
+	var imageGenParams = nd.image_generator
+    var constItem
+	
+    while ((iterations < 100) && !meetsParams) {
+        iterations += 1
+		
+		var rndGen = rndGeni.clone()
+		currentRandomGen = rndGen
+	
+        // Now process and generate the item
+        var cat
+        var result = {}
+        var aspects = []
+        var subaspects = []
+        var context = {
+            'category': '', 
+            'parent': parent,
+            'aspect': '',
+            'subaspect': '',
+            'score': 0,
+            addAspect: function(name, score) {
+                var i = 0
+                while ((i < aspects.length)&&(aspects[i].score < score)) {
+                    i++
+                }
+                aspects = aspects.slice(0, i).concat([{name: name, score: score}]).concat(aspects.slice(i))
+                context.aspect = aspects[aspects.length - 1].name
+                context.score += score
+            },
+            addSubAspect: function(name, score) {
+                var i = 0
+                while ((i < subaspects.length)&&(subaspects[i].score < score)) {
+                    i++
+                }
+                subaspects = subaspects.slice(0, i).concat([{name: name, score: score}]).concat(subaspects.slice(i))
+                context.subaspect = subaspects[subaspects.length - 1].name
+                context.score += score
+            },
+            addProperties: function(obj) {
+                for (x in obj) {
+                    if (obj.hasOwnProperty(x)) {
+                        result[x] = obj[x]
+                    }
+                }
+            }
+        }
+        
+        if ('category' in nd) {
+            cat = categories[nd.category]
+            cat = cat[rndGen.randomIntRange(0, cat.length)] //Math.floor(Math.random() * cat.length)]
+            
+            if (typeof(cat) == 'object') {
+                for (x in cat.overrides) {
+                    if (cat.overrides.hasOwnProperty(x)) {
+                        nd[x] = cat.overrides[x]
+                    }
+                }
+                
+                if ('score' in cat) {
+                    context.score += cat.score
+                }
+                
+                cat = cat.name
+            }
+            
+            context.category = cat
+        }
+        
+        for (x in nd) {
+            if ((x != 'isleaf') && (x != 'category') && (x != 'image_generator') && nd.hasOwnProperty(x)) {
+                var val = nd[x]
+                
+                if ((typeof(val) === "object") && ('fn' in val) && ('val' in val)) {
+                    result[x] = generatorFunctions[val.fn](val.val, context)
+                } else {
+                    result[x] = val
+                }
+            }
+        }
+        
+        // Fix values and fill in defaults
+        if ('pix' in result) {
+            result.pix = asciiMapping[result.pix]
+        }
+        
+        if (!('name' in result)) {
+            result.identifiedName = camelCase(generatorFunctions[defaultNameStructure.fn](defaultNameStructure.val, context))
+            result.name = camelCase(generatorFunctions[defaultNameStructure.fn](defaultNameStructure.val, {
+                'category': cat, 
+                'parent': parent,
+                'aspect': '',
+                'subaspect': ''
+            }))
+            
+            if (result.identifiedName != result.name) {
+                result.name = 'Unidentified ' + result.name
+                result.identified = false
+            } else {
+                result.identified = true
+            }
+        }
+        
+        if (params && ('score' in params)) {
+            if (context.score <= params.score) {
+                meetsParams = true
+            }
+        } else if (!params) {
+            meetsParams = true
+        }
+        
+        if (meetsParams) {
+			result.id = spath.split('/').pop() + '_' + rndGen.id
+			console.log('gen_id: ' + result.id)
+            constItem = new const_fn(result)
+			
+			var imgen = nd.image_generator
+			
+			if (imgen) {
+				var layers = new Array(imgen.layers.length)
+				var loadNum = 0
+				
+				var finishSpriteProc = function() {
+					var w = layers[0].layers[0].width
+					var h = layers[0].layers[0].height
+					
+					var buf = new Array(w*h)
+					
+					layers[0].rawDraw(buf, 0, 0, 0)
+					
+					var itemNameLC = result.identifiedName.toLocaleLowerCase()
+					
+					for (var i=0; i < imgen.features.length; i++) {
+						if (itemNameLC.indexOf(imgen.features[i].toLocaleLowerCase()) >= 0) {
+							var spriteNum = Math.floor((i + 1)/4.0)
+							var layerNum = i + 1 - spriteNum * 4
+							
+							console.log(i + ' ' + spriteNum)
+							buf = layers[spriteNum].rawDraw(buf, layerNum)
+						}
+					}
+					
+					var toneMapping = imgen["tone-mapping"]
+					var j = rndGen.randomIntRange(-1, toneTextures.length)
+					if (j >= 0) {
+						var toneTex = toneTextures[j]
+						
+						for (var i=0; i < buf.length; i++) {
+							var pix = buf[i]
+							var rgbDest
+							var hsvDest
+							
+							var rgbDest = toneTex.layers[0].raster[i].bg
+							var hsvDest = onecolor([rgbDest.r, rgbDest.g, rgbDest.b, 255])
+							var mtch = matchesRanges(toneMapping.ranges, pix)
+							
+							if (mtch[0]) {
+								var col = toneMap(toneMapping.map, hsvDest, pix.fg.r, pix.fg.g, pix.fg.b)
+								buf[i].fg.r = col[0]
+								buf[i].fg.g = col[1]
+								buf[i].fg.b = col[2]
+							}
+							
+							if (mtch[1]) {
+								var col = toneMap(toneMapping.map, hsvDest, pix.bg.r, pix.bg.g, pix.bg.b)
+								buf[i].bg.r = col[0]
+								buf[i].bg.g = col[1]
+								buf[i].bg.b = col[2]
+							}
+						}
+					}
+					
+					var resBuf = zlib.gzipSync(rex.saveLayerAsXPBuffer(layers[0].version, w, h, buf))
+					fs.writeFile('rex_sprites/generated/' + result.id + '.xp', resBuf, function(err) {
+						if (err) {
+							console.log("Couldn't save file: " + err)
+						}
+					})
+				}
+				
+				for (var x=0; x < imgen.layers.length; x++) {
+					(function(nm, idx) {
+						fs.readFile('./rex_sprites/item_gen/' + nm + '.xp', function (errrf, data) {
+							if (!errrf) {
+								var ret = new rex.RexSprite(data, false, function() {
+										loadNum++
+										
+										if (loadNum == layers.length) {
+											finishSpriteProc()
+										}
+									})
+									
+								layers[idx] = ret
+							} else {
+								console.log('Couldn\'t load sprite: ' + nm)
+							}
+						})
+					})(imgen.layers[x], x)
+				}
+			}
+        }
+    }
+        
+    if (meetsParams) {
+        return constItem
+    } else {
+        throw "Couldn't create an item with the specified params: " + spath + " " + JSON.stringify(params)
+    }
+}
+items.generate = generate
 
 items.push(new weapons.Ranged({
     name: "9mm Pistol",

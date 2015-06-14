@@ -50,6 +50,7 @@ var zlib = require('zlib')
 var sb = require('singlebyte')
 var cp437 = sb.getEncodingTable('cp437')
 var Buffer = require('buffer/').Buffer
+var natBuffer = require('buffer').Buffer
 
 function rgbObj2cssHex(o) {
     var r = o.r.toString(16)
@@ -71,7 +72,7 @@ function rgbObj2cssHex(o) {
     return r + g + b
 }
 
-function RexSprite(buf, encode) {
+function RexSprite(buf, encode, onfinish) {
     this.version = 0
     this.numLayers = 0
     this.layers = []
@@ -85,6 +86,9 @@ function RexSprite(buf, encode) {
                 return function(err, buffer) {
                     if (!err) {
                         rs.loadInflatedBuffer(buffer)
+						if (onfinish) {
+							onfinish()
+						}
                     } else {
                         console.log(err)
                     }
@@ -243,8 +247,51 @@ RexSprite.prototype.draw = function(level, x, y) {
     }
 }
 
+RexSprite.prototype.rawDraw = function(buf, layerNum) {
+    var layer = this.layers[layerNum]
+	
+	for (var i=0; i < layer.raster.length; i++) {
+		var pix = layer.raster[i]
+		
+		if (!((pix.bg.r == 255)&&(pix.bg.g == 0)&&(pix.bg.b == 255))) {
+			buf[i] = pix
+		}
+	}
+	
+	return buf
+}
+
+function saveLayerAsXPBuffer(version, width, height, layer) {
+	var buffer = new natBuffer(16 + width * height * 10)
+	
+	buffer.writeInt32LE(version, 0)
+	buffer.writeInt32LE(1, 4)
+	
+	buffer.writeInt32LE(width, 8)
+	buffer.writeInt32LE(height, 12)
+	
+	var offs = 16
+	for (var i=0; i < layer.length; i++) {
+		var pix = layer[i]
+		
+		buffer.writeInt32LE(pix.asciiCode, offs)
+		offs += 4
+		
+		buffer.writeUInt8(pix.fg.r, offs++)
+		buffer.writeUInt8(pix.fg.g, offs++)
+		buffer.writeUInt8(pix.fg.b, offs++)
+		
+		buffer.writeUInt8(pix.bg.r, offs++)
+		buffer.writeUInt8(pix.bg.g, offs++)
+		buffer.writeUInt8(pix.bg.b, offs++)
+	}
+	
+	return buffer
+}
+
 module.exports = {
-    RexSprite: RexSprite
+    RexSprite: RexSprite,
+	saveLayerAsXPBuffer: saveLayerAsXPBuffer
 }
 
 /*if (typeof(window) != "undefined") {

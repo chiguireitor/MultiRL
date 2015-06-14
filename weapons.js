@@ -263,9 +263,11 @@ function rayhitThrough(x0, y0, x1, y1) {
 
 function Ranged(options) {
     this.name = options.name || 'No name'
+	this.id = options.id || '------'
     this.description = options.description || 'No description'
     this.type = options.type || 'weapon'
     this.cssClass = options.cssClass || 'low-level-item'
+    this.color = options.color || 0xFFFFFF
     this.ammo = options.ammo || 0
     this.ammoMax = options.ammoMax || 6
     this.ammoUse = options.ammoUse || 1
@@ -288,9 +290,14 @@ function Ranged(options) {
     this.sndOnFire = options.sndOnFire || ''
     this.sndOnReload = options.sndOnReload || 'reload'
     this.sndOnEmpty = options.sndOnEmpty || 'empty_gun'
+    this.identifiedName = options.identifiedName || ''
+	this.volume = options.volume || 1
+	this.alternate = options.alternate
+    this.identified = options.identified || (options.identifiedName == '')
     
     this.ranged = true
     this.melee = false
+    this.identifyPercent = 0
     
     this.speedDecorators = []
     this.precisionDecorators = []
@@ -304,9 +311,11 @@ function Ranged(options) {
 Ranged.prototype.clone = function() {
     return new Ranged({
         name: this.name,
+		id: this.id,
         description: this.description,
         type: this.type,
         cssClass: this.cssClass,
+        color: this.color,
         ammo: this.ammo,
         ammoMax: this.ammoMax,
         ammoUse: this.ammoUse,
@@ -329,6 +338,10 @@ Ranged.prototype.clone = function() {
         sndOnFire: this.sndOnFire,
         sndOnReload: this.sndOnReload,
         sndOnEmpty: this.sndOnEmpty,
+        identifiedName: this.identifiedName,
+        identified: this.identified,
+		volume: this.volume,
+		alternate: this.alternate,
     })
 }
 
@@ -355,13 +368,16 @@ Ranged.prototype.rpcRepr = function(c) {
     }
                     
     return {
-        name: this.name,
+        name: (this.identified && (this.identifiedName != ''))?this.identifiedName:this.name,
+		id: this.id,
         description: this.description,
         type: this.type,
         cssClass: this.cssClass,
+        color: this.color,
         ammo: this.ammo,
         ammoMax: this.ammoMax,
         ammoType: this.ammoType,
+        identified: (this.identified || (this.identifiedName == '')),
         chargerAmmoType: this.chargerAmmoType,
         damage: [dmgVals.minDamage, dmgVals.maxDamage]
     }
@@ -667,7 +683,7 @@ Ranged.prototype.assignCharger = function(charger) {
 function Charger(options) {
     this.type = "ammo"
     this.pix = options.pix || '?'
-    this.ammoType = options.ammoType
+    this.ammoType = options.ammoType || options.identifiedName || options.name
     this.amount = options.amount || 1
     this.stacksInventory = options.stacksInventory || true
     this.maxStackInventory = options.maxStackInventory || options.amount*5

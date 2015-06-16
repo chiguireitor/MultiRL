@@ -186,52 +186,51 @@ var templates = {
         }
     },
     "ammo": {
-        "_const_fn": weapons.Charger,
-        "9mm bullets": {
-            /*ammoType: "9mm bullets Corrosive",
-            amount: 30,
-            cssClass: 'high-level-ammo',
-            stacksInventory: true,
-            maxStackInventory: 60,
-            damageDecorators: [
-                function(dmgVals) {
-                    dmgVals.maxDamage *= 1
-                    dmgVals.maxDamage *= 5
-                    dmgVals.criticalChance += 0.35
-                    dmgVals.armorMultiplier *= -5
-                    
-                    return dmgVals
-                }
-            ],
-            effects: [new effects.Effect(undefined, {
-                affectsFriendly: true,
-                affectsEnemy: true,
-                isSticky: true,
-                isTargetArea: true,
-                isSourceArea: true,
-                targetRadius: 0,
-                sourceRadius: 0,
-                stickyTtl: 30,
-                stickyTtlRandom: 30,
-                sourceFn: effects.effectFunction.acid,
-                targetFn: effects.effectFunction.acid,
-                stickyFn: effects.effectFunction.acid,
-                additional: {
-                    acidDamage: 1
-                }
-            })],
-            pix: asciiMapping['‼']*/
-        },
-        "12ga shells": {
-        },
-        "7.62x54mm bullets": {
-        },
-        "H80 RPG": {
-        },
-        "Energy cell": {
-        },
-        "Gasoline tank": {
-        }
+		"charger": {
+			"_const_fn": weapons.Charger,
+			"9mm bullets": {
+				ammoType: {fn: "concatenate", val: [{"var": "category"}]},
+				amount: 30,
+				cssClass: 'low-level-ammo',
+				stacksInventory: true,
+				maxStackInventory: 60,
+				pix: '‼'
+			},
+			"12mm bullets": {
+				ammoType: {fn: "concatenate", val: [{"var": "category"}]},
+				amount: 20,
+				cssClass: 'low-level-ammo',
+				stacksInventory: true,
+				maxStackInventory: 60,
+				pix: '‼'
+			},
+			".460 bullets": {
+				ammoType: {fn: "concatenate", val: [{"var": "category"}]},
+				amount: 24,
+				cssClass: 'low-level-ammo',
+				stacksInventory: true,
+				maxStackInventory: 60,
+				pix: '‼'
+			},
+			".45 bullets": {
+				ammoType: {fn: "concatenate", val: [{"var": "category"}]},
+				amount: 30,
+				cssClass: 'low-level-ammo',
+				stacksInventory: true,
+				maxStackInventory: 60,
+				pix: '‼'
+			},
+			"12ga shells": {
+			},
+			"7.62x54mm bullets": {
+			},
+			"H80 RPG": {
+			},
+			"Energy cell": {
+			},
+			"Gasoline tank": {
+			}
+		}
     }
 }
 

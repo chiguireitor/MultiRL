@@ -279,7 +279,7 @@ function generate(spath, params, id) {
             nd = nd[evnn]
         }
         
-        if ('_const_fn' in nd) {
+        if (nd && ('_const_fn' in nd)) {
             const_fn = nd['_const_fn']
         }
         
@@ -1048,5 +1048,7 @@ items.searchWeaponByName = function(name) {
         }
     }
 }
+
+items.generate = generate
 
 module.exports = items

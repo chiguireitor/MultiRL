@@ -1,6 +1,7 @@
 var items = require('./items.js')
 
-console.log(items.generate('weapons/ranged/rifle', {score: 1000})) //, '1a236fb243b59037'))
+//console.log(items.generate('weapons/ranged/rifle', {score: 1000})) //, '1a236fb243b59037'))
+console.log(items.generate('ammo/9mm bullets', {score: 1000}))
 
 /*var determinist = require('./determinist.js')
 

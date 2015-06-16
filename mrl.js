@@ -537,9 +537,13 @@ function applyPlayerClassBonusesAndPenalties(player) {
     var defaultWeapon = "9mm Pistol"
     var defaultCharger = "9mm bullets"
     var spareChargerCount = 2
+	var useGenerator = false
     if (player.player_class == 'marine') {
-        defaultWeapon = "9mm Light Machine Gun"
-        defaultCharger = "9mm bullets"
+        /*defaultWeapon = "9mm Light Machine Gun"
+        defaultCharger = "9mm bullets"*/
+		defaultWeapon = "weapons/ranged/MP9"
+        defaultCharger = "ammo/charger/"
+		useGenerator = true
         
         player.attrs.hp.pos += 30
         player.attrs.hp.max += 30
@@ -648,13 +652,26 @@ function applyPlayerClassBonusesAndPenalties(player) {
     }
     
     // Default Weapon
-    var weapon = items.searchWeaponByName(defaultWeapon).clone()
-    var chargerOrig = items.searchAmmoType(defaultCharger)
-    weapon.assignCharger(chargerOrig.clone())
-    for (var i=0; i < spareChargerCount; i++) {
-        player.inventory.push(chargerOrig.clone())
-    }
-    player.weapon = weapon
+	if (useGenerator) {
+		var weapon = items.generate(defaultWeapon)
+		console.log("Generated Weapon")
+		var charger = items.generate(defaultCharger + weapon.ammoType)
+		console.log("Generated Charger")
+		weapon.assignCharger(charger.clone())
+		
+		for (var i=0; i < spareChargerCount; i++) {
+			player.inventory.push(charger.clone())
+		}
+		player.weapon = weapon
+	} else {
+		var weapon = items.searchWeaponByName(defaultWeapon).clone()
+		var chargerOrig = items.searchAmmoType(defaultCharger)
+		weapon.assignCharger(chargerOrig.clone())
+		for (var i=0; i < spareChargerCount; i++) {
+			player.inventory.push(chargerOrig.clone())
+		}
+		player.weapon = weapon
+	}
 }
 
 function init() {
@@ -1479,7 +1496,7 @@ function loadCachedFiles() {
                 })(files[i])
             }
         } else {
-            console.log('Error reading REX Sprites: ' + err)
+            console.log('Error reading Wav sound: ' + err)
         }
     })
 }
@@ -1519,6 +1536,35 @@ var htServer = http.createServer(function (req, res) {
         } else {
             res.writeHead(404, {"Content-Type": "text/plain; charset=utf-8"})
         }
+	} else if (uri.indexOf('/generated/') == 0) {
+        var file = './rex_sprites/generated/' + uri.split("/").reverse()[0]
+		
+		console.log("Asking for generate sprite: " + file)
+		
+		var respondFile = function(f) {
+			res.writeHead(200, {"Content-Type": "application/octet-stream"})
+			res.write(fs.readFileSync(f).toString('base64'))
+			/*fs.readFile(f, function(data, error) {
+				if (error) {
+					res.writeHead(500, {"Content-Type": "text/plain"})
+					res.write(error)
+					console.log("Got a 500")
+				} else {
+					res.writeHead(200, {"Content-Type": "application/octet-stream"})
+					res.write(data)
+					console.log("Got a 200")
+				}
+			})*/
+		}
+		
+		if (fs.existsSync(file)) {
+			respondFile(file)
+			console.log("Got a 200")
+		} else {
+			res.writeHead(404, {"Content-Type": "text/plain"})
+			res.write("")
+			console.log("Got a 404")
+		}
     } else if (uri.indexOf('/wav/') == 0) {
         var file = uri.split("/").reverse()[0]
         if (file in sounds) {

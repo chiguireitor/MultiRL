@@ -1439,15 +1439,17 @@ function updateAttrs() {
         drawConsoleBar(displaySizeX + 15, y + 17, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax)
         drawAsciiText(displaySizeX + 2, y + 18, "Dmg. " + currentWeapon.damage[0] + " - " + currentWeapon.damage[1], [0, 255, 0], [0, 0, 0])
         
-        if (!(currentWeapon.name in weaponSprites)) {
-            weaponSprites[currentWeapon.name] = undefined
+        if (!(currentWeapon.id in weaponSprites)) {
+            weaponSprites[currentWeapon.id] = undefined
             
             var f = function(weap) {
-                loadXpSprite(pruneWeaponName(weap), function(sp) { weaponSprites[weap] = sp })
+                loadGenXpSprite(pruneWeaponName(weap), function(sp) { 
+					weaponSprites[weap] = sp 
+				})
             }
-            f(currentWeapon.name)
-        } else if (weaponSprites[currentWeapon.name]) {
-            var spr = weaponSprites[currentWeapon.name]
+            f(currentWeapon.id)
+        } else if (weaponSprites[currentWeapon.id]) {
+            var spr = weaponSprites[currentWeapon.id]
             
             drawRexSprite(displaySizeX + 2, y + 20, spr)
         }
@@ -2088,6 +2090,29 @@ function loadXpSprite(name, callback) {
             callback(sp)
         }
     })
+}
+
+function loadGenXpSprite(name, callback, noretry) {
+	setTimeout(function() {
+		$.ajax("./generated/" + name + ".xp", {
+			success: function(data) {
+				data = pako.inflate(atob(data))
+				data.alreadyDecompressed = true
+				var sp = new rexSprite.RexSprite(data)
+				
+				callback(sp)
+			},
+			error: function(xhr) {
+				if (!noretry) {
+					if (xhr.statusCode().status == 404) {
+						setTimeout(function() {
+							loadGenXpSprite(name, callback, true)
+						}, 1000)
+					}
+				}
+			}
+		})
+	}, 200)
 }
 
 $(document).ready(function () {

@@ -47,6 +47,7 @@ module.exports = {
     continuousTurns: false, // If true, turns will pass automatically according to "continuousThresholdMillis"
     continuousThresholdMillis: 0,  // Milliseconds before a continuous turn ends, must be increments of 100ms, 0 for "instantaneous" turns
     spyIdleCounter: 3, // How much turns does the spy need to be idle to dissapear
+	turnsForStep: 5,
     plasmaDamage: 15,
     lavaDamage: 5,
     acidDamage: 1,

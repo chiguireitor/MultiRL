@@ -490,6 +490,18 @@ function pos(ndx, ndy) {
     })
 }
 
+function prone() {
+	send({
+        type: 'prone'
+    })
+}
+
+function crawl() {
+	send({
+        type: 'crawl'
+    })
+}
+
 function tryMoveTowardsDestination() {
     if (destinationMovement != undefined) {
         var dx = 0, dy = 0
@@ -1587,6 +1599,8 @@ var handlers = {
         player.pos.x = obj.plyr_pos.x
         player.pos.y = obj.plyr_pos.y
         player.fov = obj.fov
+		player.crawl = obj.crawl
+		player.prone = obj.prone
         turn++
         
         for (var y=0; y < obj.scope.length; y++) {
@@ -1816,6 +1830,12 @@ var fnCommands = {
     wait: function() {
         pos(0, 0)
     },
+	prone: function() {
+		prone()
+	},
+	crawl: function() {
+		crawl()
+	}
 }
 
 var kb_hnd = {
@@ -1893,6 +1913,12 @@ var kb_hnd = {
     
     "r": reload,
     "U+0052": reload,
+	
+	"p": fnCommands.prone,
+    "U+0050": fnCommands.prone,
+	
+	"o": fnCommands.crawl,
+    "U+004F": fnCommands.crawl,
     
     "U+00BA": showTips, // Tab
     "i": toggleInventory,

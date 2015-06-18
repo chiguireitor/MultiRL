@@ -467,6 +467,22 @@ var handlers = { // These are the RPC handlers that the client can invoke
             }
         }
     }),
+	prone: saferpc(function (ws, obj) {
+		ws.turn = nextTurnId
+		ws.goProne = true
+		
+		if (!continuousTurns) {
+			processTurnIfAvailable()
+		}
+	}),
+	crawl: saferpc(function (ws, obj) {
+		ws.turn = nextTurnId
+		ws.goCrawl = true
+		
+		if (!continuousTurns) {
+			processTurnIfAvailable()
+		}
+	}),
 }
 
 function initObjects() {
@@ -908,6 +924,32 @@ function spawnGibs(x, y, pix, n, nmin, colorLight, colorDark, gibs) {
 }
 
 function processTurnIfAvailable() {
+	var keepProcessing = wss.clients.length > 0
+	
+	while (keepProcessing) {
+		_processTurnIfAvailable_priv_()
+		
+		// First, let's see if there's players waiting
+		for (var i in wss.clients) {
+            var ws = wss.clients[i]
+			
+			if ((typeof(ws.wait) == 'undefined') || (ws.wait <= 0)) {
+				keepProcessing = false
+				break
+			}
+		}
+		
+		if (keepProcessing) {
+			// It seems peeps are waiting, let's process another turn
+			for (var i in wss.clients) {
+				var ws = wss.clients[i]
+				ws.turn = nextTurnId
+			}
+		}
+	}
+}
+
+function _processTurnIfAvailable_priv_() {
     if (!hasBeenInited) {
         init()
         hasBeenInited = true
@@ -923,7 +965,12 @@ function processTurnIfAvailable() {
     } else {
         for (var i in wss.clients) {
             var cli = wss.clients[i]
-            if ((cli.wait > 0) || (cli.turn != nextTurnId) && (!cli.standingOrder)) {
+			var isWaiting = false//(cli.wait > 0)
+			
+            if (isWaiting || (cli.turn != nextTurnId) && (!cli.standingOrder)) {
+				if (isWaiting) {
+					cli.wait--
+				}
                 console.log("Waiting for all players to issue orders")
                 return
             }
@@ -940,9 +987,12 @@ function processTurnIfAvailable() {
     while ((!somethingHappened) && (nturns < 10)) { // Only wait 10 turns before bailing out
         for (var i in wss.clients) {
             var ws = wss.clients[i]
+			console.log('waitState: ' + ws.wait)
             if (ws.wait > 0) {
-                ws.player.messages.push("You're busy")
+                //ws.player.messages.push("You're busy")
                 ws.wait--
+				console.log("Waiting!")
+				//nturns = 10
             } else {
                 var playerDefined = (typeof(ws.player) != "undefined")&&(ws.player != null)
                 somethingHappened = true // Something could happen, let the player that can do something play
@@ -951,7 +1001,14 @@ function processTurnIfAvailable() {
                     (typeof(ws.player.pos) != "undefined")) {
                     // Gotta move
                     if ((ws.player.pos.x != ws.dst.x)||(ws.player.pos.y != ws.dst.y)) {
-                        ws.wait += 10
+						if ((typeof(ws.player.prone) != "undefined") && ws.player.prone) {
+							ws.wait = gameDefs.turnsForStep * 3
+						} else if ((typeof(ws.player.crawl) != "undefined") && ws.player.crawl) {
+							ws.wait = gameDefs.turnsForStep * 2
+						} else {
+							ws.wait = gameDefs.turnsForStep
+						}
+						
                         ws.player.idleCounter = 0
                         var dx = ws.dst.x - ws.player.pos.x
                         var dy = ws.dst.y - ws.player.pos.y
@@ -1066,6 +1123,34 @@ function processTurnIfAvailable() {
                         ws.player.weapon != null) {
                         ws.player.weapon.reload(ws.player)
                     }
+				} else if (typeof(ws.goProne) != "undefined" && ws.goProne) {
+					if ((typeof(ws.player.prone) != "undefined")) {
+						ws.player.prone = !ws.player.prone
+						ws.player.crawl = false
+					} else {
+						ws.player.prone = true
+						ws.player.crawl = false
+					}
+					
+					if (ws.player.prone) {
+						ws.player.color = '#00B'
+					} else {
+						ws.player.color = '#44F'
+					}
+				} else if (typeof(ws.goCrawl) != "undefined" && ws.goCrawl) {
+					if ((typeof(ws.player.crawl) != "undefined")) {
+						ws.player.crawl = !ws.player.crawl
+						ws.player.prone = false
+					} else {
+						ws.player.crawl = true
+						ws.player.prone = false
+					}
+					
+					if (ws.player.crawl) {
+						ws.player.color = '#22D'
+					} else {
+						ws.player.color = '#44F'
+					}
                 } else if (playerDefined) {
                     var ctl = level[ws.player.pos.y][ws.player.pos.x]
                     ws.player.idleCounter++
@@ -1073,7 +1158,7 @@ function processTurnIfAvailable() {
                     if (ctl.tile in activableTiles) {
                         activableTiles[ctl.tile](ctl, ws)
                     } else if ((ws.player.idleCounter > gameDefs.spyIdleCounter) && (ws.player.player_class == 'spy')) {
-                        ctl.character = null
+                        ctl.character = null // TODO: Poor way to go stealth
                     }
                 }
                 
@@ -1345,6 +1430,14 @@ function sendScopeToClient(ws) {
         ws.sendInventory = false
         msg.inventory = mapInventory(ws.player.inventory, ws.player)
     }
+	
+	if ((typeof(ws.goProne) != "undefined")&&(ws.goProne)) {
+        ws.goProne = false
+    }
+	
+	if ((typeof(ws.goCrawl) != "undefined")&&(ws.goCrawl)) {
+        ws.goCrawl = false
+    }
     
     msg.snds = soundManager.collectSounds(ws.player.pos.x, ws.player.pos.y)
     
@@ -1539,31 +1632,16 @@ var htServer = http.createServer(function (req, res) {
 	} else if (uri.indexOf('/generated/') == 0) {
         var file = './rex_sprites/generated/' + uri.split("/").reverse()[0]
 		
-		console.log("Asking for generate sprite: " + file)
-		
 		var respondFile = function(f) {
 			res.writeHead(200, {"Content-Type": "application/octet-stream"})
 			res.write(fs.readFileSync(f).toString('base64'))
-			/*fs.readFile(f, function(data, error) {
-				if (error) {
-					res.writeHead(500, {"Content-Type": "text/plain"})
-					res.write(error)
-					console.log("Got a 500")
-				} else {
-					res.writeHead(200, {"Content-Type": "application/octet-stream"})
-					res.write(data)
-					console.log("Got a 200")
-				}
-			})*/
 		}
 		
 		if (fs.existsSync(file)) {
 			respondFile(file)
-			console.log("Got a 200")
 		} else {
 			res.writeHead(404, {"Content-Type": "text/plain"})
 			res.write("")
-			console.log("Got a 404")
 		}
     } else if (uri.indexOf('/wav/') == 0) {
         var file = uri.split("/").reverse()[0]

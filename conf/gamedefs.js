@@ -53,6 +53,12 @@ module.exports = {
     acidDamage: 1,
     allowCheating: false,
     spawnPoolMaxRadius: 8,
+	proneToHit: 0.2,
+	crouchToHit: 0.6,
+	proneFovMult: 1.4,
+	crouchFovMult: 1.2,
+	pronePrecisionFact: 1.07,
+	crouchPrecisionFact: 1.14,
     playerBaseFov: 10, // WARNING: too high a value can hog all the server bandwidth
     level: {
         width: 128,

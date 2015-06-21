@@ -44,6 +44,7 @@
  
 var particles = require('./particles.js')
 var soundManager = require('./soundman.js').getManager()
+var gameDefs = require('./conf/gamedefs.js')
 var passable
 var level
 
@@ -131,7 +132,11 @@ function rayhit(x0, y0, x1, y1) {
 /*
  * This function is the same as Rayhit except that it continues tracing after reaching the target
  */
-function rayhitThrough(x0, y0, x1, y1) {
+function rayhitThrough(x0, y0, x1, y1, energy) {
+	if (!energy) {
+		energy = 1000
+	}
+	
     if (x0 < 0) {
         x0 = 0
     } else if (x0 >= level[0].length) {
@@ -170,14 +175,25 @@ function rayhitThrough(x0, y0, x1, y1) {
         var ix = (dx > 0)?1:-1
         dx = Math.abs(dx)
         
-        var x = x0 + ix
-        while ((x >= 0) && (x < row.length)) {
-            if (passable(row[Math.floor(x)]) != 1) {
+        var x = x0 + x
+        while ((x >= 0) && (x < row.length) && (energy > 0)) {
+			var tile = row[Math.floor(x)]
+			var pa = passable(tile)
+            if (pa != 1) {
+				if (pa == 2) {
+					var ch = tile.character
+					var rn = Math.random()
+					if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
+					    (ch.crouch && (rn < gameDefs.crouchToHit)))) {
+						continue
+					}
+				}
                 return {x: x, y: y0}
             }
             lx = x
             ly = y0
             x += ix
+			energy--
         }
     } else if (dx == 0) {
         // Vertical line, easy
@@ -185,13 +201,25 @@ function rayhitThrough(x0, y0, x1, y1) {
         dy = Math.abs(dy)
         
         var y = y0 + iy
-        while ((y >= 0) && (y < level.length)) {
-            if (passable(level[Math.floor(y)][Math.floor(x0)]) != 1) {
+        while ((y >= 0) && (y < level.length) && (energy > 0)) {
+			var tile = level[Math.floor(y)][Math.floor(x0)]
+			var pa = passable(tile)
+            if (pa != 1) {
+				if (pa == 2) {
+					var ch = tile.character
+					var rn = Math.random()
+					if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
+					    (ch.crouch && (rn < gameDefs.crouchToHit)))) {
+						continue
+					}
+				}
+				
                 return {x: x0, y: y}
             }
             lx = x0
             ly = y
             y += iy
+			energy--
         }
     } else {
         // Run the algorithm
@@ -203,7 +231,7 @@ function rayhitThrough(x0, y0, x1, y1) {
             var derror = Math.abs(dy/dx)
             var y = y0
             var x=x0+ix
-            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
+            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
                 error += derror
                 if (error > 0.5) {
                     y += iy
@@ -211,7 +239,17 @@ function rayhitThrough(x0, y0, x1, y1) {
                 }
                 
                 if ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
-                    if ((passable(level[Math.floor(y)][Math.floor(x)]) != 1)) {
+					var tile = level[Math.floor(y)][Math.floor(x)]
+					var pa = passable(tile)
+					if (pa != 1) {
+						if (pa == 2) {
+							var ch = tile.character
+							var rn = Math.random()
+							if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
+								(ch.crouch && (rn < gameDefs.crouchToHit)))) {
+								continue
+							}
+						}
                         return {x: x, y: y}
                     }
                 }
@@ -220,12 +258,13 @@ function rayhitThrough(x0, y0, x1, y1) {
                 ly = y
             
                 x+=ix
+				energy--
             }
         } else if (Math.abs(dx) < Math.abs(dy)) {
             var derror = Math.abs(dx/dy)
             var x = x0
             var y=y0+iy
-            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
+            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
                 error += derror
                 if (error > 0.5) {
                     x += ix
@@ -233,7 +272,19 @@ function rayhitThrough(x0, y0, x1, y1) {
                 }
                 
                 if ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
-                    if ((passable(level[Math.floor(y)][Math.floor(x)]) != 1)) {
+					var tile = level[Math.floor(y)][Math.floor(x)]
+					var pa = passable(tile)
+					
+                    if (pa != 1) {
+						if (pa == 2) {
+							var ch = tile.character
+							var rn = Math.random()
+							if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
+								(ch.crouch && (rn < gameDefs.crouchToHit)))) {
+								continue
+							}
+						}
+						
                         return {x: x, y: y}
                     }
                 }
@@ -241,12 +292,25 @@ function rayhitThrough(x0, y0, x1, y1) {
                 lx = x
                 ly = y
                 y+=iy
+				energy--
             }
         } else if (Math.abs(dx) == Math.abs(dy)) {
             var x = x0+ix
             var y = y0+iy
-            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
-                if ((passable(level[Math.floor(y)][Math.floor(x)]) != 1)) {
+            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
+				var tile = level[Math.floor(y)][Math.floor(x)]
+				var pa = passable(tile)
+				
+                if (pa != 1) {
+					if (pa == 2) {
+						var ch = tile.character
+						var rn = Math.random()
+						if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
+							(ch.crouch && (rn < gameDefs.crouchToHit)))) {
+							continue
+						}
+					}
+					
                     return {x: x, y: y}
                 }
                 lx = x
@@ -254,6 +318,7 @@ function rayhitThrough(x0, y0, x1, y1) {
                 
                 x += ix
                 y += iy
+				energy--
             }
         }
     }
@@ -383,7 +448,7 @@ Ranged.prototype.rpcRepr = function(c) {
     }
 }
 
-Ranged.prototype.fire = function(x, y, c) {
+Ranged.prototype.fire = function(x, y, c, options) {
     if (!((y >= 0) && (y < level.length)&&
         (x >= 0) && (x < level[y].length))) {
         return false
@@ -425,6 +490,10 @@ Ranged.prototype.fire = function(x, y, c) {
                 
                 precision = Math.min(precision, this.maxPrecision)
                 
+				if (options && (options.precision)) {
+					precision *= options.precision
+				}
+				
                 var p = d2 - precision
                 var difx = 0
                 var dify = 0
@@ -499,7 +568,7 @@ Ranged.prototype.fire = function(x, y, c) {
                         
                         var ntgt = rayhitThrough(c.pos.x, c.pos.y, tx, ty)
                         
-                        if (ntgt) {
+                        if (ntgt && (!isNaN(ntgt.x)) && (!isNaN(ntgt.y))) {
                             tx = ntgt.x
                             ty = ntgt.y
                             

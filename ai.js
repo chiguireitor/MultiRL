@@ -75,7 +75,7 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
             attrs: attrs,
             weapon: weapon,
             inventory: inventory,
-            wait: Math.random(20),
+            wait: Math.random(10) - 5,
             customDecision: customDecision
         }
         

@@ -496,9 +496,9 @@ function prone() {
     })
 }
 
-function crawl() {
+function crouch() {
 	send({
-        type: 'crawl'
+        type: 'crouch'
     })
 }
 
@@ -1599,7 +1599,7 @@ var handlers = {
         player.pos.x = obj.plyr_pos.x
         player.pos.y = obj.plyr_pos.y
         player.fov = obj.fov
-		player.crawl = obj.crawl
+		player.crouch = obj.crouch
 		player.prone = obj.prone
         turn++
         
@@ -1833,8 +1833,8 @@ var fnCommands = {
 	prone: function() {
 		prone()
 	},
-	crawl: function() {
-		crawl()
+	crouch: function() {
+		crouch()
 	}
 }
 
@@ -1917,8 +1917,8 @@ var kb_hnd = {
 	"p": fnCommands.prone,
     "U+0050": fnCommands.prone,
 	
-	"o": fnCommands.crawl,
-    "U+004F": fnCommands.crawl,
+	"o": fnCommands.crouch,
+    "U+004F": fnCommands.crouch,
     
     "U+00BA": showTips, // Tab
     "i": toggleInventory,

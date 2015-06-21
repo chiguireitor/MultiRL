@@ -475,9 +475,9 @@ var handlers = { // These are the RPC handlers that the client can invoke
 			processTurnIfAvailable()
 		}
 	}),
-	crawl: saferpc(function (ws, obj) {
+	crouch: saferpc(function (ws, obj) {
 		ws.turn = nextTurnId
-		ws.goCrawl = true
+		ws.goCrouch = true
 		
 		if (!continuousTurns) {
 			processTurnIfAvailable()
@@ -1003,7 +1003,7 @@ function _processTurnIfAvailable_priv_() {
                     if ((ws.player.pos.x != ws.dst.x)||(ws.player.pos.y != ws.dst.y)) {
 						if ((typeof(ws.player.prone) != "undefined") && ws.player.prone) {
 							ws.wait = gameDefs.turnsForStep * 3
-						} else if ((typeof(ws.player.crawl) != "undefined") && ws.player.crawl) {
+						} else if ((typeof(ws.player.crouch) != "undefined") && ws.player.crouch) {
 							ws.wait = gameDefs.turnsForStep * 2
 						} else {
 							ws.wait = gameDefs.turnsForStep
@@ -1115,7 +1115,17 @@ function _processTurnIfAvailable_priv_() {
                     
                     if ((typeof(ws.player.weapon) != "undefined") && 
                         (typeof(ws.player.weapon.fire) != "undefined")) {
-                        ws.player.weapon.fire(ws.fireTarget.x, ws.fireTarget.y, ws.player)
+						var precisionFact = 1.0
+						
+						if (ws.player.prone) {
+							precisionFact = gameDefs.pronePrecisionFact
+						} else if (ws.player.crouch) {
+							precisionFact = gameDefs.crouchPrecisionFact
+						}
+						
+                        ws.player.weapon.fire(ws.fireTarget.x, ws.fireTarget.y, ws.player, {
+							precision: precisionFact
+						})
                     }
                 } else if (typeof(ws.reloadWeapon) != "undefined" && ws.reloadWeapon) {
                     ws.reloadWeapon = false
@@ -1126,10 +1136,10 @@ function _processTurnIfAvailable_priv_() {
 				} else if (typeof(ws.goProne) != "undefined" && ws.goProne) {
 					if ((typeof(ws.player.prone) != "undefined")) {
 						ws.player.prone = !ws.player.prone
-						ws.player.crawl = false
+						ws.player.crouch = false
 					} else {
 						ws.player.prone = true
-						ws.player.crawl = false
+						ws.player.crouch = false
 					}
 					
 					if (ws.player.prone) {
@@ -1137,16 +1147,16 @@ function _processTurnIfAvailable_priv_() {
 					} else {
 						ws.player.color = '#44F'
 					}
-				} else if (typeof(ws.goCrawl) != "undefined" && ws.goCrawl) {
-					if ((typeof(ws.player.crawl) != "undefined")) {
-						ws.player.crawl = !ws.player.crawl
+				} else if (typeof(ws.goCrouch) != "undefined" && ws.goCrouch) {
+					if ((typeof(ws.player.crouch) != "undefined")) {
+						ws.player.crouch = !ws.player.crouch
 						ws.player.prone = false
 					} else {
-						ws.player.crawl = true
+						ws.player.crouch = true
 						ws.player.prone = false
 					}
 					
-					if (ws.player.crawl) {
+					if (ws.player.crouch) {
 						ws.player.color = '#22D'
 					} else {
 						ws.player.color = '#44F'
@@ -1379,22 +1389,33 @@ function sendScopeToClient(ws) {
         return {}
     }
     
-    var msg = {type: 'pos', pos: {x: ws.player.pos.x - ws.player.fov, y: Math.max(0, ws.player.pos.y - ws.player.fov)}}
+	var tfov = ws.player.fov
+	var tfov_sq = ws.player.fov_sq
+	
+	if (ws.player.prone) {
+		tfov *= gameDefs.proneFovMult
+		tfov_sq = tfov * tfov
+	} else if (ws.player.crouch) {
+		tfov *= gameDefs.crouchFovMult
+		tfov_sq = tfov * tfov
+	}
+	
+    var msg = {type: 'pos', pos: {x: ws.player.pos.x - tfov, y: Math.max(0, ws.player.pos.y - tfov)}}
     var scope = []
     
-    for (var y=Math.max(0, ws.player.pos.y - ws.player.fov); y <= Math.min(ws.player.pos.y + ws.player.fov, level.length-1); y++) {
-        var row = Array.apply(null, new Array(ws.player.fov*2+1)).map(function(){return null})
+    for (var y=Math.max(0, ws.player.pos.y - tfov); y <= Math.min(ws.player.pos.y + tfov, level.length-1); y++) {
+        var row = Array.apply(null, new Array(tfov*2+1)).map(function(){return null})
         
-        for (var x=Math.max(0, ws.player.pos.x - ws.player.fov); x <= Math.min(ws.player.pos.x + ws.player.fov, level[y].length-1); x++) {
+        for (var x=Math.max(0, ws.player.pos.x - tfov); x <= Math.min(ws.player.pos.x + tfov, level[y].length-1); x++) {
             dx = ws.player.pos.x - x
             dy = ws.player.pos.y - y
             dx = dx * dx
             dy = dy * dy
             
-            if ((dx + dy) <= ws.player.fov_sq) {
+            if ((dx + dy) <= tfov_sq) {
                 // TODO: Verify there's no obstruction first
                 if (traceable(x, y, ws.player.pos.x, ws.player.pos.y)) {
-                    row[x - (ws.player.pos.x - ws.player.fov)] = tidyTile(level[y][x])
+                    row[x - (ws.player.pos.x - tfov)] = tidyTile(level[y][x])
                 }
             }
         }
@@ -1403,12 +1424,12 @@ function sendScopeToClient(ws) {
     }
     msg.scope = scope
     msg.plyr_pos = ws.player.pos
-    msg.fov = ws.player.fov
+    msg.fov = tfov
     msg.attrs = ws.player.attrs
     if (ws.player.weapon != null) {
         msg.weapon = ws.player.weapon.rpcRepr(ws.player)
     }
-    msg.particles = particleManager.getParticlesInScope(ws.player.pos.x, ws.player.pos.y, ws.player.fov, ws.player.username)
+    msg.particles = particleManager.getParticlesInScope(ws.player.pos.x, ws.player.pos.y, tfov, ws.player.username)
     msg.msgs = ws.player.messages
     
     if ((typeof(ws.player.damaged) != "undefined") && (ws.player.damaged)) {
@@ -1435,8 +1456,8 @@ function sendScopeToClient(ws) {
         ws.goProne = false
     }
 	
-	if ((typeof(ws.goCrawl) != "undefined")&&(ws.goCrawl)) {
-        ws.goCrawl = false
+	if ((typeof(ws.goCrouch) != "undefined")&&(ws.goCrouch)) {
+        ws.goCrouch = false
     }
     
     msg.snds = soundManager.collectSounds(ws.player.pos.x, ws.player.pos.y)

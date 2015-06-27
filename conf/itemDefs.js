@@ -43,6 +43,7 @@
  */
  
 var weapons = require('../weapons.js')
+var effects = require('../effects.js')
 
 var categories = {
     "small-firearms": ["9mm", 
@@ -50,17 +51,17 @@ var categories = {
         {"name": "12mm", "score": 10},
         {"name": ".460", "score": 20},
         {"name": ".45", "score": 30}, 
-        {"name": "Laser", "score": 40, "overrides": {"ammoType": "Energy cell", "trail": {"from": "DD0000", "to": "220000", "ttl": 100, "num": 1, "inherit": false, "spread": [5, 5], "delay": 100} }}, 
-        {"name": "Plasma", "score": 50, "overrides": {"ammoType": "Energy cell", "ammoUse": 2, "trail": {"from": "DD00DD", "to": "220022", "ttl": 200, "num": 2, "inherit": false, "spread": [9, 9], "delay": 200}}}],
+        {"name": "Laser", "score": 40, "overrides": {"ammoType": "Energy Cell", "trail": {"from": "DD0000", "to": "220000", "ttl": 100, "num": 1, "inherit": false, "spread": [5, 5], "delay": 100} }}, 
+        {"name": "Plasma", "score": 50, "overrides": {"ammoType": "Energy Cell", "ammoUse": 2, "trail": {"from": "DD00DD", "to": "220022", "ttl": 200, "num": 2, "inherit": false, "spread": [9, 9], "delay": 200}}}],
     "large-firearms": ["7.62x54mm",
-    {"name": "Laser", "overrides": {"ammoType": "Energy cell", "trail": {"from": "DD0000", "to": "220000", "ttl": 100, "num": 1, "inherit": false, "spread": [5, 5], "delay": 100}}}, 
-        {"name": "Plasma", "overrides": {"ammoType": "Energy cell", "ammoUse": 2, "trail": {"from": "DD00DD", "to": "220022", "ttl": 200, "num": 2, "inherit": false, "spread": [9, 9], "delay": 200}}}],
+    {"name": "Laser", "overrides": {"ammoType": "Energy Cell", "trail": {"from": "DD0000", "to": "220000", "ttl": 100, "num": 1, "inherit": false, "spread": [5, 5], "delay": 100}}}, 
+        {"name": "Plasma", "overrides": {"ammoType": "Energy Cell", "ammoUse": 2, "trail": {"from": "DD00DD", "to": "220022", "ttl": 200, "num": 2, "inherit": false, "spread": [9, 9], "delay": 200}}}],
     "heavy-firearms": ["9mm", "10mm", "12mm", ".460", ".45",
-        {"name": "Laser", "overrides": {"ammoType": "Energy cell", "trail": {"from": "DD0000", "to": "220000", "ttl": 100, "num": 1, "inherit": false, "spread": [5, 5], "delay": 100}}}, 
-        {"name": "Plasma", "overrides": {"ammoType": "Energy cell", "ammoUse": 2, "trail": {"from": "DD00DD", "to": "220022", "ttl": 200, "num": 2, "inherit": false, "spread": [9, 9], "delay": 200}}}],
+        {"name": "Laser", "overrides": {"ammoType": "Energy Cell", "trail": {"from": "DD0000", "to": "220000", "ttl": 100, "num": 1, "inherit": false, "spread": [5, 5], "delay": 100}}}, 
+        {"name": "Plasma", "overrides": {"ammoType": "Energy Cell", "ammoUse": 2, "trail": {"from": "DD00DD", "to": "220022", "ttl": 200, "num": 2, "inherit": false, "spread": [9, 9], "delay": 200}}}],
     "cone-firearms": ["12ga", "20ga",
-        {"name": "Laser", "overrides": {"ammoType": "Energy cell", "trail": {"from": "DD0000", "to": "220000", "ttl": 100, "num": 1, "inherit": false, "spread": [5, 5], "delay": 100}}}, 
-        {"name": "Plasma", "overrides": {"ammoType": "Energy cell", "ammoUse": 2, "trail": {"from": "DD00DD", "to": "220022", "ttl": 200, "num": 2, "inherit": false, "spread": [9, 9], "delay": 200}}}],
+        {"name": "Laser", "overrides": {"ammoType": "Energy Cell", "trail": {"from": "DD0000", "to": "220000", "ttl": 100, "num": 1, "inherit": false, "spread": [5, 5], "delay": 100}}}, 
+        {"name": "Plasma", "overrides": {"ammoType": "Energy Cell", "ammoUse": 2, "trail": {"from": "DD00DD", "to": "220022", "ttl": 200, "num": 2, "inherit": false, "spread": [9, 9], "delay": 200}}}],
     "flame-throwers": ["Gasoline", "Gas", "Ionic"],
     "rpg-launcher": ["H80", "Stinger"]
 }
@@ -106,12 +107,12 @@ var templates = {
 				},
                 "category": "small-firearms",
                 "ammoMax": {fn: "random-pick", val: [15, {"aspect": "extended", "score": 20, "val": 30}]},
-                "ammoType": {fn: "concatenate", val: [{"var": "category"}, "bullets"]},
+                "ammoType": {fn: "concatenate", val: [{"var": "category"}, "Bullets"]},
                 "precisionFactor": {fn: "random", val: {"range": [0.2, 0.35], "subaspects": [{"name": "scoped", "score": 30}, {"name": "stocked", "score": 15}, {"name": "", "score": 0}]}},
 				"range": {fn: "random", val: {"range": [4, 10], "subaspects": [{"name": "", "score": 0}, {"name": "accelerated", "score": 25}]}},
 				"volume": {fn: "random", val: {"range": [1, 10], "aspects": [{"name": "silenced", "score": 20}, {"name": "", "score": 0}, {"name": "noisy", "score": -20}]}},
                 "burstLength": 3,
-				"alternate": {fn: "random-null", val: {"subaspect": "grenade launcher", "score": 50, "probability": 0.5, "val": {"ammoType": "M2 grenades", "ammoMax": 1, "volume": 5}, "precisionFactor": 0.4, "sndOnFire": "smg_grenade"}},
+				"alternate": {fn: "random-null", val: {"subaspect": "grenade launcher", "score": 50, "probability": 0.5, "val": {"ammoType": "M2 Grenade", "ammoPath": "ammo/charger/M2 Grenade", "ammoMax": 1, "volume": 5, "precisionFactor": 0.4, "sndOnFire": "smg_grenade"}}},
                 "repeatDelay": 100,
                 "pix": '╓',
                 "sndOnFire": 'pistol'
@@ -188,7 +189,8 @@ var templates = {
     "ammo": {
 		"charger": {
 			"_const_fn": weapons.Charger,
-			"9mm bullets": {
+			"9mm Bullets": {
+				isleaf: true,
 				ammoType: {fn: "concatenate", val: [{"var": "category"}]},
 				amount: 30,
 				cssClass: 'low-level-ammo',
@@ -196,7 +198,17 @@ var templates = {
 				maxStackInventory: 60,
 				pix: '‼'
 			},
-			"12mm bullets": {
+			"10mm Bullets": {
+				isleaf: true,
+				ammoType: {fn: "concatenate", val: [{"var": "category"}]},
+				amount: 30,
+				cssClass: 'low-level-ammo',
+				stacksInventory: true,
+				maxStackInventory: 60,
+				pix: '‼'
+			},
+			"12mm Bullets": {
+				isleaf: true,
 				ammoType: {fn: "concatenate", val: [{"var": "category"}]},
 				amount: 20,
 				cssClass: 'low-level-ammo',
@@ -204,7 +216,8 @@ var templates = {
 				maxStackInventory: 60,
 				pix: '‼'
 			},
-			".460 bullets": {
+			".460 Bullets": {
+				isleaf: true,
 				ammoType: {fn: "concatenate", val: [{"var": "category"}]},
 				amount: 24,
 				cssClass: 'low-level-ammo',
@@ -212,7 +225,8 @@ var templates = {
 				maxStackInventory: 60,
 				pix: '‼'
 			},
-			".45 bullets": {
+			".45 Bullets": {
+				isleaf: true,
 				ammoType: {fn: "concatenate", val: [{"var": "category"}]},
 				amount: 30,
 				cssClass: 'low-level-ammo',
@@ -220,15 +234,51 @@ var templates = {
 				maxStackInventory: 60,
 				pix: '‼'
 			},
-			"12ga shells": {
+			"12ga Shells": {
+				isleaf: true,
 			},
-			"7.62x54mm bullets": {
+			"7.62x54mm Bullets": {
+				isleaf: true,
 			},
 			"H80 RPG": {
+				isleaf: true,
 			},
-			"Energy cell": {
+			"Energy Cell": {
+				isleaf: true,
+				ammoType: {fn: "concatenate", val: [{"var": "category"}]},
+				amount: 30,
+				cssClass: 'mid-level-ammo',
+				stacksInventory: true,
+				maxStackInventory: 60,
+				pix: '∩'
 			},
-			"Gasoline tank": {
+			"Gasoline Tank": {
+				isleaf: true,
+			},
+			"M2 Grenade": {
+				isleaf: true,
+				ammoType: {fn: "concatenate", val: [{"var": "category"}]},
+				amount: 5,
+				cssClass: 'mid-level-ammo',
+				stacksInventory: true,
+				maxStackInventory: 15,
+				damageDecorators: [],
+				effects: [new effects.Effect(undefined, {
+					affectsFriendly: true,
+					affectsEnemy: true,
+					isSticky: false,
+					isTargetArea: true,
+					isSourceArea: true,
+					targetRadius: 5,
+					sourceRadius: 0,
+					sourceFn: effects.effectFunction.smoke,
+					targetFn: effects.effectFunction.explosion,
+					additional: {
+						explosionDamageRange: [2, 5]
+					}
+				})],
+				pix: 'ð',
+				sound: 'smg_grenade'
 			}
 		}
     }

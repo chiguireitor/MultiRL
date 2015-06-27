@@ -546,11 +546,12 @@ function grab() {
     })
 }
 
-function fire() {
+function fire(alternate) {
     waitTarget(function(x, y) {
             send({
                 type: 'fire',
-                tgt: {x: x, y: y}
+                tgt: {x: x, y: y},
+				alt: alternate
                 })
         })
     announceMsg("Click over a cell to target")
@@ -563,9 +564,10 @@ function cheat(fn) {
         })
 }
 
-function reload() {
+function reload(alternate) {
     send({
-        type: 'reload'
+        type: 'reload',
+		alt: alternate
     })
 }
 
@@ -2147,7 +2149,7 @@ $(document).ready(function () {
             event = window.event || event
             var k = event.keyIdentifier || event.key
             if (k in kb_hnd) {
-                kb_hnd[k]()
+                kb_hnd[k](event.shiftKey)
                 event.preventDefault()
             }
         } else {

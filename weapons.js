@@ -359,6 +359,7 @@ function Ranged(options) {
 	this.volume = options.volume || 1
 	this.alternate = options.alternate
     this.identified = options.identified || (options.identifiedName == '')
+	this.range = options.range || 5
     
     this.ranged = true
     this.melee = false
@@ -407,6 +408,7 @@ Ranged.prototype.clone = function() {
         identified: this.identified,
 		volume: this.volume,
 		alternate: this.alternate,
+		range: this.range,
     })
 }
 
@@ -453,21 +455,27 @@ Ranged.prototype.fire = function(x, y, c, options) {
         (x >= 0) && (x < level[y].length))) {
         return false
     }
-    
+
+	var weapon = c.weapon
+	if (options && (options.useAlternate)) {
+		weapon = c.weapon.alternate
+		console.log("Using alternate fire")
+	}
+	
     var burst = 0
     var firedSomething = false
-    while ((burst < Math.min(c.weapon.burstLength, c.weapon.ammo))&&(c.weapon.ammo >= 0)) {
-        if ((c.weapon.ammo - c.weapon.ammoUse) >= 0) {
+    while ((burst < Math.min(weapon.burstLength, weapon.ammo))&&(weapon.ammo >= 0)) {
+        if ((weapon.ammo - weapon.ammoUse) >= 0) {
             firedSomething = true
-            c.weapon.ammo -= c.weapon.ammoUse
+            weapon.ammo -= weapon.ammoUse
             
-            for (var bn=0; bn < c.weapon.fragmentation; bn++) {
+            for (var bn=0; bn < weapon.fragmentation; bn++) {
                 var speed = {
                     speed: c.attrs.speed.pos,
                     waitOnUse: this.waitOnUse,
                     waitSubstractSpeedDivider: this.waitSubstractSpeedDivider
                 }
-                var decorators = this.speedDecorators.concat(c.speedDecorators || []).concat(c.weapon.ammoDecorators.speed || [])
+                var decorators = this.speedDecorators.concat(c.speedDecorators || []).concat(weapon.ammoDecorators.speed || [])
                 for (var i=0; i < decorators.length; i++) {
                     speed = decorators[i].call(c, speed)
                 }
@@ -483,7 +491,7 @@ Ranged.prototype.fire = function(x, y, c, options) {
                     precision = precision * 2 + 30
                 }
                 
-                decorators = this.precisionDecorators.concat(c.precisionDecorators || []).concat(c.weapon.ammoDecorators.precision || [])
+                decorators = this.precisionDecorators.concat(c.precisionDecorators || []).concat(weapon.ammoDecorators.precision || [])
                 for (var i=0; i < decorators.length; i++) {
                     precision = decorators[i].call(c, precision)
                 }
@@ -566,7 +574,7 @@ Ranged.prototype.fire = function(x, y, c, options) {
                     /*if (((ty >= 0) && (ty < level.length)&&
                         (tx >= 0) && (tx < level[ty].length))) {*/
                         
-                        var ntgt = rayhitThrough(c.pos.x, c.pos.y, tx, ty)
+                        var ntgt = rayhitThrough(c.pos.x, c.pos.y, tx, ty, this.range)
                         
                         if (ntgt && (!isNaN(ntgt.x)) && (!isNaN(ntgt.y))) {
                             tx = ntgt.x
@@ -595,7 +603,7 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                 criticalMultiplier: this.criticalMultiplier,
                                 armorMultiplier: this.armorMultiplier
                             }
-                            decorators = this.damageDecorators.concat(c.damageDecorators || []).concat(c.weapon.ammoDecorators.damage || [])
+                            decorators = this.damageDecorators.concat(c.damageDecorators || []).concat(weapon.ammoDecorators.damage || [])
                             for (var i=0; i < decorators.length; i++) {
                                 dmgVals = decorators[i].call(c, dmgVals)
                             }
@@ -643,7 +651,7 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                 }
                                 
                                 if (typeof(tgt.character.attrs.hp.onchange) != "undefined") {
-                                    tgt.character.attrs.hp.onchange.call(tgt.character, "ammo-" + c.weapon.ammoType, dmg)
+                                    tgt.character.attrs.hp.onchange.call(tgt.character, "ammo-" + weapon.ammoType, dmg)
                                 }
                             } else if (typeof(tgt.item) != "undefined") {
                                 // TODO: Check if we damaged it enough that it gets destroyed
@@ -655,9 +663,9 @@ Ranged.prototype.fire = function(x, y, c, options) {
                             
                             particles.Singleton().spawnParticle(
                                 c.pos.x, c.pos.y, tx, ty, 1, "*", 
-                                "particle-ammo-" + c.weapon.ammoType.replace(/ /g, '-'),  
-                                "instant", undefined, burst * c.weapon.repeatDelay, c.weapon.trail)
-                            soundManager.addSound(c.pos.x, c.pos.y, 15, this.sndOnFire, burst * c.weapon.repeatDelay)
+                                "particle-ammo-" + weapon.ammoType.replace(/ /g, '-'),  
+                                "instant", undefined, burst * weapon.repeatDelay, weapon.trail)
+                            soundManager.addSound(c.pos.x, c.pos.y, 15, this.sndOnFire, burst * weapon.repeatDelay)
                         } else {
                             console.log("Couldn't trace a target")
                             break
@@ -676,21 +684,32 @@ Ranged.prototype.fire = function(x, y, c, options) {
     return validTarget
 }
 
-Ranged.prototype.reload = function(c) {
-    var charger = c.findInInventory(c.weapon.ammoType)
+Ranged.prototype.reload = function(c, alternate) {
+	
+	var weapon = c.weapon
+	if (alternate) {
+		weapon = c.weapon.alternate
+	}
+	
+    var charger = c.findInInventory(weapon.ammoType)
     
-    this.reloadWithCharger(c, charger)
+    this.reloadWithCharger(c, charger, alternate)
     soundManager.addSound(c.pos.x, c.pos.y, 5, this.sndOnReload, 0)
 }
 
-Ranged.prototype.reloadWithCharger = function(c, charger) {
+Ranged.prototype.reloadWithCharger = function(c, charger, alternate) {
     if ((typeof(charger) != "undefined")) {
-        var needAmmo = c.weapon.ammoMax - c.weapon.ammo
-        c.weapon.ammo += Math.min(charger.amount, needAmmo)
-        c.weapon.chargerAmmoType = charger.ammoType
-        c.weapon.ammoDecorators = charger.decorators || {}
-        c.weapon.ammoEffects = charger.effects
-        c.weapon.fragmentation = charger.fragmentation
+		var weapon = c.weapon
+		if (alternate) {
+			weapon = c.weapon.alternate
+		}
+		
+        var needAmmo = weapon.ammoMax - weapon.ammo
+        weapon.ammo += Math.min(charger.amount, needAmmo)
+        weapon.chargerAmmoType = charger.ammoType
+        weapon.ammoDecorators = charger.decorators || {}
+        weapon.ammoEffects = charger.effects
+        weapon.fragmentation = charger.fragmentation
         
         charger.amount -= Math.min(charger.amount, needAmmo)
         
@@ -700,7 +719,11 @@ Ranged.prototype.reloadWithCharger = function(c, charger) {
         
         c.wait += 3
         if (c.messages) {
-            c.messages.push("You finished reloading")
+			if (alternate) {
+				c.messages.push("You finished reloading the alternate weapon")
+			} else {
+				c.messages.push("You finished reloading")
+			}
         }
     }
 }
@@ -742,11 +765,23 @@ Ranged.prototype.findChargerAndAssign = function(defs) {
 }
 
 Ranged.prototype.assignCharger = function(charger) {
-    this.ammo = this.ammoMax
-    this.ammoEffects = charger.effects
-    this.chargerAmmoType = charger.ammoType
-    this.ammoDecorators = charger.decorators || {}
-    this.fragmentation = charger.fragmentation
+	console.log(charger.ammoType + ' vs. ' + this.ammoType)
+	if (charger.ammoType.indexOf(this.ammoType) >= 0) {
+		console.log(charger)
+		this.ammo = this.ammoMax
+		this.ammoEffects = charger.effects
+		this.chargerAmmoType = charger.ammoType
+		this.ammoDecorators = charger.decorators || {}
+		this.fragmentation = charger.fragmentation
+	} else if (this.alternate && (charger.ammoType.indexOf(this.alternate.ammoType) >= 0)) {
+		console.log(this.alternate)
+		console.log(charger)
+		this.alternate.ammo = this.alternate.ammoMax
+		this.alternate.ammoEffects = charger.effects
+		this.alternate.chargerAmmoType = charger.ammoType
+		this.alternate.ammoDecorators = charger.decorators || {}
+		this.alternate.fragmentation = charger.fragmentation
+	}
 }
 
 function Charger(options) {

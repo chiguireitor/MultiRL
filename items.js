@@ -261,7 +261,7 @@ function generate(spath, params, id) {
 	var rndGeni = new determinist.IdRandomizer(id)
     
     // Walk the tree and find the to-be-generated template
-    while (!(('isleaf' in nd) && (nd.isleaf)) && path.length > 0) {
+    while (!(nd && ('isleaf' in nd) && (nd.isleaf)) && path.length > 0) {
         var evnn = path[0]
         
         if (evnn == '*') {
@@ -286,6 +286,10 @@ function generate(spath, params, id) {
         path = path.slice(1)
     }
     
+	if (!nd) {
+		throw "Couldn't generate path: " + spath
+	}
+	
     var meetsParams = false
     var iterations = 0
 	var imageGenParams = nd.image_generator

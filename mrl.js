@@ -415,9 +415,21 @@ var handlers = { // These are the RPC handlers that the client can invoke
             if ((ws.player.attrs.hp.pos > 0) && 
                 (typeof(ws.player.weapon) != "undefined") && (ws.player.weapon != null) &&
                 (typeof(ws.player.weapon.fire) != "undefined")) {
-                ws.turn = nextTurnId
-                ws.fireWeapon = true
-                ws.fireTarget = {x: obj.tgt.x, y: obj.tgt.y}
+				if (obj.alt) {
+					if (ws.player.weapon.alternate) {
+						ws.turn = nextTurnId
+						ws.fireWeapon = true
+						ws.fireAlternate = true
+						ws.fireTarget = {x: obj.tgt.x, y: obj.tgt.y}
+					} else {
+						ws.player.messages.push("This weapon doesn't has alternate fire mode")
+					}
+				} else {
+					ws.turn = nextTurnId
+					ws.fireWeapon = true
+					ws.fireTarget = {x: obj.tgt.x, y: obj.tgt.y}
+				}
+				
                 processTurnIfAvailable()
             }
         }
@@ -428,6 +440,7 @@ var handlers = { // These are the RPC handlers that the client can invoke
                 (typeof(ws.player.weapon) != "undefined")) {
                 ws.turn = nextTurnId
                 ws.reloadWeapon = true
+				ws.reloadAlternate = obj.alt
                 
                 if (!continuousTurns) {
                     processTurnIfAvailable()
@@ -670,14 +683,22 @@ function applyPlayerClassBonusesAndPenalties(player) {
     // Default Weapon
 	if (useGenerator) {
 		var weapon = items.generate(defaultWeapon)
-		console.log("Generated Weapon")
 		var charger = items.generate(defaultCharger + weapon.ammoType)
-		console.log("Generated Charger")
 		weapon.assignCharger(charger.clone())
 		
 		for (var i=0; i < spareChargerCount; i++) {
 			player.inventory.push(charger.clone())
 		}
+		
+		if (weapon.alternate) {
+			var charger = items.generate(weapon.alternate.ammoPath)
+			weapon.assignCharger(charger.clone())
+			
+			for (var i=0; i < spareChargerCount; i++) {
+				player.inventory.push(charger.clone())
+			}
+		}
+		
 		player.weapon = weapon
 	} else {
 		var weapon = items.searchWeaponByName(defaultWeapon).clone()
@@ -965,13 +986,26 @@ function _processTurnIfAvailable_priv_() {
     } else {
         for (var i in wss.clients) {
             var cli = wss.clients[i]
-			var isWaiting = false//(cli.wait > 0)
+			var isWaiting = false
 			
             if (isWaiting || (cli.turn != nextTurnId) && (!cli.standingOrder)) {
 				if (isWaiting) {
 					cli.wait--
 				}
-                console.log("Waiting for all players to issue orders")
+				
+				for (var i in wss.clients) {
+					var ws = wss.clients[i]
+					
+					if (ws.player && ws.player.messages && (ws.player.messages.length > 0)) {
+						var msg = {
+							msgs: ws.player.messages
+						}
+						ws.player.messages = []
+						
+						ws.sendPako(JSON.stringify(msg))
+					}
+				}
+				
                 return
             }
         }
@@ -987,12 +1021,9 @@ function _processTurnIfAvailable_priv_() {
     while ((!somethingHappened) && (nturns < 10)) { // Only wait 10 turns before bailing out
         for (var i in wss.clients) {
             var ws = wss.clients[i]
-			console.log('waitState: ' + ws.wait)
+
             if (ws.wait > 0) {
-                //ws.player.messages.push("You're busy")
                 ws.wait--
-				console.log("Waiting!")
-				//nturns = 10
             } else {
                 var playerDefined = (typeof(ws.player) != "undefined")&&(ws.player != null)
                 somethingHappened = true // Something could happen, let the player that can do something play
@@ -1124,15 +1155,18 @@ function _processTurnIfAvailable_priv_() {
 						}
 						
                         ws.player.weapon.fire(ws.fireTarget.x, ws.fireTarget.y, ws.player, {
-							precision: precisionFact
+							precision: precisionFact,
+							useAlternate: ws.fireAlternate
 						})
                     }
+					ws.fireAlternate = false
                 } else if (typeof(ws.reloadWeapon) != "undefined" && ws.reloadWeapon) {
                     ws.reloadWeapon = false
                     if ((typeof(ws.player.weapon) != "undefined") && 
                         ws.player.weapon != null) {
-                        ws.player.weapon.reload(ws.player)
+                        ws.player.weapon.reload(ws.player, ws.reloadAlternate)
                     }
+					ws.reloadAlternate = false
 				} else if (typeof(ws.goProne) != "undefined" && ws.goProne) {
 					if ((typeof(ws.player.prone) != "undefined")) {
 						ws.player.prone = !ws.player.prone
@@ -1430,13 +1464,13 @@ function sendScopeToClient(ws) {
         msg.weapon = ws.player.weapon.rpcRepr(ws.player)
     }
     msg.particles = particleManager.getParticlesInScope(ws.player.pos.x, ws.player.pos.y, tfov, ws.player.username)
-    msg.msgs = ws.player.messages
     
     if ((typeof(ws.player.damaged) != "undefined") && (ws.player.damaged)) {
         msg.damaged = true
         ws.player.damaged = false
     }
-    
+
+	msg.msgs = ws.player.messages    
     ws.player.messages = []
     
     if ((typeof(ws.useInventory) != "undefined")&&(ws.useInventory >= 0)) {

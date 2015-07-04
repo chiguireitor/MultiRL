@@ -274,7 +274,7 @@ var templates = {
 					sourceFn: effects.effectFunction.smoke,
 					targetFn: effects.effectFunction.explosion,
 					additional: {
-						explosionDamageRange: [2, 5]
+						explosionDamageRange: [5, 15]
 					}
 				})],
 				pix: 'ð',

@@ -372,6 +372,20 @@ function Ranged(options) {
     this.ammoEffects = []
     
     this.effects = options.effects || []
+	
+	if (this.alternate) {
+		if (!this.alternate.burstLength) {
+			this.alternate.burstLength = 1
+		}
+		
+		if (!this.alternate.fragmentation) {
+			this.alternate.fragmentation = 1
+		}
+		
+		if (!this.alternate.ammoUse) {
+			this.alternate.ammoUse = 1
+		}
+	}
 }
 
 Ranged.prototype.clone = function() {
@@ -434,7 +448,7 @@ Ranged.prototype.rpcRepr = function(c) {
         }
     }
                     
-    return {
+    var res = {
         name: (this.identified && (this.identifiedName != ''))?this.identifiedName:this.name,
 		id: this.id,
         description: this.description,
@@ -448,6 +462,16 @@ Ranged.prototype.rpcRepr = function(c) {
         chargerAmmoType: this.chargerAmmoType,
         damage: [dmgVals.minDamage, dmgVals.maxDamage]
     }
+	
+	if (this.alternate) {
+		res.alternate = {
+			ammo: this.alternate.ammo,
+			ammoMax: this.alternate.ammoMax,
+			ammoType: this.alternate.chargerAmmoType,
+		}
+	}
+	
+	return res
 }
 
 Ranged.prototype.fire = function(x, y, c, options) {
@@ -460,10 +484,12 @@ Ranged.prototype.fire = function(x, y, c, options) {
 	if (options && (options.useAlternate)) {
 		weapon = c.weapon.alternate
 		console.log("Using alternate fire")
+		console.log(weapon)
 	}
 	
     var burst = 0
     var firedSomething = false
+
     while ((burst < Math.min(weapon.burstLength, weapon.ammo))&&(weapon.ammo >= 0)) {
         if ((weapon.ammo - weapon.ammoUse) >= 0) {
             firedSomething = true
@@ -527,22 +553,26 @@ Ranged.prototype.fire = function(x, y, c, options) {
                 }
                 
                 var currentEffects = []
-                for (var ei=0; ei < this.effects.length; ei++) {
-                    var eff = this.effects[ei].clone(c)
-                    eff.applyToSource(level, c.pos.x, c.pos.y)
-                    currentEffects.push(eff)
-                }
+				if (weapon.effects) {
+					for (var ei=0; ei < weapon.effects.length; ei++) {
+						var eff = weapon.effects[ei].clone(c)
+						eff.applyToSource(level, c.pos.x, c.pos.y)
+						currentEffects.push(eff)
+					}
+				}
                 
-                for (var ei=0; ei < this.ammoEffects.length; ei++) {
-                    var eff = this.ammoEffects[ei].clone(c)
-                    eff.applyToSource(level, c.pos.x, c.pos.y)
-                    currentEffects.push(eff)
-                }
+				if (weapon.ammoEffects) {
+					for (var ei=0; ei < weapon.ammoEffects.length; ei++) {
+						var eff = weapon.ammoEffects[ei].clone(c)
+						eff.applyToSource(level, c.pos.x, c.pos.y)
+						currentEffects.push(eff)
+					}
+				}
                 
                 var validTarget = false
                 
                 var tries = 0
-                while ((!validTarget) && (tries < 10)) {
+				while ((!validTarget) && (tries < 10)) {
                     tries++ // Protect code from looping forever
                     /*var ty = Math.floor(y + Math.random()*p - p/2)
                     var tx = Math.floor(x + Math.random()*p - p/2)*/
@@ -575,7 +605,7 @@ Ranged.prototype.fire = function(x, y, c, options) {
                         (tx >= 0) && (tx < level[ty].length))) {*/
                         
                         var ntgt = rayhitThrough(c.pos.x, c.pos.y, tx, ty, this.range)
-                        
+						
                         if (ntgt && (!isNaN(ntgt.x)) && (!isNaN(ntgt.y))) {
                             tx = ntgt.x
                             ty = ntgt.y
@@ -618,7 +648,7 @@ Ranged.prototype.fire = function(x, y, c, options) {
                             for (var ei=0; ei < currentEffects.length; ei++) {
                                 currentEffects[ei].applyToTarget(level, tx, ty)
                             }
-                            
+
                             if ((typeof(tgt.character) != "undefined") && (tgt.character != null)) {
                                 if (typeof(tgt.character.armor) != "undefined") {
                                     var armor = tgt.character.armor.pos * dmgVals.armorMultiplier
@@ -665,7 +695,7 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                 c.pos.x, c.pos.y, tx, ty, 1, "*", 
                                 "particle-ammo-" + weapon.ammoType.replace(/ /g, '-'),  
                                 "instant", undefined, burst * weapon.repeatDelay, weapon.trail)
-                            soundManager.addSound(c.pos.x, c.pos.y, 15, this.sndOnFire, burst * weapon.repeatDelay)
+                            soundManager.addSound(c.pos.x, c.pos.y, 15, weapon.sndOnFire, burst * weapon.repeatDelay)
                         } else {
                             console.log("Couldn't trace a target")
                             break
@@ -702,6 +732,8 @@ Ranged.prototype.reloadWithCharger = function(c, charger, alternate) {
 		var weapon = c.weapon
 		if (alternate) {
 			weapon = c.weapon.alternate
+			console.log("Using alternate charger")
+			console.log(charger)
 		}
 		
         var needAmmo = weapon.ammoMax - weapon.ammo
@@ -774,8 +806,6 @@ Ranged.prototype.assignCharger = function(charger) {
 		this.ammoDecorators = charger.decorators || {}
 		this.fragmentation = charger.fragmentation
 	} else if (this.alternate && (charger.ammoType.indexOf(this.alternate.ammoType) >= 0)) {
-		console.log(this.alternate)
-		console.log(charger)
 		this.alternate.ammo = this.alternate.ammoMax
 		this.alternate.ammoEffects = charger.effects
 		this.alternate.chargerAmmoType = charger.ammoType

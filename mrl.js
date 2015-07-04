@@ -294,6 +294,7 @@ var handlers = { // These are the RPC handlers that the client can invoke
                 chartype: obj.chartype,
                 attrs: {
                     hp: {pos: 100, max: 100, onchange: function(deathType, amnt) {
+						this.attrs.hp.pos = Math.round(this.attrs.hp.pos)
                         if (this.attrs.hp.pos <= 0) {
                             level[this.pos.y][this.pos.x].character = null
                             

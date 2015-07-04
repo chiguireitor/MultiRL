@@ -364,8 +364,14 @@ function generate(spath, params, id) {
             if ((x != 'isleaf') && (x != 'category') && (x != 'image_generator') && nd.hasOwnProperty(x)) {
                 var val = nd[x]
                 
-                if ((typeof(val) === "object") && ('fn' in val) && ('val' in val)) {
-                    result[x] = generatorFunctions[val.fn](val.val, context)
+                if (typeof(val) === "object") {
+					if (('fn' in val) && ('val' in val)) {
+						result[x] = generatorFunctions[val.fn](val.val, context)
+					/*} else if ('clone' in val) {
+						result[x] = val.clone()*/
+					} else {
+						result[x] = val
+					}
                 } else {
                     result[x] = val
                 }

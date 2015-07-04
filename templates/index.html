@@ -1453,6 +1453,12 @@ function updateAttrs() {
         drawConsoleBar(displaySizeX + 15, y + 17, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax)
         drawAsciiText(displaySizeX + 2, y + 18, "Dmg. " + currentWeapon.damage[0] + " - " + currentWeapon.damage[1], [0, 255, 0], [0, 0, 0])
         
+		if (currentWeapon.alternate) {
+			drawAsciiText(displaySizeX + 2, y + 19, currentWeapon.alternate.ammoType, [0, 255, 128], [0, 0, 0])
+			drawAsciiText(displaySizeX + 2, y + 20, "Ammo " + pad(currentWeapon.alternate.ammo, 3) + "/" + currentWeapon.alternate.ammoMax, [0, 255, 128], [0, 0, 0])
+			drawConsoleBar(displaySizeX + 15, y + 20, 10, 1, currentWeapon.alternate.ammo / currentWeapon.alternate.ammoMax)
+		}
+		
         if (!(currentWeapon.id in weaponSprites)) {
             weaponSprites[currentWeapon.id] = undefined
             
@@ -1465,16 +1471,16 @@ function updateAttrs() {
         } else if (weaponSprites[currentWeapon.id]) {
             var spr = weaponSprites[currentWeapon.id]
             
-            drawRexSprite(displaySizeX + 2, y + 20, spr)
+            drawRexSprite(displaySizeX + 2, y + ((!currentWeapon.alternate)?20:21), spr)
         }
     }
 }
 
 function updateLogs() {
-    drawAsciiText(displaySizeX + 2, 38, "Game log", [0, 255, 0], [0, 0, 0])
+    drawAsciiText(displaySizeX + 2, 41, "Game log", [0, 255, 0], [0, 0, 0])
     
     var m = announcements.length-1
-    var l = Math.min(m, displaySizeY - 40)
+    var l = Math.min(m, displaySizeY - 39)
     for (var i=0; i < l; i++) {
         var ann = announcements[m - i]
         
@@ -1491,7 +1497,7 @@ function updateLogs() {
             ann = ann.slice(p, p+64)
         }
         
-        drawAsciiText(displaySizeX + 2, 40 + i, ann, [64, 200, 64], [0, 0, 0])
+        drawAsciiText(displaySizeX + 2, 42 + i, ann, [64, 200, 64], [0, 0, 0])
     }
 } 
             

@@ -246,6 +246,12 @@ var effectFunction = {
                     this.additional.explosionDamageRange[0] +
                     (this.additional.explosionDamageRange[1] - this.additional.explosionDamageRange[0]) * (1.0 - expd)
                     
+                cell.character.knockback = {
+                    ox: x,
+                    oy: y,
+                    amount: Math.floor(Math.random() * 4)
+                }
+                    
                 if (typeof(cell.character.attrs.hp.onchange) != "undefined") {
                     cell.character.attrs.hp.onchange.call(cell.character, "explosion-radius")
                 }

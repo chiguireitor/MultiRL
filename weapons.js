@@ -45,6 +45,8 @@
 var particles = require('./particles.js')
 var soundManager = require('./soundman.js').getManager()
 var gameDefs = require('./conf/gamedefs.js')
+var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
+var effects = require('./effects.js')
 var passable
 var level
 
@@ -133,6 +135,7 @@ function rayhit(x0, y0, x1, y1) {
  * This function is the same as Rayhit except that it continues tracing after reaching the target
  */
 function rayhitThrough(x0, y0, x1, y1, energy) {
+    var initialEnergy = energy
 	if (!energy) {
 		energy = 1000
 	}
@@ -164,6 +167,7 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
     var dx = x1 - x0
     var dy = y1 - y0
     var lx, ly
+    var path = 0
     
     //throw "Not tracing paths correctly"
     
@@ -171,12 +175,17 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
         return {x: x1, y: y1}
     } else if (dy == 0) {
         // Horizontal line, easiest
+        path = 1
         var row = level[Math.floor(y0)]
         var ix = (dx > 0)?1:-1
         dx = Math.abs(dx)
         
-        var x = x0 + x
+        var x = x0 + ix
         while ((x >= 0) && (x < row.length) && (energy > 0)) {
+            path = 1001
+            lx = x
+            ly = y0
+            
 			var tile = row[Math.floor(x)]
 			var pa = passable(tile)
             if (pa != 1) {
@@ -188,20 +197,28 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
 						continue
 					}
 				}
+                
+                if (isNaN(x) || isNaN(y0)) {
+                    console.log("NaN on horizontal tracing " + x + " " + y0)
+                }
+                
                 return {x: x, y: y0}
             }
-            lx = x
-            ly = y0
             x += ix
 			energy--
         }
     } else if (dx == 0) {
         // Vertical line, easy
+        path = 2
+        
         var iy = (dy > 0)?1:-1
         dy = Math.abs(dy)
         
         var y = y0 + iy
         while ((y >= 0) && (y < level.length) && (energy > 0)) {
+            lx = x0
+            ly = y
+            
 			var tile = level[Math.floor(y)][Math.floor(x0)]
 			var pa = passable(tile)
             if (pa != 1) {
@@ -214,15 +231,19 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
 					}
 				}
 				
+                if (isNaN(x0) || isNaN(y)) {
+                    console.log("NaN on vertical tracing " + x0 + " " + y)
+                }
+                
                 return {x: x0, y: y}
             }
-            lx = x0
-            ly = y
             y += iy
 			energy--
         }
     } else {
         // Run the algorithm
+        path = 3
+        
         var ix = (dx > 0)?1:-1
         var iy = (dy > 0)?1:-1
         var error = 0
@@ -231,7 +252,11 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
             var derror = Math.abs(dy/dx)
             var y = y0
             var x=x0+ix
+            
             while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
+                lx = x
+                ly = y
+                
                 error += derror
                 if (error > 0.5) {
                     y += iy
@@ -250,13 +275,15 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
 								continue
 							}
 						}
+                        
+                        if (isNaN(x) || isNaN(y)) {
+                            console.log("NaN on slanted tracing " + x + " " + y)
+                        }
+                
                         return {x: x, y: y}
                     }
                 }
                 
-                lx = x
-                ly = y
-            
                 x+=ix
 				energy--
             }
@@ -270,6 +297,9 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
                     x += ix
                     error -= 1.0
                 }
+                
+                lx = x
+                ly = y
                 
                 if ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
 					var tile = level[Math.floor(y)][Math.floor(x)]
@@ -285,12 +315,14 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
 							}
 						}
 						
+                        if (isNaN(x) || isNaN(y)) {
+                            console.log("NaN on slanted2 tracing " + x + " " + y)
+                        }
+                        
                         return {x: x, y: y}
                     }
                 }
                 
-                lx = x
-                ly = y
                 y+=iy
 				energy--
             }
@@ -301,6 +333,9 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
 				var tile = level[Math.floor(y)][Math.floor(x)]
 				var pa = passable(tile)
 				
+                lx = x
+                ly = y
+                
                 if (pa != 1) {
 					if (pa == 2) {
 						var ch = tile.character
@@ -311,10 +346,11 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
 						}
 					}
 					
+                    if (isNaN(x) || isNaN(y)) {
+                        console.log("NaN on diagonal tracing " + x0 + " " + y)
+                    }
                     return {x: x, y: y}
                 }
-                lx = x
-                ly = y
                 
                 x += ix
                 y += iy
@@ -323,6 +359,9 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
         }
     }
     
+    if (isNaN(lx) || isNaN(ly)) {
+        console.log("NaN on failover tracing " + lx + " " + ly + "; Path: " + path + "; NRG: " + initialEnergy)
+    }
     return {x: lx, y: ly}
 }
 
@@ -483,8 +522,8 @@ Ranged.prototype.fire = function(x, y, c, options) {
 	var weapon = c.weapon
 	if (options && (options.useAlternate)) {
 		weapon = c.weapon.alternate
-		console.log("Using alternate fire")
-		console.log(weapon)
+		/*console.log("Using alternate fire")
+		console.log(weapon)*/
 	}
 	
     var burst = 0
@@ -528,7 +567,7 @@ Ranged.prototype.fire = function(x, y, c, options) {
 					precision *= options.precision
 				}
 				
-                var p = d2 - precision
+                var p = Math.max(0, d2 - precision)
                 var difx = 0
                 var dify = 0
                 var ndifx = 0
@@ -686,9 +725,32 @@ Ranged.prototype.fire = function(x, y, c, options) {
                             } else if (typeof(tgt.item) != "undefined") {
                                 // TODO: Check if we damaged it enough that it gets destroyed
                                 console.log("Hitting an item not implemented")
-                            } else if (typeof(tgt.blowable) != "undefined") {
-                                // TODO: Check if we damaged it enough that it gets destroyed
-                                console.log("Hitting a blowable not implemented")
+                            } else if (typeof(tgt.tileHealth) != "undefined") {
+                                tgt.tileHealth = tgt.tileHealth - dmg
+                                
+                                if (tgt.tileHealth <= 0) {
+                                    console.log('Blowable died')
+                                    delete tgt.tileHealth
+                                    tgt.tile = asciiMapping['.']
+
+                                    var explosion = new effects.Effect(undefined, {
+                                        affectsFriendly: true,
+                                        affectsEnemy: true,
+                                        isSticky: false,
+                                        isTargetArea: true,
+                                        isSourceArea: true,
+                                        targetRadius: 5,
+                                        sourceRadius: 0,
+                                        sourceFn: effects.effectFunction.smoke,
+                                        targetFn: effects.effectFunction.explosion,
+                                        additional: {
+                                            explosionDamageRange: [5, 30]
+                                        }
+                                    })
+                                    
+                                    explosion.applyToSource(level, tx, ty)
+                                    explosion.applyToTarget(level, tx, ty)
+                                }
                             }
                             
                             particles.Singleton().spawnParticle(
@@ -732,8 +794,6 @@ Ranged.prototype.reloadWithCharger = function(c, charger, alternate) {
 		var weapon = c.weapon
 		if (alternate) {
 			weapon = c.weapon.alternate
-			console.log("Using alternate charger")
-			console.log(charger)
 		}
 		
         var needAmmo = weapon.ammoMax - weapon.ammo
@@ -797,9 +857,7 @@ Ranged.prototype.findChargerAndAssign = function(defs) {
 }
 
 Ranged.prototype.assignCharger = function(charger) {
-	console.log(charger.ammoType + ' vs. ' + this.ammoType)
 	if (charger.ammoType.indexOf(this.ammoType) >= 0) {
-		console.log(charger)
 		this.ammo = this.ammoMax
 		this.ammoEffects = charger.effects
 		this.chargerAmmoType = charger.ammoType
@@ -859,11 +917,7 @@ Charger.prototype.rpcRepr = function(c) {
     
     var decorators = this.decorators.damage || []
     for (var i=0; i < decorators.length; i++) {
-        /*console.log("Calling decorator over:")
-        console.log(dmgVals)*/
         dmgVals = decorators[i].call(c, dmgVals)
-        /*console.log("Result of decorator:")
-        console.log(dmgVals)*/
     }
     
     return {

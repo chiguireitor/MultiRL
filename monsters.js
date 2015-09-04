@@ -49,10 +49,10 @@ function Monsta(aiState, name, tx, ty) {
     var ai = aiState.instantiate(
         tx, ty, name, asciiMapping['m'], '#f60', 
         {
-            hp: {pos: 20, max: 20},
+            hp: {pos: 10, max: 10},
             strength: {pos: 10},
             armor: {pos: 10},
-            speed: {pos: 80},
+            speed: {pos: 30},
             precision: {pos: 10}
         },
         {},

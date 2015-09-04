@@ -234,9 +234,11 @@ RexSprite.prototype.draw = function(level, x, y) {
                                 if (logicBrick.asciiCode == 61) { // 61 == =
                                     // ?
                                 } else if (logicBrick.asciiCode == 247) { // 247 == ≈
-                                    levelPixel.damage = logicBrick.fg.g // Green channel determines the damage dealt
+                                    levelPixel.damage = logicBrick.fg.r // Red channel determines the damage dealt
                                 } else if (logicBrick.asciiCode == 233) { // 233 == Θ
-                                    levelPixel.damage = logicBrick.fg.r // Red channel determines the damage dealt when exploding
+                                    levelPixel.damageExplode = 255-logicBrick.fg.g // FG Green channel determines the damage dealt when exploding
+                                    levelPixel.damageRadius = 255-logicBrick.fg.r // FG Red channel determines the explosion radius
+                                    levelPixel.tileHealth = 255-logicBrick.fg.b // FG Blue channel determines the tile health
                                 }
                             }
                         }

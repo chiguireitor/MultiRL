@@ -10,8 +10,8 @@
 </head>
 <body style="background: #000; overflow: hidden">
 
-<div class="ascii">
-<div id="term" style="display: inline">
+<div class="ascii" style="width: 100; text-align: center">
+<div id="term" style="display: inline;">
 </div>
 </div>
 <a class="twitter-share-button"
@@ -31,6 +31,8 @@ Tweet
 <script type="text/javascript">
 window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.getElementById(id)){return}js=d.createElement(s);js.id=id;js.src="https://platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);return window.twttr||(t={_e:[],ready:function(f){t._e.push(f)}})}(document,"script","twitter-wjs"));
 </script>
+
+<a href="https://github.com/chiguireitor/MultiRL"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/a6677b08c955af8400f44c6298f40e7d19cc5b2d/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677261795f3664366436642e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_gray_6d6d6d.png"></a>
 
 <script id="default-fs" type="x-shader/x-fragment">
     precision mediump float;
@@ -61,7 +63,8 @@ window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.ge
         vec4 fg = texture2D(uForeground, vec2(x, y));
         vec4 bg = texture2D(uBackground, vec2(x, y));
         
-        gl_FragColor = mix(fg, bg, fnt.a); // MULTIPLY BY THIS TO GET SCANLINES! YAY! * (pow(mod(gl_FragCoord.y, 3.0), 2.0)/6.0 + 0.95)
+        gl_FragColor = mix(fg, bg, fnt.a); // Without scanlines
+        //gl_FragColor = mix(fg, bg, fnt.a) * (min(mod(gl_FragCoord.y, 3.0), 2.0)/4.0 + 0.5); // With scanlines
         
         // These "if"s are for the damage radius around the screen edge
         float v = damageRadius;
@@ -349,6 +352,11 @@ var colorMap = {
 
 var sndVolume = 0.1
 var bgm
+
+function OpenInNewTab(url) {
+  var win = window.open(url, '_blank')
+  win.focus()
+}
 
 function fgColorFromColorMapRule(rule, timeModifier) {
     var col = rule
@@ -769,10 +777,13 @@ function moveToDest(x, y) {
 
 function clickCell(x, y) {
     lastClick = [x, y]
-    if ((typeof(onClickTarget) != "undefined")&&(onClickTarget != null)) {
-        onClickTarget(x, y)
-    } else if (gameStarted && (x < displaySizeX)) {
-        moveToDest(x, y)
+    if (showingInventory) {
+    } else if (gameStarted) {
+        if ((typeof(onClickTarget) != "undefined")&&(onClickTarget != null)) {
+            onClickTarget(x, y)
+        } else if (gameStarted && (x < displaySizeX)) {
+            moveToDest(x, y)
+        }
     }
 }
 
@@ -1079,15 +1090,27 @@ function updateDisplayMenu() {
     }
     
     if (gplusSprite) {
-        drawRexSprite(((displaySizeX + 32)/2) - 27, 50, gplusSprite)
+        if (drawRexSprite(((displaySizeX + 32)/2) - 27, 50, gplusSprite)) {
+            // Open G+
+            OpenInNewTab("https://plus.google.com/+JohnVillar")
+        }
+        drawAsciiText(((displaySizeX + 32)/2) - 27, 61, "+JohnVillar", [200, 200, 200], [0, 0, 0])
     }
     
     if (twitterSprite) {
-        drawRexSprite(((displaySizeX + 32)/2) + 14, 50, twitterSprite)
+        if (drawRexSprite(((displaySizeX + 32)/2) + 14, 50, twitterSprite)) {
+            // Open Twitter
+            OpenInNewTab("https://twitter.com/johnvillarz")
+        }
+        drawAsciiText(((displaySizeX + 32)/2) + 14, 61, "@johnvillarz", [200, 200, 200], [0, 0, 0])
     }
     
     if (redditSprite) {
-        drawRexSprite(((displaySizeX + 32)/2) - 6, 50, redditSprite)
+        if (drawRexSprite(((displaySizeX + 32)/2) - 6, 50, redditSprite)) {
+            // Open Reddit
+            OpenInNewTab("https://www.reddit.com/r/GanymedeGate/")
+        }
+        drawAsciiText(((displaySizeX + 32)/2) - 8, 61, "/r/GanymedeGate", [200, 200, 200], [0, 0, 0])
     }
     
     /*for (var i=0; i < 256; i++) {
@@ -1366,6 +1389,24 @@ function updateDisplayGameStarted() {
     
     updateAttrs()
     updateLogs()
+    
+    if ((typeof(playerAttrs) != "undefined") && (playerAttrs.hp.pos <= 0)) {
+        if (drawButtonWithText(((displaySizeX + 32)/2) - 24, displaySizeY - 4, "Return to Menu", 16, opsColsFg[true], opsColsBg[true], 0)) { //opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+            currentMenu = 0
+            gameStarted = false
+            lastClick = [-1, -1]
+            lastMove = [-1, -1]
+            destinationMovement = undefined
+            
+            level = []
+            queuedAnns = []
+            currentTips = []
+            showingInventory = false
+            announcements = []
+            
+            reconnect()
+        }
+    }
 }
 
 function drawConsoleBar(x, y, w, h, percent) {
@@ -1404,6 +1445,7 @@ function drawAsciiText(x, y, txt, fg, bg) {
 }
 
 function drawRexSprite(x, y, spr) {
+    var clicked = false
     for (var l=0; l < spr.layers.length; l++) {
         var layer = spr.layers[l]
         
@@ -1415,10 +1457,18 @@ function drawRexSprite(x, y, spr) {
                     terminal.setPixel(x + ix, y + iy, ras.asciiCode,
                         [ras.fg.r, ras.fg.g, ras.fg.b],
                         [ras.bg.r, ras.bg.g, ras.bg.b])
+                        
+                    if ((lastClick[0] == (x + ix))&&(lastClick[1] >= (y + iy))) {
+                        lastClick[0] = -1
+                        lastClick[1] = -1
+                        clicked = true
+                    }
                 }
             }
         }
     }
+    
+    return clicked
 }
 
 function pruneWeaponName(name) {
@@ -1723,38 +1773,48 @@ var handlers = {
     },
 }
 
-var wsPortPart = ""
+var wsPortPart = ":8080"
 if (window.location.hostname.indexOf("ganymedegate") >= 0) {
     // OpenShift needs the WebSocket to connect to port 8000
     wsPortPart = ":8000"
 }
 
-var sock = new WebSocket("ws://" + window.location.hostname + wsPortPart)
-var totalChars = 0
-sock.onopen = function (event) {
-    //
-}
+function startConnection() {
+    var sck = new WebSocket("ws://" + window.location.hostname + wsPortPart)
+    sck.onopen = function (event) {
+        //
+    }
 
-sock.onmessage = function (event) {
-    totalChars += event.data.length
-    //console.log("~" + (totalChars/1024) + " Kb")*/
-    var msg = JSON.parse(pako.inflate(event.data, { to: 'string' }))
-    
-    if (typeof(msg.type) != 'undefined') {
-        handlers[msg.type](msg)
+    sck.onmessage = function (event) {
+        //totalChars += event.data.length
+        //console.log("~" + (totalChars/1024) + " Kb")*/
+        var msg = JSON.parse(pako.inflate(event.data, { to: 'string' }))
+        
+        if (typeof(msg.type) != 'undefined') {
+            handlers[msg.type](msg)
+        }
+        
+        if (typeof(msg.msgs) != 'undefined') {
+            queueAnnouncements(msg.msgs)
+        }
+    }
+
+    sck.onclose =  function (event) {
+        console.log("Close: " + event)
+    }
+
+    sck.onerror =  function (event) {
+        console.log("Error: " + event)
     }
     
-    if (typeof(msg.msgs) != 'undefined') {
-        queueAnnouncements(msg.msgs)
-    }
+    return sck
 }
 
-sock.onclose =  function (event) {
-    console.log("Close: " + event)
-}
+var sock = startConnection()
 
-sock.onerror =  function (event) {
-    console.log("Error: " + event)
+function reconnect() {
+    sock.close()
+    sock = startConnection()
 }
 
 function send(obj) {
@@ -1953,31 +2013,6 @@ function disableGameInput() {
 
 function enableGameInput() {
     gameInputEnabled = true
-}
-
-var fundRaiserAddress = "1Fir4FKRCzeU3fmZf5zpWvadhhXEMGMr9N"
-var fundRaiserURI = "https://api.biteasy.com/blockchain/v1/addresses/"
-var bavgUSDURI = "https://api.bitcoinaverage.com/ticker/global/USD/"
-var fundRaiserTarget = 1500
-var fundRaiserBar = "fndRaise"
-function updateFundRaiser() {
-    $.ajax(fundRaiserURI + fundRaiserAddress, {
-        dataType: 'json',
-        success: function(dataFR) {
-        
-            $.ajax(bavgUSDURI, {
-                dataType: 'json',
-                success: function(dataBA) {
-                    var tgt = fundRaiserTarget
-                    var balance = dataFR.data.total_received / 100000000.0 * dataBA.last
-                 
-                    updateBar("fndRaise", balance, tgt)
-                }
-            })
-        },
-        error: function(data) {
-        }
-    })
 }
 
 function collectStyleSheetRules() {
@@ -2293,6 +2328,6 @@ function goFullScreen() {
     }
 }
 </script>
-<script src="https://apis.google.com/js/platform.js" async defer></script>
+<!--script src="https://apis.google.com/js/platform.js" async defer></script-->
 </body>
 </html>

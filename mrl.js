@@ -1119,6 +1119,17 @@ function _processTurnIfAvailable_priv_() {
                             activableTiles[ctl.tile](ctl, ws)
                         }
                         
+                        if (ctl.damage) {
+                            // Walking over damaging tile
+                            if (ws.player.attrs.hp.pos > 0) {
+                                ws.player.attrs.hp.pos -= ctl.damage
+                                
+                                if (typeof(ws.player.attrs.hp.onchange) != "undefined") {
+                                    ws.player.attrs.hp.onchange.call(ws.player, "floor-hazard", ctl.damage)
+                                }
+                            }                                
+                        }
+                        
                         if (didMove) {
                             soundManager.addSound(ws.player.pos.x, ws.player.pos.y, 5, "dirt_step", 0)
                         }
@@ -1715,9 +1726,9 @@ var htServer = http.createServer(function (req, res) {
 })
 
 var ipaddress = process.env.OPENSHIFT_NODEJS_IP || "0.0.0.0"
-var port = process.env.OPENSHIFT_NODEJS_PORT || 80
+var port = process.env.OPENSHIFT_NODEJS_PORT || 8080
 htServer.listen(port, ipaddress)
-console.log("HTTP Server " + "READY".green + " on port 80")
+console.log("HTTP Server " + "READY".green + " on port " + port)
 
 var wss = new ws.Server({server: htServer})
 wss.on('connection', function(ws) {

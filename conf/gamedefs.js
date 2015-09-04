@@ -72,7 +72,7 @@ module.exports = {
         randomLevers: 4, // Max random number of levers to add to the level
         minNumberItems: 5,
         randomNumberItems: 5, // This gets multiplied by the level number
-        numSpritesToTryFit: 20, // How much sprites the level generator will try to fit
+        numSpritesToTryFit: 50, // How much sprites the level generator will try to fit
         numEnemies: 50, // Number of enemies to keep alive at all times
     }
 }

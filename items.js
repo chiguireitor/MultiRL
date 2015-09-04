@@ -410,7 +410,7 @@ function generate(spath, params, id) {
         
         if (meetsParams) {
 			result.id = spath.split('/').pop() + '_' + rndGen.id
-			console.log('gen_id: ' + result.id)
+			//console.log('gen_id: ' + result.id)
             constItem = new const_fn(result)
 			
 			var imgen = nd.image_generator
@@ -434,7 +434,7 @@ function generate(spath, params, id) {
 							var spriteNum = Math.floor((i + 1)/4.0)
 							var layerNum = i + 1 - spriteNum * 4
 							
-							console.log(i + ' ' + spriteNum)
+							//console.log(i + ' ' + spriteNum)
 							buf = layers[spriteNum].rawDraw(buf, layerNum)
 						}
 					}

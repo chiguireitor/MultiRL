@@ -225,6 +225,10 @@ RexSprite.prototype.draw = function(level, x, y) {
                             levelPixel.fg = fg
                             levelPixel.bg = bg
                             
+                            if ("damage" in levelPixel) {
+                                delete levelPixel.damage
+                            }
+                            
                             if (blockLayer) {
                                 levelPixel.forcePassable = blockLayer.raster[rasterIdx].asciiCode
                             }

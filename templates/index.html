@@ -38,10 +38,11 @@ window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.ge
     precision mediump float;
     
     uniform vec2 fontSize;
-    uniform sampler2D uFont, uGlyphs, uForeground, uBackground;
+    uniform sampler2D uFont, uGlyphs, uForeground, uBackground, uLuma;
     uniform float damageRadius;
     uniform float uWidthDistort;
     uniform float uConsoleCharWidth;
+    uniform int uUseLuma;
 
     void main(void) {
         //float x = gl_FragCoord.x / fontSize.x / 96.0 /* Console char width*/ * uWidthDistort;
@@ -87,6 +88,12 @@ window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.ge
             
             gl_FragColor.r = gl_FragColor.r + d;
         }
+        
+        if (uUseLuma == 1) {
+            vec4 luma = texture2D(uLuma, vec2(x, y));
+            
+            gl_FragColor = vec4(gl_FragColor.r * luma.r, gl_FragColor.g * luma.g, gl_FragColor.b * luma.b, gl_FragColor.a);
+        }
     }
 </script>
 
@@ -105,6 +112,128 @@ window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.ge
         vec4 tx = texture2D(uTexture, vec2(x, y));
         
         gl_FragColor = tx;
+    }
+</script>
+
+<script id="rtt-bloomx-fs" type="x-shader/x-fragment">
+    precision mediump float;
+    
+    uniform sampler2D uTexture;
+    uniform float uViewportWidth;
+    uniform float uViewportHeight;
+    uniform float uWidthDistort;
+
+    const float td = 0.005;
+    
+    // 5x5 Gaussian blur matrix coefficients
+    const float base = 149.0;
+    const float mt1 = 1.0 / base;
+    const float mt4 = 4.0 / base;
+    const float mt7 = 7.0 / base;
+    const float mt16 = 16.0 / base;
+    const float mt26 = 26.0 / base;
+    const float mt41 = 41.0 / base;
+    
+    void main(void) {
+        float x = gl_FragCoord.x / uViewportWidth * uWidthDistort;
+        float y = gl_FragCoord.y / uViewportHeight;
+        
+        float tdx1 = 1.0 / uViewportWidth;
+        float tdy1 = 1.0 / uViewportHeight;
+        float tdx2 = tdx1 * 2.0;
+        float tdy2 = tdy1 * 2.0;
+        float tdx3 = tdx1 * 3.0;
+        float tdx4 = tdx1 * 4.0;
+        float tdx5 = tdx1 * 5.0;
+        
+        vec4 tx02 = texture2D(uTexture, vec2(x-tdx5, y)) * mt1;
+        vec4 tx12 = texture2D(uTexture, vec2(x-tdx4, y)) * mt4;
+        vec4 tx22 = texture2D(uTexture, vec2(x-tdx3, y)) * mt7;
+        vec4 tx32 = texture2D(uTexture, vec2(x-tdx2, y)) * mt16;
+        vec4 tx42 = texture2D(uTexture, vec2(x-tdx1, y)) * mt26;
+        vec4 tx52 = texture2D(uTexture, vec2(x, y)) * mt41;
+        vec4 tx62 = texture2D(uTexture, vec2(x+tdx1, y)) * mt26;
+        vec4 tx72 = texture2D(uTexture, vec2(x+tdx2, y)) * mt16;
+        vec4 tx82 = texture2D(uTexture, vec2(x+tdx3, y)) * mt7;
+        vec4 tx92 = texture2D(uTexture, vec2(x+tdx4, y)) * mt4;
+        vec4 txA2 = texture2D(uTexture, vec2(x+tdx5, y)) * mt1;
+        
+        
+        gl_FragColor = tx02 + tx12 + tx22 + tx32 + tx42 + tx52 + tx62 + tx72 + tx82 + tx92 + txA2;
+    }
+</script>
+
+<script id="rtt-bloomy-fs" type="x-shader/x-fragment">
+    precision mediump float;
+    
+    uniform sampler2D uTexture;
+    uniform float uViewportWidth;
+    uniform float uViewportHeight;
+    uniform float uWidthDistort;
+
+    const float td = 0.005;
+    
+    // 5x5 Gaussian blur matrix coefficients
+    const float base = 143.0;
+    const float mt1 = 1.0 / base;
+    const float mt4 = 4.0 / base;
+    const float mt7 = 7.0 / base;
+    const float mt16 = 16.0 / base;
+    const float mt26 = 26.0 / base;
+    const float mt41 = 41.0 / base;
+    
+    const float gamma = 0.8;
+    
+    void main(void) {
+        float x = gl_FragCoord.x / uViewportWidth * uWidthDistort;
+        float y = gl_FragCoord.y / uViewportHeight;
+        
+        float tdy1 = 1.0 / uViewportHeight;
+        float tdy2 = tdy1 * 2.0;
+        float tdy3 = tdy1 * 3.0;
+        float tdy4 = tdy1 * 4.0;
+        float tdy5 = tdy1 * 5.0;
+        
+        vec4 tx02 = texture2D(uTexture, vec2(x, y-tdy5)) * mt1;
+        vec4 tx12 = texture2D(uTexture, vec2(x, y-tdy4)) * mt4;
+        vec4 tx22 = texture2D(uTexture, vec2(x, y-tdy3)) * mt7;
+        vec4 tx32 = texture2D(uTexture, vec2(x, y-tdy2)) * mt16;
+        vec4 tx42 = texture2D(uTexture, vec2(x, y-tdy1)) * mt26;
+        vec4 tx52 = texture2D(uTexture, vec2(x, y)) * mt41;
+        vec4 tx62 = texture2D(uTexture, vec2(x, y+tdy1)) * mt26;
+        vec4 tx72 = texture2D(uTexture, vec2(x, y+tdy2)) * mt16;
+        vec4 tx82 = texture2D(uTexture, vec2(x, y+tdy3)) * mt7;
+        vec4 tx92 = texture2D(uTexture, vec2(x, y+tdy4)) * mt4;
+        vec4 txA2 = texture2D(uTexture, vec2(x, y+tdy5)) * mt1;
+        
+        
+        gl_FragColor = tx02 + tx12 + tx22 + tx32 + tx42 + tx52 + tx62 + tx72 + tx82 + tx92 + txA2;
+        
+        gl_FragColor = vec4(pow(gl_FragColor.rgb, vec3(1.0 / gamma)), gl_FragColor.a);
+    }
+</script>
+
+<script id="rtt-2xsai-fs" type="x-shader/x-fragment">
+    // Lousy pseudo pixellated look
+    precision mediump float;
+    
+    uniform sampler2D uTexture;
+    uniform float uViewportWidth;
+    uniform float uViewportHeight;
+    uniform float uWidthDistort;
+
+    void main(void) {
+        float x = gl_FragCoord.x / uViewportWidth * uWidthDistort;
+        float y = gl_FragCoord.y / uViewportHeight;
+        
+        vec4 tx = texture2D(uTexture, vec2(x, y));
+        
+        gl_FragColor = tx * 0.8;
+        
+        if ((mod(floor(gl_FragCoord.x), 2.0) == 1.0) || (mod(floor(gl_FragCoord.y), 2.0) == 1.0)) {
+            float gamma = 1.3;
+            gl_FragColor = vec4(pow(gl_FragColor.rgb, vec3(1.0 / gamma)), gl_FragColor.a);
+        }
     }
 </script>
 
@@ -282,16 +411,6 @@ window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.ge
         gl_FragColor = vec4(p10, 1);
     }
     ////// End of super 2xsai
-    
-    
-    /*void main(void) {
-        float x = gl_FragCoord.x / uViewportWidth;
-        float y = gl_FragCoord.y / uViewportHeight;
-        
-        vec4 tx = texture2D(uTexture, vec2(x, y));
-        
-        gl_FragColor = tx;
-    }*/
 </script>
 
 <script id="default-vs" type="x-shader/x-vertex">
@@ -326,14 +445,14 @@ window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.ge
 var player = {
 }
 var colorMap = {
-    "lava": {"color": "FF8800", "cycle": "882200", "msscale": 4000},
-    "plasma": {"color": "FF00FF", "cycle": "880088", "msscale": 1000},
+    "lava": {"color": "FF8800", "cycle": "882200", "backgroundColor": [64, 0, 0], "msscale": 4000, "luma": [5120, 5120, 5120]},
+    "plasma": {"color": "FF00FF", "cycle": "880088", "backgroundColor": [64, 0, 64], "msscale": 1000, "luma": [5120, 5120, 5120]},
     "wood": {"color": "A37936"},
     "dirt": {"color": "936926"},
-    "acid": {"color": "008800", "cycle": "44FF00", "msscale": 1500},
+    "acid": {"color": "008800", "cycle": "44FF00", "msscale": 1500, "backgroundColor": [0, 64, 0], "luma": [2550, 2550, 2550]},
     "water": {"color": "0044FF", "cycle": "002288", "msscale": 2000},
     "smoke": {"color": "888888", "cycle": "444444", "msscale": 1000},
-    "fire": {"color": "FF0000", "cycle": "CC8800", "msscale": 200},
+    "fire": {"color": "FF0000", "cycle": "CC8800", "msscale": 200, "luma": [255, 255, 255]},
     "particle-ammo-9mm-bullets": {"color": "FF0000"},
     "particle-ammo-9mm": {"color": "FF0000"},
     "particle-ammo-12ga": {"color": "FF0000"},
@@ -348,6 +467,15 @@ var colorMap = {
     "good-weapon": {"color": "FFEB69", "cycle": "DEC628", "msscale": 1000},
     "standard-weapon": {"color": "28DE9E", "cycle": "15BD82", "msscale": 1000},
     "dangerous-weapon": {"color": "D86000", "cycle": "804000", "msscale": 1000},
+    
+    "health-powerup": {"color": "FF6688"},
+    "armor-powerup": {"color": "FFFF66"},
+    "strength-powerup": {"color": "44FF22"},
+    "precision-powerup": {"color": "4444FF"},
+    "speed-powerup": {"color": "68AFFF"},
+    "speed-powerup-plus": {"color": "28FFFF"},
+    "heal-powerup": {"color": "CC0067"},
+    "heal-powerup-plus": {"color": "EC0087"},
 }
 
 var sndVolume = 0.1
@@ -449,6 +577,7 @@ var inventoryIndex = 0
 var inventoryList
 var opsColsFg = {true: [0, 255, 0], false: [64, 96, 64]}
 var opsColsBg = {true: [64, 64, 128], false: [32, 32, 32]}
+var opsColsLuma = {true: [255, 255, 255], false: [16, 16, 16]}
 var menuStars = []
 
 var announcements = []
@@ -880,9 +1009,11 @@ function drawButtonWithText(x, y, txt, width, fg, bg, menuOp) {
     var lpad = Math.ceil(dw / 2) + 1
     var rpad = Math.floor(dw / 2) + 1
     
-    drawAsciiText(x, y, vpadtxt, fg, bg)
-    drawAsciiText(x, y + 1, Array(lpad).join(" ") + txt + Array(rpad).join(" "), fg, bg)
-    drawAsciiText(x, y + 2, vpadtxt, fg, bg)
+    var luma = (menuSel == menuOp)?[255,255,255]:[0,0,0]
+    
+    drawAsciiText(x, y, vpadtxt, fg, bg, luma)
+    drawAsciiText(x, y + 1, Array(lpad).join(" ") + txt + Array(rpad).join(" "), fg, bg, luma)
+    drawAsciiText(x, y + 2, vpadtxt, fg, bg, luma)
     
     if ((lastClick[0] >= x)&&(lastClick[0] <= (x + width))&&
         (lastClick[1] >= y)&&(lastClick[1] < (y + 3))) {
@@ -1041,7 +1172,7 @@ function drawStarsAndGanymede() {
         var tg = ((d / (32000.0 * star.dv) + star.phase) % 1)
         var px = Math.floor(tg * (displaySizeX + 64) - 32)
         var py = Math.floor( -tg * 8 + star.y - 4)
-        terminal.setPixel(px, py, star.pix, star.col)
+        terminal.setPixel(px, py, star.pix, star.col, undefined, [255, 255, 255])
     }
     
     if (ganymedeSprite) {
@@ -1275,6 +1406,7 @@ function updateDisplayGameStarted() {
                 var shroud = false
                 var fg = "#AAAAAA"
                 var bg = undefined
+                var luma = undefined
                 var glyph = asciiMapping[" "]
                 
                 if (tile.turn) {
@@ -1359,6 +1491,10 @@ function updateDisplayGameStarted() {
                         if ((!tile.bg)&&("backgroundColor" in rule)) {
                             bg = rule.backgroundColor
                         }
+                        
+                        if ((!tile.luma)&&("luma" in rule)) {
+                            luma = rule.luma
+                        }
                     } else if (cssClass in cssRules) {
                         var rule = cssRules[cssClass]
                         
@@ -1380,7 +1516,7 @@ function updateDisplayGameStarted() {
                     }
                 }
                 
-                terminal.setPixel(x, y, glyph, fg, bg)
+                terminal.setPixel(x, y, glyph, fg, bg, luma)
             }
         }
     }
@@ -1435,11 +1571,11 @@ function pad(txt, l) {
     return txt
 }
 
-function drawAsciiText(x, y, txt, fg, bg) {
+function drawAsciiText(x, y, txt, fg, bg, luma) {
     for (var i=0; i < txt.length; i++) {
         var c = txt.charAt(i)
         if (c in asciiMapping) {
-            terminal.setPixel(x + i, y, asciiMapping[c], fg, bg)
+            terminal.setPixel(x + i, y, asciiMapping[c], fg, bg, luma)
         }
     }
 }
@@ -1472,7 +1608,8 @@ function drawRexSprite(x, y, spr) {
 }
 
 function pruneWeaponName(name) {
-    return name.toLocaleLowerCase().replace(/\s/g, '')
+    //return name.toLocaleLowerCase().replace(/\s/g, '')
+    return name.replace(/\s/g, '')
 }
 
 function updateAttrs() {
@@ -2046,7 +2183,7 @@ function updateShaders() {
 
 function setupMusic() {
     if (localStorage.useMusic == "true") {
-        if (!bgm) {
+        if (!bgm && !gameStarted) {
             bgm = createjs.Sound.play("seedybg", {
                         volume: 0.5,
                         loop: -1
@@ -2172,16 +2309,21 @@ function loadGenXpSprite(name, callback, noretry) {
 				callback(sp)
 			},
 			error: function(xhr) {
-				if (!noretry) {
+                if (!noretry) {
+                    noretry = 0
+                }
+                
+				if (noretry < 5) {
 					if (xhr.statusCode().status == 404) {
 						setTimeout(function() {
-							loadGenXpSprite(name, callback, true)
+                            console.log("Trying again to load: " + name)
+							loadGenXpSprite(name, callback, noretry + 1)
 						}, 1000)
 					}
 				}
 			}
 		})
-	}, 200)
+	}, 500)
 }
 
 $(document).ready(function () {
@@ -2328,6 +2470,5 @@ function goFullScreen() {
     }
 }
 </script>
-<!--script src="https://apis.google.com/js/platform.js" async defer></script-->
 </body>
 </html>

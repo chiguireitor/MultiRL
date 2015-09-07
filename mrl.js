@@ -741,12 +741,30 @@ function resetLevel() {
         level.push(row)
     }
 
-    generators.bspSquares(level, 
-        gameDefs.level.minRoomArea,
-        gameDefs.level.randomAcceptRoom,
-        asciiMapping['.'], asciiMapping['#'], asciiMapping['='],
-        gameDefs.level.roomAcceptProbability,
-        gameDefs.level.roomConvertCaveProbability)
+    var levelType = Math.floor(Math.random() * 3)
+    if (levelType == 0) {
+        generators.bspSquares(level, 
+            gameDefs.level.minRoomArea,
+            gameDefs.level.randomAcceptRoom,
+            asciiMapping['.'], asciiMapping['#'], asciiMapping['='],
+            gameDefs.level.roomAcceptProbability,
+            gameDefs.level.roomConvertCaveProbability)
+    } else if (levelType == 1) {
+        generators.caveLevel(level, 
+            gameDefs.level.minRoomArea,
+            gameDefs.level.randomAcceptRoom,
+            asciiMapping['.'], asciiMapping['#'], asciiMapping['='],
+            gameDefs.level.roomAcceptProbability,
+            gameDefs.level.roomConvertCaveProbability)
+    } else if (levelType == 2) {
+        generators.lavaLevel(level, 
+            gameDefs.level.minRoomArea,
+            gameDefs.level.randomAcceptRoom,
+            asciiMapping['.'], asciiMapping['#'], asciiMapping['='],
+            asciiMapping['≈'], 5,
+            gameDefs.level.roomAcceptProbability,
+            gameDefs.level.roomConvertCaveProbability)
+    }
     var riverTiles = [[asciiMapping['~'], 'water', null], [asciiMapping['≈'], 'acid', 1], [asciiMapping['≈'], 'lava', 5]]
     
     var nRivers = Math.random() 
@@ -1697,7 +1715,8 @@ var htServer = http.createServer(function (req, res) {
             res.writeHead(404, {"Content-Type": "text/plain; charset=utf-8"})
         }
 	} else if (uri.indexOf('/generated/') == 0) {
-        var file = './rex_sprites/generated/' + uri.split("/").reverse()[0]
+        var tmpDir = process.env.OPENSHIFT_TMP_DIR || "./"
+        var file = tmpDir + 'rex_sprites/generated/' + uri.split("/").reverse()[0]
 		
 		var respondFile = function(f) {
 			res.writeHead(200, {"Content-Type": "application/octet-stream"})
@@ -1730,9 +1749,14 @@ var port = process.env.OPENSHIFT_NODEJS_PORT || 8080
 htServer.listen(port, ipaddress)
 console.log("HTTP Server " + "READY".green + " on port " + port)
 
+function permaLog(s) {
+    console.log("#PMLOG#;" + s)
+}
+
 var wss = new ws.Server({server: htServer})
 wss.on('connection', function(ws) {
     ws.clientnum = this.clients.length
+    permaLog("connect;" + Date.now() + ";" + ws.clientnum + ";" + ws.upgradeReq.headers["user-agent"])
     
     ws.sendPako = function(data, fn) {
         if (this.readyState == ws.OPEN) {
@@ -1773,6 +1797,8 @@ wss.on('connection', function(ws) {
             console.log('Stopping game ' + 'NOW!'.red)
             stopGameAndRestart()
         }
+        
+        permaLog("disconnect;" + Date.now() + ";" + this.clientnum + ";")
     })
     
     gameStarted = wss.clients.length >= minimumPlayers

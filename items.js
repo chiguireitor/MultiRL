@@ -469,12 +469,26 @@ function generate(spath, params, id) {
 						}
 					}
 					
-					var resBuf = zlib.gzipSync(rex.saveLayerAsXPBuffer(layers[0].version, w, h, buf))
+					/*var resBuf = zlib.gzipSync(rex.saveLayerAsXPBuffer(layers[0].version, w, h, buf))
 					fs.writeFile('rex_sprites/generated/' + result.id + '.xp', resBuf, function(err) {
 						if (err) {
 							console.log("Couldn't save file: " + err)
 						}
-					})
+					})*/
+                    
+                    zlib.gzip(rex.saveLayerAsXPBuffer(layers[0].version, w, h, buf), function (error, resBuf) {
+                        if (!error) {
+                            var tmpDir = process.env.OPENSHIFT_TMP_DIR || "./"
+                            
+                            fs.writeFile(tmpDir + 'rex_sprites/generated/' + result.id + '.xp', resBuf, function(err) {
+                                if (err) {
+                                    console.log("Couldn't save file: " + err)
+                                }
+                            })
+                        } else {
+                            console.log(error)
+                        }
+                    })
 				}
 				
 				for (var x=0; x < imgen.layers.length; x++) {
@@ -944,6 +958,7 @@ items.push(new weapons.Charger({
 items.push(new aids.Instant({
     pix: asciiMapping['♥'],
     name: '+10 Max Health',
+    cssClass: 'health-powerup',
     onuse: function(c) {
         c.attrs.hp.max += 10
     }
@@ -952,6 +967,7 @@ items.push(new aids.Instant({
 items.push(new aids.Instant({
     pix: asciiMapping['♦'],
     name: '+10 Armor',
+    cssClass: 'armor-powerup',
     onuse: function(c) {
         c.attrs.armor.pos = Math.min(c.attrs.armor.pos + 10, c.attrs.armor.max)
     }
@@ -960,6 +976,7 @@ items.push(new aids.Instant({
 items.push(new aids.Instant({
     pix: asciiMapping['♣'],
     name: '+10 Strength',
+    cssClass: 'strength-powerup',
     onuse: function(c) {
         c.attrs.strength.pos = Math.min(c.attrs.strength.pos + 10, c.attrs.strength.max)
     }
@@ -968,6 +985,7 @@ items.push(new aids.Instant({
 items.push(new aids.Instant({
     pix: asciiMapping['♠'],
     name: '+10 Precision',
+    cssClass: 'precision-powerup',
     onuse: function(c) {
         c.attrs.precision.pos = Math.min(c.attrs.precision.pos + 10, c.attrs.precision.max)
     }
@@ -976,6 +994,7 @@ items.push(new aids.Instant({
 items.push(new aids.Instant({
     pix: asciiMapping['♪'],
     name: '+10 Speed',
+    cssClass: 'speed-powerup',
     onuse: function(c) {
         c.attrs.speed.pos = Math.min(c.attrs.speed.pos + 10, c.attrs.speed.max)
     }
@@ -984,6 +1003,7 @@ items.push(new aids.Instant({
 items.push(new aids.Instant({
     pix: asciiMapping['♫'],
     name: '+30 Speed',
+    cssClass: 'speed-powerup-plus',
     onuse: function(c) {
         c.attrs.speed.pos = Math.min(c.attrs.speed.pos + 30, c.attrs.speed.max)
     }
@@ -992,6 +1012,7 @@ items.push(new aids.Instant({
 items.push(new aids.Instant({
     pix: asciiMapping['•'],
     name: '+10 Health',
+    cssClass: 'heal-powerup',
     onuse: function(c) {
         c.attrs.hp.pos = Math.min(c.attrs.hp.pos + 10, c.attrs.hp.max)
     },
@@ -1009,6 +1030,7 @@ items.push(new aids.Instant({
 items.push(new aids.Instant({
     pix: asciiMapping['◘'],
     name: '+50 Health',
+    cssClass: 'heal-powerup-plus',
     onuse: function(c) {
         c.attrs.hp.pos = Math.min(c.attrs.hp.pos + 50, c.attrs.hp.max)
     },

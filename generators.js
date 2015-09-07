@@ -98,7 +98,11 @@ function iterateOverSquare(level, sq, fn) {
     }
 }
 
-function generateCave(level, sq, floor, wall) {
+function generateCave(level, sq, floor, wall, options) {
+    if (!options) {
+        options = {}
+    }
+    
     iterateOverSquare(level, sq, function(pix) {
         if (Math.random() < 0.4) {
             pix.tile = wall
@@ -114,7 +118,7 @@ function generateCave(level, sq, floor, wall) {
         rpSq[sy][sx] = pix.tile
     })
     
-    for (var i=0; i < 5; i++) {
+    for (var i=0; i < (options.iterations || 5); i++) {
         iterateOverSquare(level, sq, function(pix, x, y, sx, sy) {
             var w00 = 0, w01 = 0, w02 = 0, w10 = 0, w11 = 0, w12 = 0, w20 = 0, w21 = 0, w22 = 0
             
@@ -158,14 +162,22 @@ function generateCave(level, sq, floor, wall) {
                 w22 = (level[y+1][x+1].tile == wall)?1:0
             }
             
-            if ((w00 + w01 + w02 + w10 + w11 + w12 + w20 + w21 + w22) >= 5) {
+            if ((w00 + w01 + w02 + w10 + w11 + w12 + w20 + w21 + w22) >= (options.caveness || 5)) {
                 rpSq[sy][sx] = wall
+            } else if (Math.random() < 0.2) {
+                rpSq[sy][sx] = floor
             }
         })
         
         iterateOverSquare(level, sq, function(pix, x, y, sx, sy) {
             pix.tile = rpSq[sy][sx]
-            pix.cssClass = "dirt"
+            pix.cssClass = (pix.tile == floor)?(options.floorClass || "dirt"):(options.wallClass || "dirt")
+            
+            if ((pix.tile == wall) && (options.wallDamage)) {
+                pix.damage = options.wallDamage
+            } else if ("damage" in pix) {
+                delete pix.damage
+            }
         })
     }
 }
@@ -304,11 +316,17 @@ function riverH(level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riv
                 if (nbridge > 0) {
                     tile.tile = bridgeTile
                     tile.cssClass = bridgeCssClass
+                    
+                    if ("damage" in tile) {
+                        delete tile.damage
+                    }
                 } else {
                     tile.tile = riverTile
                     tile.cssClass = riverCssClass
                     if (riverDamage) {
                         tile.damage = riverDamage
+                    } else if ("damage" in tile) {
+                        delete tile.damage
                     }
                 }
             }
@@ -352,11 +370,17 @@ function riverV(level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riv
                 if (nbridge > 0) {
                     tile.tile = bridgeTile
                     tile.cssClass = bridgeCssClass
+                    
+                    if ("damage" in tile) {
+                        delete tile.damage
+                    }
                 } else {
                     tile.tile = riverTile
                     tile.cssClass = riverCssClass
                     if (riverDamage) {
                         tile.damage = riverDamage
+                    } else if ("damage" in tile) {
+                        delete tile.damage
                     }
                 }
             }
@@ -381,7 +405,24 @@ function river(level, orientation, riverTile, riverCssClass, bridgeTile, bridgeC
     }
 }
 
+function caveLevel(level, minarea, randomaccept, floor, wall, door, probabilityUsed, caveness) {
+    generateCave(level, {x: 0, y:0, w: level[0].length, h: level.length}, floor, wall, {
+        iterations: 11
+    })
+}
+
+function lavaLevel(level, minarea, randomaccept, floor, wall, door, lava, lavaDamage, probabilityUsed, caveness) {
+    generateCave(level, {x: 0, y:0, w: level[0].length, h: level.length}, floor, lava, {
+        floorClass: "dirt",
+        wallClass: "lava",
+        wallDamage: lavaDamage,
+        iterations: 12
+    })
+}
+
 module.exports = {
     bspSquares: bspSquares,
+    caveLevel: caveLevel,
+    lavaLevel: lavaLevel,
     river: river
 }

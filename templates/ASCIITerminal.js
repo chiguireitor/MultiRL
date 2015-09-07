@@ -118,10 +118,12 @@ function ASCIITerminal(options) {
                 terminal.gl.glyphTextureData = new Uint8Array(texw * texh * 3)
                 terminal.gl.foreTextureData = new Uint8Array(texw * texh * 3)
                 terminal.gl.backTextureData = new Uint8Array(texw * texh * 3)
+                terminal.gl.lumaTextureData = new Uint8Array(texw * texh * 3)
                 
                 terminal.gl.glyphTexture = ASCIITerminal.util.createEmptyRGBTexture(terminal.gl, texw, texh, terminal.gl.glyphTextureData)
                 terminal.gl.foreTexture = ASCIITerminal.util.createEmptyRGBTexture(terminal.gl, texw, texh, terminal.gl.foreTextureData)
                 terminal.gl.backTexture = ASCIITerminal.util.createEmptyRGBTexture(terminal.gl, texw, texh, terminal.gl.backTextureData)
+                terminal.gl.lumaTexture = ASCIITerminal.util.createEmptyRGBTexture(terminal.gl, texw, texh, terminal.gl.lumaTextureData)
             }
             document.getElementById(options.target).appendChild(cnv)
             
@@ -244,6 +246,9 @@ ASCIITerminal.prototype.update_textures = function() {
     
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.gl.backTexture)
     this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGB, cw, ch, 0, this.gl.RGB, this.gl.UNSIGNED_BYTE, this.gl.backTextureData);
+    
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.gl.lumaTexture)
+    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGB, cw, ch, 0, this.gl.RGB, this.gl.UNSIGNED_BYTE, this.gl.lumaTextureData);
 }
 
 ASCIITerminal.prototype.render_gl = function(damage) {
@@ -285,6 +290,7 @@ ASCIITerminal.prototype.render_gl = function(damage) {
     this.gl.uniform1i(this.gl.shaderProgram.uBackground, 3)
     this.gl.uniform1f(this.gl.shaderProgram.uWidthDistort, this.console.widthDistort)
     this.gl.uniform1f(this.gl.shaderProgram.uConsoleCharWidth, this.console.width)
+    this.gl.uniform1i(this.gl.shaderProgram.uUseLuma, 0)
     
     this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, this.gl.squareVertexPositionBuffer.numItems)
     
@@ -309,6 +315,107 @@ ASCIITerminal.prototype.render_gl = function(damage) {
     this.gl.uniformMatrix4fv(this.gl.rttShaderProgram.mvMatrixUniform, false, this.gl.mvMatrix)
     
     this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, this.gl.rttSquareVertexPositionBuffer.numItems)
+    ///////////////////////// Standard render Finished /////////////////
+    
+    // Bind the blmx framebuffer
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.gl.blmXFramebuffer)
+    
+    this.gl.useProgram(this.gl.shaderProgram)
+    
+    this.gl.viewport(0, 0, this.gl.viewportWidth, this.gl.viewportHeight)
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT)
+
+    mat4.ortho(this.gl.pMatrix, -1, 1, -1, 1, -1, 1)
+
+    mat4.identity(this.gl.mvMatrix)
+
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.gl.squareVertexPositionBuffer)
+    this.gl.vertexAttribPointer(this.gl.shaderProgram.vertexPositionAttribute, this.gl.squareVertexPositionBuffer.itemSize, this.gl.FLOAT, false, 0, 0)
+    
+    this.gl.uniformMatrix4fv(this.gl.shaderProgram.pMatrixUniform, false, this.gl.pMatrix)
+    this.gl.uniformMatrix4fv(this.gl.shaderProgram.mvMatrixUniform, false, this.gl.mvMatrix)
+    this.gl.uniform2fv(this.gl.shaderProgram.fontSize, this.gl.fontSize)
+    
+    this.gl.uniform1f(this.gl.shaderProgram.damageRadius, 0)
+    
+    this.gl.activeTexture(this.gl.TEXTURE0)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.gl.fontTexture)
+    this.gl.activeTexture(this.gl.TEXTURE1)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.gl.glyphTexture)
+    this.gl.activeTexture(this.gl.TEXTURE2)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.gl.foreTexture)
+    this.gl.activeTexture(this.gl.TEXTURE3)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.gl.backTexture)
+    this.gl.activeTexture(this.gl.TEXTURE4)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.gl.lumaTexture)
+    
+    this.gl.uniform1i(this.gl.shaderProgram.uFont, 0)
+    this.gl.uniform1i(this.gl.shaderProgram.uGlyphs, 1)
+    this.gl.uniform1i(this.gl.shaderProgram.uForeground, 2)
+    this.gl.uniform1i(this.gl.shaderProgram.uBackground, 3)
+    this.gl.uniform1i(this.gl.shaderProgram.uLuma, 4)
+    this.gl.uniform1f(this.gl.shaderProgram.uWidthDistort, this.console.widthDistort)
+    this.gl.uniform1f(this.gl.shaderProgram.uConsoleCharWidth, this.console.width)
+    
+    this.gl.uniform1i(this.gl.shaderProgram.uUseLuma, 1)
+    
+    this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, this.gl.squareVertexPositionBuffer.numItems)
+    
+    // Now render the bloomX shader
+    /*this.gl.useProgram(null)
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.gl.blmYFramebuffer)
+    
+    //this.gl.clear(this.gl.COLOR_BUFFER_BIT || this.gl.DEPTH_BUFFER_BIT)
+    this.gl.clear(this.gl.DEPTH_BUFFER_BIT)
+    this.gl.viewport(0, 0, this.canvas.width, this.canvas.height)
+    this.gl.useProgram(this.gl.blmXShaderProgram)
+    
+    this.gl.activeTexture(this.gl.TEXTURE0)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.gl.blmXTexture)
+    
+    this.gl.uniform1i(this.gl.blmXShaderProgram.uTexture, 0)
+    
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.gl.rttSquareVertexPositionBuffer)
+    this.gl.vertexAttribPointer(this.gl.blmXShaderProgram.vertexPositionAttribute, this.gl.rttSquareVertexPositionBuffer.itemSize, this.gl.FLOAT, false, 0, 0)
+    this.gl.uniform1f(this.gl.blmXShaderProgram.uViewportWidth, this.canvas.width)
+    this.gl.uniform1f(this.gl.blmXShaderProgram.uViewportHeight, this.canvas.height)
+    this.gl.uniform1f(this.gl.blmXShaderProgram.uWidthDistort, this.console.widthDistort)
+    
+    this.gl.uniformMatrix4fv(this.gl.blmXShaderProgram.pMatrixUniform, false, this.gl.pMatrix)
+    this.gl.uniformMatrix4fv(this.gl.blmXShaderProgram.mvMatrixUniform, false, this.gl.mvMatrix)
+    
+    this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, this.gl.rttSquareVertexPositionBuffer.numItems)
+    
+    // Now render the bloomY shader
+    this.gl.useProgram(null)
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null)
+    
+    this.gl.clear(this.gl.DEPTH_BUFFER_BIT)
+    
+    this.gl.enable(this.gl.BLEND)
+    this.gl.blendEquation(this.gl.FUNC_ADD)
+    this.gl.blendFunc(this.gl.ONE, this.gl.ONE)
+    
+    this.gl.viewport(0, 0, this.canvas.width, this.canvas.height)
+    this.gl.useProgram(this.gl.blmYShaderProgram)
+    
+    this.gl.activeTexture(this.gl.TEXTURE0)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.gl.blmYTexture)
+    
+    this.gl.uniform1i(this.gl.blmYShaderProgram.uTexture, 0)
+    
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.gl.rttSquareVertexPositionBuffer)
+    this.gl.vertexAttribPointer(this.gl.blmYShaderProgram.vertexPositionAttribute, this.gl.rttSquareVertexPositionBuffer.itemSize, this.gl.FLOAT, false, 0, 0)
+    this.gl.uniform1f(this.gl.blmYShaderProgram.uViewportWidth, this.canvas.width)
+    this.gl.uniform1f(this.gl.blmYShaderProgram.uViewportHeight, this.canvas.height)
+    this.gl.uniform1f(this.gl.blmYShaderProgram.uWidthDistort, this.console.widthDistort)
+    
+    this.gl.uniformMatrix4fv(this.gl.blmYShaderProgram.pMatrixUniform, false, this.gl.pMatrix)
+    this.gl.uniformMatrix4fv(this.gl.blmYShaderProgram.mvMatrixUniform, false, this.gl.mvMatrix)
+    
+    this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, this.gl.rttSquareVertexPositionBuffer.numItems)
+    this.gl.disable(this.gl.BLEND)
+    this.gl.blendFunc(this.gl.ONE, this.gl.ZERO)*/
 }
 
 ASCIITerminal.prototype.render = function(damage) {
@@ -343,7 +450,7 @@ function hexToColor(h) {
     }
 }
 
-ASCIITerminal.prototype.setPixel = function(x, y, glyph, fgcol, bgcol) {
+ASCIITerminal.prototype.setPixel = function(x, y, glyph, fgcol, bgcol, luma) {
     var p = x + y * this.texw //this.gl.texw // this.console.width
     
     if (!((p >= 0) && (p < this.console.numchars))) {
@@ -380,6 +487,17 @@ ASCIITerminal.prototype.setPixel = function(x, y, glyph, fgcol, bgcol) {
             this.gl.backTextureData[p] = 0
             this.gl.backTextureData[p + 1] = 0
             this.gl.backTextureData[p + 2] = 0
+        }
+        
+        if (luma) {
+            luma = hexToColor(luma)
+            this.gl.lumaTextureData[p] = (luma & 0x00FF0000) >> 16
+            this.gl.lumaTextureData[p + 1] = (luma & 0x0000FF00) >> 8
+            this.gl.lumaTextureData[p + 2] = (luma & 0x000000FF)
+        } else {
+            this.gl.lumaTextureData[p] = 0
+            this.gl.lumaTextureData[p + 1] = 0
+            this.gl.lumaTextureData[p + 2] = 0
         }
     } else {
         // This fills the arrays for the canvas path
@@ -466,6 +584,8 @@ ASCIITerminal.util = {
     fragmentShaders: {
         "default": getShaderText("default-fs"),
         "rtt": getShaderText("rtt-fs"),
+        "bloomx": getShaderText("rtt-bloomx-fs"),
+        "bloomy": getShaderText("rtt-bloomy-fs"),
         "2xsai": getShaderText("rtt-2xsai-fs")
     },
     vertexShaders: {
@@ -521,11 +641,14 @@ ASCIITerminal.util = {
         shaderProgram.uGlyphs = gl.getUniformLocation(shaderProgram, "uGlyphs")
         shaderProgram.uForeground = gl.getUniformLocation(shaderProgram, "uForeground")
         shaderProgram.uBackground = gl.getUniformLocation(shaderProgram, "uBackground")
+        shaderProgram.uLuma = gl.getUniformLocation(shaderProgram, "uLuma")
         shaderProgram.uFont = gl.getUniformLocation(shaderProgram, "uFont")
         shaderProgram.damageRadius = gl.getUniformLocation(shaderProgram, "damageRadius")
         shaderProgram.uWidthDistort = gl.getUniformLocation(shaderProgram, "uWidthDistort")
         shaderProgram.uConsoleCharWidth = gl.getUniformLocation(shaderProgram, "uConsoleCharWidth")
+        shaderProgram.uUseLuma = gl.getUniformLocation(shaderProgram, "uUseLuma")
         
+        // Straight Render to Texture program //
         var rttShaderProgram = gl.createProgram()
         var rttFragmentShader = ASCIITerminal.util.compileShader(gl, use2xsai?"2xsai":"rtt", "fragment")
         
@@ -550,21 +673,122 @@ ASCIITerminal.util = {
         rttShaderProgram.uViewportHeight = gl.getUniformLocation(rttShaderProgram, "uViewportHeight")
         rttShaderProgram.uWidthDistort = gl.getUniformLocation(rttShaderProgram, "uWidthDistort")
         
-        return [shaderProgram, rttShaderProgram]
+        // Bloom X program //
+        var blmXShaderProgram = gl.createProgram()
+        var blmXFragmentShader = ASCIITerminal.util.compileShader(gl, "bloomx", "fragment")
+        
+        gl.attachShader(blmXShaderProgram, vertexShader)
+        gl.attachShader(blmXShaderProgram, blmXFragmentShader)
+        gl.linkProgram(blmXShaderProgram)
+        
+        if (!gl.getProgramParameter(blmXShaderProgram, gl.LINK_STATUS)) {
+            console.log("Could not initialise blm shaders")
+            return false
+        }
+        
+        blmXShaderProgram.vertexPositionAttribute = gl.getAttribLocation(blmXShaderProgram, "aVertexPosition")
+        gl.enableVertexAttribArray(blmXShaderProgram.vertexPositionAttribute)
+
+        blmXShaderProgram.pMatrixUniform = gl.getUniformLocation(blmXShaderProgram, "uPMatrix")
+        blmXShaderProgram.mvMatrixUniform = gl.getUniformLocation(blmXShaderProgram, "uMVMatrix")
+        
+        blmXShaderProgram.uTexture = gl.getUniformLocation(blmXShaderProgram, "uTexture")
+        
+        blmXShaderProgram.uViewportWidth = gl.getUniformLocation(blmXShaderProgram, "uViewportWidth")
+        blmXShaderProgram.uViewportHeight = gl.getUniformLocation(blmXShaderProgram, "uViewportHeight")
+        blmXShaderProgram.uWidthDistort = gl.getUniformLocation(blmXShaderProgram, "uWidthDistort")
+        
+        // Bloom Y program //
+        var blmYShaderProgram = gl.createProgram()
+        var blmYFragmentShader = ASCIITerminal.util.compileShader(gl, "bloomy", "fragment")
+        
+        gl.attachShader(blmYShaderProgram, vertexShader)
+        gl.attachShader(blmYShaderProgram, blmYFragmentShader)
+        gl.linkProgram(blmYShaderProgram)
+        
+        if (!gl.getProgramParameter(blmYShaderProgram, gl.LINK_STATUS)) {
+            console.log("Could not initialise blm shaders")
+            return false
+        }
+        
+        blmYShaderProgram.vertexPositionAttribute = gl.getAttribLocation(blmYShaderProgram, "aVertexPosition")
+        gl.enableVertexAttribArray(blmYShaderProgram.vertexPositionAttribute)
+
+        blmYShaderProgram.pMatrixUniform = gl.getUniformLocation(blmYShaderProgram, "uPMatrix")
+        blmYShaderProgram.mvMatrixUniform = gl.getUniformLocation(blmYShaderProgram, "uMVMatrix")
+        
+        blmYShaderProgram.uTexture = gl.getUniformLocation(blmYShaderProgram, "uTexture")
+        
+        blmYShaderProgram.uViewportWidth = gl.getUniformLocation(blmYShaderProgram, "uViewportWidth")
+        blmYShaderProgram.uViewportHeight = gl.getUniformLocation(blmYShaderProgram, "uViewportHeight")
+        blmYShaderProgram.uWidthDistort = gl.getUniformLocation(blmYShaderProgram, "uWidthDistort")
+        
+        return [shaderProgram, rttShaderProgram, blmXShaderProgram, blmYShaderProgram]
+    },
+    createRttFramebuffer: function(terminal, w, h, filter) {
+        var framebuffer = terminal.gl.createFramebuffer()
+        terminal.gl.bindFramebuffer(terminal.gl.FRAMEBUFFER, framebuffer)
+        
+        framebuffer.width = w
+        framebuffer.height = h
+            
+        var texture = terminal.gl.createTexture()
+        terminal.gl.bindTexture(terminal.gl.TEXTURE_2D, texture)
+        terminal.gl.texParameteri(terminal.gl.TEXTURE_2D, terminal.gl.TEXTURE_MAG_FILTER, filter)
+        terminal.gl.texParameteri(terminal.gl.TEXTURE_2D, terminal.gl.TEXTURE_MIN_FILTER, filter)
+        
+        terminal.gl.texImage2D(
+            terminal.gl.TEXTURE_2D,
+            0, 
+            terminal.gl.RGBA, 
+            framebuffer.width,
+            framebuffer.height, 
+            0,
+            terminal.gl.RGBA,
+            terminal.gl.UNSIGNED_BYTE,
+            null)
+            
+        var renderBuffer = terminal.gl.createRenderbuffer()
+        terminal.gl.bindRenderbuffer(terminal.gl.RENDERBUFFER, renderBuffer)
+        terminal.gl.renderbufferStorage(
+            terminal.gl.RENDERBUFFER, 
+            terminal.gl.DEPTH_COMPONENT16, 
+            framebuffer.width, 
+            framebuffer.height)
+        
+        terminal.gl.framebufferTexture2D(
+            terminal.gl.FRAMEBUFFER, 
+            terminal.gl.COLOR_ATTACHMENT0, 
+            terminal.gl.TEXTURE_2D, 
+            texture, 
+            0)
+        terminal.gl.framebufferRenderbuffer(
+            terminal.gl.FRAMEBUFFER, 
+            terminal.gl.DEPTH_ATTACHMENT, 
+            terminal.gl.RENDERBUFFER, 
+            renderBuffer)
+            
+        terminal.gl.bindTexture(terminal.gl.TEXTURE_2D, null)
+        terminal.gl.bindRenderbuffer(terminal.gl.RENDERBUFFER, null)
+        terminal.gl.bindFramebuffer(terminal.gl.FRAMEBUFFER, null)
+        
+        return {frameBuffer: framebuffer, texture: texture, renderBuffer: renderBuffer}
     },
     initGl: function(terminal, cw, ch, fw, fh, use2xsai) {
         var shps = ASCIITerminal.util.initShaders(terminal.gl, use2xsai)
         terminal.gl.shaderProgram = shps[0]
         terminal.gl.rttShaderProgram = shps[1]
+        terminal.gl.blmXShaderProgram = shps[2]
+        terminal.gl.blmYShaderProgram = shps[3]
         terminal.gl.mvMatrix = mat4.create()
         terminal.gl.pMatrix = mat4.create()
         terminal.gl.fontSize = vec2.fromValues(fw, fh)
-        
-        var rttFramebuffer = terminal.gl.createFramebuffer()
-        terminal.gl.bindFramebuffer(terminal.gl.FRAMEBUFFER, rttFramebuffer)
-        
+
         var rttw = Math.pow(2, Math.ceil(Math.log2(cw * fw)))
         var rtth = Math.pow(2, Math.ceil(Math.log2(ch * fh)))
+        
+        /*var rttFramebuffer = terminal.gl.createFramebuffer()
+        terminal.gl.bindFramebuffer(terminal.gl.FRAMEBUFFER, rttFramebuffer)
         
         rttFramebuffer.width = rttw
         rttFramebuffer.height = rtth
@@ -585,7 +809,7 @@ ASCIITerminal.util = {
             terminal.gl.RGBA,
             terminal.gl.UNSIGNED_BYTE,
             null)
-        
+            
         var rttRenderBuffer = terminal.gl.createRenderbuffer()
         terminal.gl.bindRenderbuffer(terminal.gl.RENDERBUFFER, rttRenderBuffer)
         terminal.gl.renderbufferStorage(
@@ -598,7 +822,7 @@ ASCIITerminal.util = {
         terminal.gl.rttFramebuffer = rttFramebuffer
         terminal.gl.rttTexture = rttTexture
         terminal.gl.rttRenderBuffer = rttRenderBuffer
-        
+            
         terminal.gl.framebufferTexture2D(
             terminal.gl.FRAMEBUFFER, 
             terminal.gl.COLOR_ATTACHMENT0, 
@@ -609,13 +833,75 @@ ASCIITerminal.util = {
             terminal.gl.FRAMEBUFFER, 
             terminal.gl.DEPTH_ATTACHMENT, 
             terminal.gl.RENDERBUFFER, 
-            rttRenderBuffer)
+            rttRenderBuffer)*/
+            
+        var res = ASCIITerminal.util.createRttFramebuffer(terminal, rttw, rtth, terminal.gl.NEAREST)
+        terminal.gl.rttFramebuffer = res.frameBuffer
+        terminal.gl.rttTexture = res.texture
+        terminal.gl.rttRenderBuffer = res.renderBuffer
+        
+            
+        // Prepare everything for the bloom filter //
+        /*var blmFramebuffer = terminal.gl.createFramebuffer()
+        terminal.gl.bindFramebuffer(terminal.gl.FRAMEBUFFER, blmFramebuffer)
+        
+        blmFramebuffer.width = rttw
+        blmFramebuffer.height = rtth
+            
+        var blmTexture = terminal.gl.createTexture()
+        terminal.gl.bindTexture(terminal.gl.TEXTURE_2D, blmTexture)
+        terminal.gl.texParameteri(terminal.gl.TEXTURE_2D, terminal.gl.TEXTURE_MAG_FILTER, terminal.gl.LINEAR)
+        terminal.gl.texParameteri(terminal.gl.TEXTURE_2D, terminal.gl.TEXTURE_MIN_FILTER, terminal.gl.LINEAR)
+        
+        terminal.gl.texImage2D(
+            terminal.gl.TEXTURE_2D,
+            0, 
+            terminal.gl.RGBA, 
+            blmFramebuffer.width,
+            blmFramebuffer.height, 
+            0,
+            terminal.gl.RGBA,
+            terminal.gl.UNSIGNED_BYTE,
+            null)
+            
+        var blmRenderBuffer = terminal.gl.createRenderbuffer()
+        terminal.gl.bindRenderbuffer(terminal.gl.RENDERBUFFER, blmRenderBuffer)
+        terminal.gl.renderbufferStorage(
+            terminal.gl.RENDERBUFFER, 
+            terminal.gl.DEPTH_COMPONENT16, 
+            blmFramebuffer.width, 
+            blmFramebuffer.height)
+        
+        terminal.gl.blmFramebuffer = blmFramebuffer
+        terminal.gl.blmTexture = blmTexture
+        terminal.gl.blmRenderBuffer = blmRenderBuffer
+        
+        terminal.gl.framebufferTexture2D(
+            terminal.gl.FRAMEBUFFER, 
+            terminal.gl.COLOR_ATTACHMENT0, 
+            terminal.gl.TEXTURE_2D, 
+            blmTexture, 
+            0)
+        terminal.gl.framebufferRenderbuffer(
+            terminal.gl.FRAMEBUFFER, 
+            terminal.gl.DEPTH_ATTACHMENT, 
+            terminal.gl.RENDERBUFFER, 
+            blmRenderBuffer)
             
         terminal.gl.bindTexture(terminal.gl.TEXTURE_2D, null)
         terminal.gl.bindRenderbuffer(terminal.gl.RENDERBUFFER, null)
-        terminal.gl.bindFramebuffer(terminal.gl.FRAMEBUFFER, null)
-
+        terminal.gl.bindFramebuffer(terminal.gl.FRAMEBUFFER, null)*/
         
+        res = ASCIITerminal.util.createRttFramebuffer(terminal, rttw, rtth, terminal.gl.LINEAR)
+        terminal.gl.blmXFramebuffer = res.frameBuffer
+        terminal.gl.blmXTexture = res.texture
+        terminal.gl.blmXRenderBuffer = res.renderBuffer
+        
+        res = ASCIITerminal.util.createRttFramebuffer(terminal, rttw, rtth, terminal.gl.LINEAR)
+        terminal.gl.blmYFramebuffer = res.frameBuffer
+        terminal.gl.blmYTexture = res.texture
+        terminal.gl.blmYRenderBuffer = res.renderBuffer
+
         terminal.gl.squareVertexPositionBuffer = terminal.gl.createBuffer()
         terminal.gl.bindBuffer(terminal.gl.ARRAY_BUFFER, terminal.gl.squareVertexPositionBuffer)
         var vertices = [

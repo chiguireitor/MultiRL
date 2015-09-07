@@ -70,8 +70,8 @@ module.exports = {
         maxRivers: 6, // Max number of rivers, can be of water, acid or lava
         minLevers: 20, // Minimum number of levers in the level
         randomLevers: 4, // Max random number of levers to add to the level
-        minNumberItems: 5,
-        randomNumberItems: 5, // This gets multiplied by the level number
+        minNumberItems: 35,
+        randomNumberItems: 35, // This gets multiplied by the level number
         numSpritesToTryFit: 50, // How much sprites the level generator will try to fit
         numEnemies: 50, // Number of enemies to keep alive at all times
     }

@@ -45,6 +45,16 @@
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var effects = require('./effects.js')
 
+function sign(n) {
+    if (n == 0) {
+        return 0
+    } else if (n < 0) {
+        return -1
+    } else {
+        return 1
+    }
+}
+
 var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, meleeDamageFn, spawnGibsFn) {
     this.level = level
     this.traceable = traceableFn
@@ -130,6 +140,33 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
         var i = 0
         while (i < this.agents.length) {
             var agent = this.agents[i]
+            
+            if ((agent.knockback) && (agent.attrs.hp.pos > 0)) {
+                var dx = sign(agent.pos.x - agent.knockback.ox)
+                var dy = sign(agent.pos.y - agent.knockback.oy)
+                
+                var x = agent.pos.x + dx
+                var y = agent.pos.y + dy
+                for (var i=0; i < agent.knockback.amount; i++) {
+                    var psbl = this.passable(this.level[y][x])
+                    if (psbl == 1) {
+                        this.level[agent.pos.y][agent.pos.x].character = null
+                        
+                        agent.pos.x = x
+                        agent.pos.y = y
+                        this.level[agent.pos.y][agent.pos.x].character = agent
+                    } else if (psbl == 2) {
+                        this.level[agent.pos.y][agent.pos.x].character.knockback = {
+                            ox: agent.pos.x,
+                            oy: agent.pos.y,
+                            amount: agent.knockback - i
+                        }
+                    }
+                }
+                
+                delete agent.knockback
+            }
+            
             if (agent.attrs.hp.pos <= 0) {
                 this.level[agent.pos.y][agent.pos.x].character = null
                 this.agents.splice(i, 1)
@@ -205,6 +242,22 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
                             somethingHappened = true
                         }
                     }
+                }
+                
+                var ctl = level[agent.pos.y][agent.pos.x]
+                /*if (ctl.tile in activableTiles) {
+                    activableTiles[ctl.tile](ctl, ws)
+                }*/
+                
+                if (ctl.damage) {
+                    // Walking over damaging tile
+                    if (agent.attrs.hp.pos > 0) {
+                        agent.attrs.hp.pos -= ctl.damage
+                        
+                        if (typeof(agent.attrs.hp.onchange) != "undefined") {
+                            agent.attrs.hp.onchange.call(agent, "floor-hazard", ctl.damage)
+                        }
+                    }                                
                 }
                 
             }

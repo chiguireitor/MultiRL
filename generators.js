@@ -103,19 +103,24 @@ function generateCave(level, sq, floor, wall, options) {
         options = {}
     }
     
-    iterateOverSquare(level, sq, function(pix) {
-        if (Math.random() < 0.4) {
+    /*iterateOverSquare(level, sq, function(pix) {
+        if (Math.random() < (options.probability || 0.4)) {
             pix.tile = wall
         } else {
             pix.tile = floor
         }
-    })
+    })*/
     
     var rpSq = Array.apply(null, new Array(sq.h)).map(function(){
         return new Array(sq.h)
     })
     iterateOverSquare(level, sq, function(pix, x, y, sx, sy) {
-        rpSq[sy][sx] = pix.tile
+        if (Math.random() < (options.probability || 0.4)) {
+            rpSq[sy][sx] = wall
+        } else {
+           rpSq[sy][sx] = floor
+        }
+        //rpSq[sy][sx] = pix.tile
     })
     
     for (var i=0; i < (options.iterations || 5); i++) {
@@ -170,15 +175,145 @@ function generateCave(level, sq, floor, wall, options) {
         })
         
         iterateOverSquare(level, sq, function(pix, x, y, sx, sy) {
-            pix.tile = rpSq[sy][sx]
-            pix.cssClass = (pix.tile == floor)?(options.floorClass || "dirt"):(options.wallClass || "dirt")
+            var shouldDraw = true
             
-            if ((pix.tile == wall) && (options.wallDamage)) {
-                pix.damage = options.wallDamage
-            } else if ("damage" in pix) {
-                delete pix.damage
+            if (options.noFloor && (rpSq[sy][sx] == floor)) {
+                shouldDraw = false
+            }
+                
+            if (shouldDraw) {
+                pix.tile = rpSq[sy][sx]
+                pix.cssClass = (pix.tile == floor)?(options.floorClass || "dirt"):(options.wallClass || "dirt")
+                
+                if ((pix.tile == wall) && (options.wallDamage)) {
+                    pix.damage = options.wallDamage
+                } else if ("damage" in pix) {
+                    delete pix.damage
+                }
             }
         })
+    }
+}
+
+function drawSquareWalls(level, sq, wall, floor, cls) {
+    for (var y=0; y < sq.h; y++) {
+        var row = level[sq.y + y]
+        
+        if ((y > 0)&&(y < sq.h-1)) {
+            if (floor) {
+                for (var x=1; x < sq.w; x++) {
+                    var tl = row[x + sq.x]
+                    tl.tile = floor
+                    if (cls) {
+                        tl.cssClass = cls
+                    } else if ("cssClass" in tl){
+                        delete tl.cssClass
+                    }
+                    
+                    if ("damage" in tl) {
+                        delete tl.damage
+                    }
+                }
+            }
+        } else {
+            for (var x=1; x < sq.w; x++) {
+                var tl = row[x + sq.x]
+                
+                tl.tile = wall
+                if (cls) {
+                    tl.cssClass = cls
+                } else if ("cssClass" in tl){
+                    delete tl.cssClass
+                }
+                
+                if ("damage" in tl) {
+                    delete tl.damage
+                }
+            }
+        }
+        
+        var tl = row[sq.x]
+        tl.tile = wall
+        if (cls) {
+            tl.cssClass = cls
+        } else if ("cssClass" in tl){
+            delete tl.cssClass
+        }
+        
+        if ("damage" in tl) {
+            delete tl.damage
+        }
+
+        tl = row[sq.x + sq.w - 1]
+        tl.tile = wall
+        if (cls) {
+            tl.cssClass = cls
+        } else if ("cssClass" in tl){
+            delete tl.cssClass
+        }
+        
+        if ("damage" in tl) {
+            delete tl.damage
+        }
+    }
+}
+
+function drawSquareDoors(level, sq, door, cntDoors) {
+    for (var j=0; j < cntDoors; j++) {
+        var x = Math.floor(Math.random() * (sq.w-2)) + 1
+        var y = Math.floor(Math.random() * (sq.h-2)) + 1
+        var orientation = Math.floor(Math.random() * 4)
+        
+        switch (orientation) {
+            case 0: {
+                if (sq.x > 0) {
+                    x = 0
+                } else if ((sq.x + sq.w) < (level[0].length - 1)) {
+                    x = sq.w - 1
+                } else {
+                    continue
+                }
+                break;
+            }
+            case 1: {
+                if ((sq.x + sq.w) < (level[0].length - 1)) {
+                    x = sq.w - 1
+                } else if (sq.x > 0) {
+                    x = 0
+                } else {
+                    continue
+                }
+                break;
+            }
+            case 2: {
+                if (sq.y > 0) {
+                    y = 0
+                } else if ((sq.y + sq.h) < (level.length - 1)) {
+                    y = sq.h - 1
+                } else {
+                    continue
+                }
+                break;
+            }
+            case 3: {
+                if ((sq.y + sq.h) < (level.length - 1)) {
+                    y = sq.h - 1
+                } else if (sq.y > 0) {
+                    y = 0
+                } else {
+                    continue
+                }
+                break;
+            }
+        }
+        
+        try {
+            level[sq.y + y][sq.x + x].tile = door
+        } catch (e) {
+            console.log("Exception on " + (sq.x + x) + "," + (sq.y + y))
+            console.log(sq)
+            throw e
+        }
     }
 }
 
@@ -200,13 +335,10 @@ function bspSquares(level, minarea, randomaccept, floor, wall, door, probability
         
         // Put the walls
         if (sq.used && !sq.cave) {
-            for (var y=0; y < sq.h; y++) {
+            /*for (var y=0; y < sq.h; y++) {
                 var row = level[sq.y + y]
                 
                 if ((y > 0)&&(y < sq.h-1)) {
-                    /*for (var x=1; x < sq.w; x++) {
-                        row[x + sq.x].tile = floor
-                    }*/
                 } else {
                     for (var x=1; x < sq.w; x++) {
                         row[x + sq.x].tile = wall
@@ -216,7 +348,8 @@ function bspSquares(level, minarea, randomaccept, floor, wall, door, probability
                 row[sq.x].tile = wall
                 //console.log(sq.x + sq.w - 1)
                 row[sq.x + sq.w - 1].tile = wall
-            }
+            }*/
+            drawSquareWalls(level, sq, wall)
         }
     }
 
@@ -228,7 +361,8 @@ function bspSquares(level, minarea, randomaccept, floor, wall, door, probability
                 generateCave(level, sqs[i], floor, wall)
             } else {
                 var cntDoors = Math.round(Math.random() * 6) + 1
-                for (var j=0; j < cntDoors; j++) {
+                drawSquareDoors(level, sq, door, cntDoors)
+                /*for (var j=0; j < cntDoors; j++) {
                     var x = Math.floor(Math.random() * (sq.w-2)) + 1
                     var y = Math.floor(Math.random() * (sq.h-2)) + 1
                     var orientation = Math.floor(Math.random() * 4)
@@ -283,7 +417,7 @@ function bspSquares(level, minarea, randomaccept, floor, wall, door, probability
                         console.log(sq)
                         throw e
                     }
-                }
+                }*/
             }
         }
     }
@@ -405,19 +539,186 @@ function river(level, orientation, riverTile, riverCssClass, bridgeTile, bridgeC
     }
 }
 
+function countDirt(level, sq, floor) {
+    var cnt = 0
+    for (var y=0; y < sq.h; y++) {
+        var row = level[sq.y + y]
+        
+        for (var x=0; x < sq.w; x++) {
+            var tile = row[sq.x + x]
+            
+            if (tile.tile != floor) {
+                cnt += 1
+            }
+        }
+    }
+    
+    return cnt
+}
+
+function expandAsPossibleStep(level, sq, floor, curCnt, maxCnt) {
+    var sq_xl = {x: sq.x - 1, y: sq.y, w: sq.w + 1, h: sq.h}
+    var sq_xr = {x: sq.x, y: sq.y, w: sq.w + 1, h: sq.h}
+    var sq_yt = {x: sq.x, y: sq.y - 1, w: sq.w, h: sq.h + 1}
+    var sq_yb = {x: sq.x, y: sq.y, w: sq.w, h: sq.h + 1}
+    
+    var cnt_xl, cnt_xr, cnt_yt, cnt_yb
+    var sqs = [sq, sq_xl, sq_xr, sq_yt, sq_yb]
+    var curmin = 0
+    var curCnt = maxCnt
+    
+    var evalFns = [function () {
+            if (sq.x > 0) {
+                var cnt = countDirt(level, sq_xl, floor)
+                if ((cnt < maxCnt) && (cnt < curCnt)) {
+                    curCnt = cnt
+                    curmin = 1
+                }
+            }
+        },
+        function () {
+            if ((sq.x + sq.w) < (level[0].length - 1)) {
+                cnt = countDirt(level, sq_xr, floor)
+                if (cnt < curCnt) {
+                    curCnt = cnt
+                    curmin = 2
+                }
+            }
+        },
+        
+        function () {
+            if (sq.y > 0) {
+                cnt = countDirt(level, sq_yt, floor)
+                if (cnt < curCnt) {
+                    curCnt = cnt
+                    curmin = 3
+                }
+            }
+        },
+        
+        function () {
+            if ((sq.y + sq.h) < (level.length - 1)) {
+                cnt = countDirt(level, sq_yb, floor)
+                if (cnt < curCnt) {
+                    curCnt = cnt
+                    curmin = 4
+                }
+            }
+        }]
+    while (evalFns.length > 0) {
+        var p = Math.floor(Math.random() * evalFns.length)
+        evalFns[p]()
+        evalFns.splice(p, 1)
+    }
+    
+    return [sqs[curmin], curCnt]
+}
+
+function equalSquare(sq0, sq1) {
+    return (sq0.x == sq1.x) && (sq0.y == sq1.y) && (sq0.w == sq1.w) && (sq0.h == sq1.h)
+}
+
+function expandAsPossible(level, sq, floor, curCnt, maxDirt) {
+    var mustTry = true
+    
+    while (mustTry) {
+        var res = expandAsPossibleStep(level, sq, floor, curCnt, maxDirt)
+        if ((res[1] < maxDirt) && (!equalSquare(sq, res[0]))) {
+            curCnt = res[1]
+            sq = res[0]
+        } else {
+            mustTry = false
+        }
+    }
+    
+    return sq
+}
+
 function caveLevel(level, minarea, randomaccept, floor, wall, door, probabilityUsed, caveness) {
     generateCave(level, {x: 0, y:0, w: level[0].length, h: level.length}, floor, wall, {
         iterations: 11
     })
+    
+    var rooms = []
+    var lw = level[0].length
+    var lh = level.length
+    var numRooms = Math.floor(Math.random() * 10)
+    for (var i=0; i < numRooms; i++) {
+        var tries = 0
+        var numDirt = 0
+        var maxDirt = 40
+        
+        while (tries < 50) {
+            var x = Math.floor(Math.random() * lw)
+            var y = Math.floor(Math.random() * lh)
+            var w = 1
+            var h = 1
+            var sq = {x: x, y: y, w: w, h: h}
+            
+            var cnt = countDirt(level, sq, floor)
+            if (cnt == 0) {
+                sq = expandAsPossible(level, sq, floor, cnt, maxDirt)
+                
+                if ((((sq.w-2) * (sq.h - 2)) >= minarea) || (Math.random() < randomaccept)) {
+                    drawSquareWalls(level, sq, wall, floor)
+                    var cntDoors = Math.floor(Math.random() * 6)
+                    drawSquareDoors(level, sq, door, cntDoors)
+                    rooms.push(sq)
+                    tries = 1000
+                }
+            }
+            
+            tries += 1
+        }
+    }
 }
 
 function lavaLevel(level, minarea, randomaccept, floor, wall, door, lava, lavaDamage, probabilityUsed, caveness) {
+    generateCave(level, {x: 0, y:0, w: level[0].length, h: level.length}, floor, wall, {
+        noFloor: true,
+        wallClass: "dirt",
+        iterations: 12
+    })
+    
     generateCave(level, {x: 0, y:0, w: level[0].length, h: level.length}, floor, lava, {
         floorClass: "dirt",
         wallClass: "lava",
         wallDamage: lavaDamage,
         iterations: 12
     })
+    
+    var rooms = []
+    var lw = level[0].length
+    var lh = level.length
+    var numRooms = Math.floor(Math.random() * 10)
+    for (var i=0; i < numRooms; i++) {
+        var tries = 0
+        var numDirt = 0
+        var maxDirt = 40
+        
+        while (tries < 50) {
+            var x = Math.floor(Math.random() * lw)
+            var y = Math.floor(Math.random() * lh)
+            var w = 1
+            var h = 1
+            var sq = {x: x, y: y, w: w, h: h}
+            
+            var cnt = countDirt(level, sq, floor)
+            if (cnt == 0) {
+                sq = expandAsPossible(level, sq, floor, cnt, maxDirt)
+                
+                if ((((sq.w-2) * (sq.h - 2)) >= minarea) || (Math.random() < randomaccept)) {
+                    drawSquareWalls(level, sq, wall, floor)
+                    var cntDoors = Math.floor(Math.random() * 6)
+                    drawSquareDoors(level, sq, door, cntDoors)
+                    rooms.push(sq)
+                    tries = 1000
+                }
+            }
+            
+            tries += 1
+        }
+    }
 }
 
 module.exports = {

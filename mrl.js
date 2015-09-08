@@ -385,6 +385,7 @@ var handlers = { // These are the RPC handlers that the client can invoke
             if ((ws.player.attrs.hp.pos > 0) && (!ws.player.readyForNextLevel)) {
                 if (typeof(obj.pos) != "undefined") {
                     ws.dst = obj.pos
+                    ws.special_movement = obj.special
                 }
                 ws.turn = nextTurnId
                 ws.standingOrder = false
@@ -765,6 +766,7 @@ function resetLevel() {
             gameDefs.level.roomAcceptProbability,
             gameDefs.level.roomConvertCaveProbability)
     }
+    console.log("Finished generating level")
     var riverTiles = [[asciiMapping['~'], 'water', null], [asciiMapping['≈'], 'acid', 1], [asciiMapping['≈'], 'lava', 5]]
     
     var nRivers = Math.random() 
@@ -1051,13 +1053,22 @@ function _processTurnIfAvailable_priv_() {
                     (typeof(ws.player.pos) != "undefined")) {
                     // Gotta move
                     if ((ws.player.pos.x != ws.dst.x)||(ws.player.pos.y != ws.dst.y)) {
+                        var jumpTrample = false
+                        var canJumpTrample = false
 						if ((typeof(ws.player.prone) != "undefined") && ws.player.prone) {
 							ws.wait = gameDefs.turnsForStep * 3
 						} else if ((typeof(ws.player.crouch) != "undefined") && ws.player.crouch) {
 							ws.wait = gameDefs.turnsForStep * 2
 						} else {
 							ws.wait = gameDefs.turnsForStep
+                            canJumpTrample = true
 						}
+                        
+                        if (canJumpTrample && (typeof(ws.special_movement) != "undefined") && ws.special_movement) {
+                            jumpTrample = true
+                            ws.special_movement = false
+                            ws.wait *= 2
+                        }
 						
                         ws.player.idleCounter = 0
                         var dx = ws.dst.x - ws.player.pos.x
@@ -1066,71 +1077,93 @@ function _processTurnIfAvailable_priv_() {
                         dx = sign(dx)
                         dy = sign(dy)
                         
-                        var nx = ws.player.pos.x + dx
-                        var ny = ws.player.pos.y + dy
-                        level[ws.player.pos.y][ws.player.pos.x].character = null
+                        var jtIters = jumpTrample?2:1
+                        var jumped = false
                         
-                        var didMove = false
-                        if ((ny >= 0) && (ny < level.length) &&
-                            (nx >= 0) && (nx < level[0].length)) {
-                            var p = passable(level[ws.player.pos.y + dy][ws.player.pos.x + dx])
-                            if (p == 1) {
-                                // Sum of both is best case, and it is passable, so go with it
-                                ws.player.pos.x += dx
-                                ws.player.pos.y += dy
-                                didMove = true
-                            } else if (p == 2) {
-                                // Check to see if we can melee attack the character
-                                var dt = level[ws.player.pos.y + dy][ws.player.pos.x + dx]
-                                
-                                if (dt.character) {
-                                    inflictMeleeDamage(ws, dt.character)
-                                }
-                            } else if (activable(level[ws.player.pos.y + dy][ws.player.pos.x + dx])) {
-                                var t = level[ws.player.pos.y + dy][ws.player.pos.x + dx]
-                                activableTiles[t.tile](t, ws)
-                            } else {
-                                var dh_x = ws.dst.x - (ws.player.pos.x + dx)
-                                var dh_y = ws.dst.y - ws.player.pos.y
-                                p = passable(level[ws.player.pos.y][ws.player.pos.x + dx])
-                                var dh_pass = p == 1
-                                var dh_char = p == 2
-                                
-                                var dv_x = ws.dst.x - (ws.player.pos.x)
-                                var dv_y = ws.dst.y - (ws.player.pos.y + dy)
-                                p = passable(level[ws.player.pos.y + dy][ws.player.pos.x])
-                                var dv_pass = p == 1
-                                var dv_char = p == 2
-                                
-                                if (dh_pass && dv_pass) {
-                                    var dh2 = dh_x*dh_x + dh_y*dh_y
-                                    var dv2 = dv_x*dv_x + dv_y*dv_y
-                                    
-                                    if (dh2 < dv2) {
-                                        dv_pass = false
-                                    } else if (dv2 < dh2) {
-                                        dh_pass = false
-                                    } else {
-                                        // Both movements are equal, pick at random
-                                        if (Math.random() < 0.5) {
-                                            dh_pass = false
-                                        } else {
-                                            dv_pass = false
-                                        }
-                                    }
-                                }
-                                
-                                if (dh_pass) {
+                        for (var jt=0; jt < jtIters; jt++) {
+                            var nx = ws.player.pos.x + dx
+                            var ny = ws.player.pos.y + dy
+                            level[ws.player.pos.y][ws.player.pos.x].character = null
+                            
+                            var didMove = false
+                            if ((ny >= 0) && (ny < level.length) &&
+                                (nx >= 0) && (nx < level[0].length)) {
+                                var p = passable(level[ws.player.pos.y + dy][ws.player.pos.x + dx])
+                                if (p == 1) {
+                                    // Sum of both is best case, and it is passable, so go with it
                                     ws.player.pos.x += dx
-                                    didMove = true
-                                } else if (dv_pass) {
                                     ws.player.pos.y += dy
                                     didMove = true
+                                    jumped = jumpTrample
+                                } else if (p == 2) {
+                                    // Check to see if we can melee attack the character
+                                    var dt = level[ws.player.pos.y + dy][ws.player.pos.x + dx]
+                                    
+                                    if (dt.character) {
+                                        inflictMeleeDamage(ws, dt.character)
+                                        if (jumped) {
+                                            dt.character.knockback = {
+                                                ox: ws.player.pos.x,
+                                                oy: ws.player.pos.y,
+                                                amount: 2
+                                            }
+                                            dt.character.wait += 20
+                                        } else if (jumpTrample) {
+                                            dt.character.knockback = {
+                                                ox: ws.player.pos.x,
+                                                oy: ws.player.pos.y,
+                                                amount: 1
+                                            }
+                                            dt.character.wait += 10
+                                        }
+                                    }
+                                } else if (activable(level[ws.player.pos.y + dy][ws.player.pos.x + dx])) {
+                                    var t = level[ws.player.pos.y + dy][ws.player.pos.x + dx]
+                                    activableTiles[t.tile](t, ws)
                                 } else {
-                                    // Check if we can attack
+                                    var dh_x = ws.dst.x - (ws.player.pos.x + dx)
+                                    var dh_y = ws.dst.y - ws.player.pos.y
+                                    p = passable(level[ws.player.pos.y][ws.player.pos.x + dx])
+                                    var dh_pass = p == 1
+                                    var dh_char = p == 2
+                                    
+                                    var dv_x = ws.dst.x - (ws.player.pos.x)
+                                    var dv_y = ws.dst.y - (ws.player.pos.y + dy)
+                                    p = passable(level[ws.player.pos.y + dy][ws.player.pos.x])
+                                    var dv_pass = p == 1
+                                    var dv_char = p == 2
+                                    
+                                    if (dh_pass && dv_pass) {
+                                        var dh2 = dh_x*dh_x + dh_y*dh_y
+                                        var dv2 = dv_x*dv_x + dv_y*dv_y
+                                        
+                                        if (dh2 < dv2) {
+                                            dv_pass = false
+                                        } else if (dv2 < dh2) {
+                                            dh_pass = false
+                                        } else {
+                                            // Both movements are equal, pick at random
+                                            if (Math.random() < 0.5) {
+                                                dh_pass = false
+                                            } else {
+                                                dv_pass = false
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (dh_pass) {
+                                        ws.player.pos.x += dx
+                                        didMove = true
+                                    } else if (dv_pass) {
+                                        ws.player.pos.y += dy
+                                        didMove = true
+                                    } else {
+                                        // Check if we can attack
+                                    }
                                 }
                             }
                         }
+                        
                         var ctl = level[ws.player.pos.y][ws.player.pos.x]
                         ctl.character = ws.player
                         if (ctl.tile in activableTiles) {
@@ -1149,7 +1182,11 @@ function _processTurnIfAvailable_priv_() {
                         }
                         
                         if (didMove) {
-                            soundManager.addSound(ws.player.pos.x, ws.player.pos.y, 5, "dirt_step", 0)
+                            if (jumped) {
+                                soundManager.addSound(ws.player.pos.x, ws.player.pos.y, 5, "jump", 0)
+                            } else {
+                                soundManager.addSound(ws.player.pos.x, ws.player.pos.y, 5, "dirt_step", 0)
+                            }
                         }
                         
                         //ws.standingOrder = !((ws.player.pos.x == ws.dst.x) && (ws.player.pos.y == ws.dst.y))

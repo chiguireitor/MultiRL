@@ -399,6 +399,7 @@ function Ranged(options) {
 	this.alternate = options.alternate
     this.identified = options.identified || (options.identifiedName == '')
 	this.range = options.range || 5
+    this.knockback = options.knockback || 0
     
     this.ranged = true
     this.melee = false
@@ -462,6 +463,7 @@ Ranged.prototype.clone = function() {
 		volume: this.volume,
 		alternate: this.alternate,
 		range: this.range,
+        knockback: this.knockback
     })
 }
 
@@ -470,7 +472,8 @@ Ranged.prototype.rpcRepr = function(c) {
         minDamage: this.minDamage,
         maxDamage: this.maxDamage,
         criticalChance: this.criticalChance,
-        criticalMultiplier: this.criticalMultiplier
+        criticalMultiplier: this.criticalMultiplier,
+        knockback: this.knockback
     }
     
     if (c) {
@@ -499,7 +502,8 @@ Ranged.prototype.rpcRepr = function(c) {
         ammoType: this.ammoType,
         identified: (this.identified || (this.identifiedName == '')),
         chargerAmmoType: this.chargerAmmoType,
-        damage: [dmgVals.minDamage, dmgVals.maxDamage]
+        damage: [dmgVals.minDamage, dmgVals.maxDamage],
+        knockback: dmgVals.knockback
     }
 	
 	if (this.alternate) {
@@ -670,7 +674,8 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                 maxDamage: this.maxDamage,
                                 criticalChance: this.criticalChance,
                                 criticalMultiplier: this.criticalMultiplier,
-                                armorMultiplier: this.armorMultiplier
+                                armorMultiplier: this.armorMultiplier,
+                                knockback: this.knockback
                             }
                             decorators = this.damageDecorators.concat(c.damageDecorators || []).concat(weapon.ammoDecorators.damage || [])
                             for (var i=0; i < decorators.length; i++) {
@@ -707,6 +712,22 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                 }
                                 tgt.character.attrs.hp.pos -= dmg
                                 
+                                if (dmgVals.knockback > 0) {
+                                    if (!tgt.character.knockback) {
+                                        tgt.character.knockback = {
+                                            ox: c.pos.x,
+                                            oy: c.pos.y,
+                                            amount: dmgVals.knockback
+                                        }
+                                    } else {
+                                        if (tgt.character.knockback.amount < dmgVals.knockback) {
+                                            tgt.character.knockback.ox = c.pos.x
+                                            tgt.character.knockback.oy = c.pos.y
+                                        }
+                                        tgt.character.knockback.amount += dmgVals.knockback
+                                    }
+                                }
+                                
                                 if (typeof(c.messages) != "undefined") {
                                     if (tgt.character.type == "player") {
                                         c.messages.push("You damage " + tgt.character.username)
@@ -733,18 +754,18 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                     delete tgt.tileHealth
                                     tgt.tile = asciiMapping['.']
 
-                                    var explosion = new effects.Effect(undefined, {
+                                    var explosion = new effects.Effect(tgt, {
                                         affectsFriendly: true,
                                         affectsEnemy: true,
                                         isSticky: false,
                                         isTargetArea: true,
                                         isSourceArea: true,
-                                        targetRadius: 5,
+                                        targetRadius: tgt.damageRadius,
                                         sourceRadius: 0,
                                         sourceFn: effects.effectFunction.smoke,
                                         targetFn: effects.effectFunction.explosion,
                                         additional: {
-                                            explosionDamageRange: [5, 30]
+                                            explosionDamageRange: [Math.floor(tgt.damageExplode * 0.1), tgt.damageExplode]
                                         }
                                     })
                                     

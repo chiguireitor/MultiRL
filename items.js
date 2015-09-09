@@ -469,13 +469,6 @@ function generate(spath, params, id) {
 						}
 					}
 					
-					/*var resBuf = zlib.gzipSync(rex.saveLayerAsXPBuffer(layers[0].version, w, h, buf))
-					fs.writeFile('rex_sprites/generated/' + result.id + '.xp', resBuf, function(err) {
-						if (err) {
-							console.log("Couldn't save file: " + err)
-						}
-					})*/
-                    
                     zlib.gzip(rex.saveLayerAsXPBuffer(layers[0].version, w, h, buf), function (error, resBuf) {
                         if (!error) {
                             var tmpDir = process.env.OPENSHIFT_TMP_DIR || "./"
@@ -546,7 +539,8 @@ items.push(new weapons.Ranged({
     precisionFactor: 0.65,
     maxPrecision: 50,
     pix: asciiMapping['╒'],
-    sndOnFire: 'shotgun'
+    sndOnFire: 'shotgun',
+    knockback: 0.85
 }))
 
 items.push(new weapons.Ranged({

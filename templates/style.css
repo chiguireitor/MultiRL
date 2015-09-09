@@ -362,3 +362,15 @@ textarea {
     to {transform: translate(3000px, -300px)}
 }
 
+.mail-list {
+    text-align: center;
+    width: 30%;
+    margin: 0 auto;
+    padding: 15px;
+    display: block;
+    color: #FFF;
+    background-color: #444;
+    border-radius: 5px 5px;
+    text-decoration: none;
+    font-family: calibri, tahoma, helvetica, sans;
+}

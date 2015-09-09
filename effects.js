@@ -51,14 +51,14 @@ var PHASE_TARGET = 1
 var PHASE_STICKY = 2
 
 function efc(character, cell) {
-    return function(subject, phase, x, y, expd) {
+    return function(subject, phase, x, y, expd, origin) {
         if (typeof(subject.type) != "undefined") {
             // It is a character, either player or npc
-            character.call(this, subject, phase)
+            character.call(this, subject, phase, origin)
         } else {
             // It is a cell
             if (cell) {
-                cell.call(this, subject, phase, x, y, expd)
+                cell.call(this, subject, phase, x, y, expd, origin)
             } else if ((typeof(subject.character) != "undefined") && (subject.character != null)) {
                 character.call(this, subject.character, phase)
             }
@@ -232,7 +232,7 @@ var effectFunction = {
                 character.attrs.hp.onchange.call(character, "direct-explosion")
             }
         }
-    }, function(cell, phase, x, y, expd) {
+    }, function(cell, phase, x, y, expd, origin) {
         if (phase == PHASE_TARGET) {
             var manager = particles.Singleton()
             manager.spawnParticle(
@@ -246,10 +246,19 @@ var effectFunction = {
                     this.additional.explosionDamageRange[0] +
                     (this.additional.explosionDamageRange[1] - this.additional.explosionDamageRange[0]) * (1.0 - expd)
                     
-                cell.character.knockback = {
-                    ox: x,
-                    oy: y,
-                    amount: Math.floor(Math.random() * 4)
+                var amnt = Math.random() * 4
+                if (!cell.character.knockback) {
+                    cell.character.knockback = {
+                        ox: origin.x,
+                        oy: origin.y,
+                        amount: amnt
+                    }
+                } else {
+                    if (cell.character.knockback.amount < amnt) {
+                        cell.character.knockback.ox = x
+                        cell.character.knockback.oy = y
+                    }
+                    cell.character.knockback.amount += amnt
                 }
                     
                 if (typeof(cell.character.attrs.hp.onchange) != "undefined") {
@@ -349,7 +358,7 @@ function applyFnToRadii(effect, level, x, y, r, fn, phase) {
                     if ((dy + dx) <= r2) {
                         var cell = row[tx]
                         
-                        fn.call(effect, cell, phase, tx, ty, (dy+dx)/r2)
+                        fn.call(effect, cell, phase, tx, ty, (dy+dx)/r2, {x: x, y: y})
                     }
                 }
             }

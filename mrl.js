@@ -907,28 +907,56 @@ function inflictMeleeDamage(org, chr) {
         return
     }
     
+    if (typeof(chr.player) != "undefined") {
+        chr = chr.player
+    }
+    
+    if (typeof(org.player) != "undefined") {
+        org = org.player
+    }
+    
     if (chr.attrs.hp.pos > 0) {
         if ((typeof(org.weapon) != "undefined") &&
             (typeof(org.weapon.melee) != "undefined") &&
             (org.weapon.melee)) {
             org.weapon.doMelee(chr)
         } else {
-            var armor = 0
+            var c_armor
+            var c_strength
+            var o_armor
+            var o_strength
+            var ox
+            var oy
             
-            if (typeof(chr.attrs.armor) != "undefined") {
-                armor = chr.attrs.armor.pos
-            }
+            c_armor = chr.attrs.armor.pos
+            c_strength = chr.attrs.strength.pos
             
-            var strength = 0
+            o_armor = org.attrs.armor.pos
+            o_strength = org.attrs.strength.pos
             
-            if (typeof(org.player) != "undefined") {
-                strength = org.player.attrs.strength.pos
-            } else if ((typeof(org.attrs) != "undefined") && (typeof(org.attrs.strength) != "undefined")) {
-                strength = org.attrs.strength.pos
-            }
+            ox = org.pos.x
+            oy = org.pos.y
             
-            var dmg = Math.ceil((1 + strength) / (1 + armor))
+            var dmg = Math.ceil(Math.max(1, (o_strength - c_armor) / 10))
+            var knk = Math.ceil(Math.max(0, (o_armor - c_strength) / 5))
+            
             chr.attrs.hp.pos -= dmg
+            
+            if (!chr.knockback) {
+                chr.knockback = {
+                    ox: ox,
+                    oy: oy,
+                    amount: knk
+                }
+            } else {
+                if (chr.knockback.amount < knk) {
+                    chr.knockback.ox = ox
+                    chr.knockback.oy = oy
+                    
+                }
+                
+                chr.knockback.amount += knk
+            }
             
             if (typeof(chr.attrs.hp.onchange) != "undefined") {
                 chr.attrs.hp.onchange.call(chr, "melee", dmg)
@@ -939,11 +967,18 @@ function inflictMeleeDamage(org, chr) {
     }
 }
 
-function spawnGibs(x, y, pix, n, nmin, colorLight, colorDark, gibs) {
+function spawnGibs(x, y, pix, n, nmin, colorLight, colorDark, gibs, options) {
+    if (!options) {
+        options = {}
+    }
+    
     var ndebris = Math.round(Math.random() * n) + nmin
+    var spread = options.spread || 2
+    var spread2 = spread / 2
+    
     for (var i=0; i < n; i++) {
-        var dx = Math.round(Math.random()*2-1)
-        var dy = Math.round(Math.random()*2-1)
+        var dx = Math.round(Math.random()*spread-spread2)
+        var dy = Math.round(Math.random()*spread-spread2)
         
         var tx = x+dx
         var ty = y+dy
@@ -1043,6 +1078,43 @@ function _processTurnIfAvailable_priv_() {
         for (var i in wss.clients) {
             var ws = wss.clients[i]
 
+            var evaluateKnockback = function() {
+                var agent = ws.player
+                if ((agent.knockback) && (agent.attrs.hp.pos > 0)) {
+                    console.log(agent.knockback)
+                    var dx = sign(agent.pos.x - agent.knockback.ox)
+                    var dy = sign(agent.pos.y - agent.knockback.oy)
+                    
+                    console.log(dx + " - " + dy)
+                    
+                    var x = agent.pos.x + dx
+                    var y = agent.pos.y + dy
+                    for (var i=0; i < Math.floor(agent.knockback.amount); i++) {
+                        var psbl = passable(level[y][x])
+                        if (psbl == 1) {
+                            console.log("Moved a tile " + x + " " + y)
+                            level[agent.pos.y][agent.pos.x].character = null
+                            
+                            agent.pos.x = x
+                            agent.pos.y = y
+                            level[agent.pos.y][agent.pos.x].character = agent
+                            somethingHappened = true
+                        } else if (psbl == 2) {
+                            level[agent.pos.y][agent.pos.x].character.knockback = {
+                                ox: agent.pos.x,
+                                oy: agent.pos.y,
+                                amount: agent.knockback - i
+                            }
+                            somethingHappened = true
+                        }
+                    }
+                    
+                    delete agent.knockback
+                }
+            }
+            
+            evaluateKnockback()
+            
             if (ws.wait > 0) {
                 ws.wait--
             } else {
@@ -1280,6 +1352,8 @@ function _processTurnIfAvailable_priv_() {
                     }
                 }
             }
+            
+            evaluateKnockback()
             
             somethingHappened |= aiState.process()
         }

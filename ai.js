@@ -141,7 +141,7 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
         while (i < this.agents.length) {
             var agent = this.agents[i]
             
-            if ((agent.knockback) && (agent.attrs.hp.pos > 0)) {
+            if ((agent.knockback) /*&& (agent.attrs.hp.pos > 0)*/) {
                 var dx = sign(agent.pos.x - agent.knockback.ox)
                 var dy = sign(agent.pos.y - agent.knockback.oy)
                 
@@ -171,9 +171,10 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
                 this.level[agent.pos.y][agent.pos.x].character = null
                 this.agents.splice(i, 1)
                 
-                var gmul = (agent.attrs.hp.pos < -agent.attrs.hp.max/2)?2:1
+                var gmul = (agent.attrs.hp.pos < -agent.attrs.hp.max)?2:1
+                var options = {spread: gmul*2}
                 
-                this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(Math.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs)
+                this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(Math.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs, options)
                 i--
             } else if (agent.wait > 0) {
                 agent.wait--

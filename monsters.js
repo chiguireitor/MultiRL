@@ -46,6 +46,7 @@ var asciiMapping = require('./templates/ascii_mapping.js') // Code shared betwee
 var items = require('./items.js')
 
 function Monsta(aiState, name, tx, ty) {
+    var hp = Math.floor(Math.random() * 25 + 5)
     var ai = aiState.instantiate(
         tx, ty, name, asciiMapping['m'], '#f60', 
         {
@@ -85,9 +86,9 @@ function Tracer(aiState, name, tx, ty) {
     var ai = aiState.instantiate(tx, ty, name, asciiMapping['t'], '#f38', 
         {
             hp: {pos: hp, max: hp},
-            strength: {pos: 100},
+            strength: {pos: 40},
             armor: {pos: 0},
-            speed: {pos: 150}
+            speed: {pos: 50}
         },
         {},
         [],

@@ -59,7 +59,8 @@ function Monsta(aiState, name, tx, ty) {
         {},
         [])
         
-    var pistol = items.searchWeaponByName("9mm Pistol").clone()
+    var weapons = ["9mm Pistol", "xM3 Shotgun", "Flamethrower", "xM50 Rifle", "H80 RPG Launcher"]
+    var pistol = items.searchWeaponByName(weapons[Math.floor(Math.random() * weapons.length)]).clone()
     var chargerOrig = pistol.findChargerAndAssign(items)
     pistol.assignCharger(chargerOrig.clone())
     ai.inventory.push(chargerOrig.clone())

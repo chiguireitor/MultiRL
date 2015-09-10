@@ -318,7 +318,7 @@ ASCIITerminal.prototype.render_gl = function(damage) {
     ///////////////////////// Standard render Finished /////////////////
     
     // Bind the blmx framebuffer
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.gl.blmXFramebuffer)
+    /*this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.gl.blmXFramebuffer)
     
     this.gl.useProgram(this.gl.shaderProgram)
     
@@ -362,7 +362,7 @@ ASCIITerminal.prototype.render_gl = function(damage) {
     this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, this.gl.squareVertexPositionBuffer.numItems)
     
     // Now render the bloomX shader
-    /*this.gl.useProgram(null)
+    this.gl.useProgram(null)
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.gl.blmYFramebuffer)
     
     //this.gl.clear(this.gl.COLOR_BUFFER_BIT || this.gl.DEPTH_BUFFER_BIT)

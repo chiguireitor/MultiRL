@@ -145,8 +145,8 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
                 var dx = sign(agent.pos.x - agent.knockback.ox)
                 var dy = sign(agent.pos.y - agent.knockback.oy)
                 
-                var x = agent.pos.x + dx
-                var y = agent.pos.y + dy
+                var x = Math.min(Math.max(0, agent.pos.x + dx), this.level[0].length)
+                var y = Math.min(Math.max(0, agent.pos.y + dy), this.level.length)
                 for (var i=0; i < agent.knockback.amount; i++) {
                     var psbl = this.passable(this.level[y][x])
                     if (psbl == 1) {

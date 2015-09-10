@@ -4,6 +4,10 @@
     font-size: 18px;
 }
 
+.onlyorigin {
+    display: none;
+}
+
 textarea {
     color: #fff;
 }

@@ -1646,6 +1646,8 @@ var staticFiles = {}
 var sprites = {}
 var sounds = {}
 
+var genericFiles = {}
+
 function loadCachedFiles() {
     fs.readFile('templates/index.html', 'utf-8', function (err,data) {
         if (err) {
@@ -1727,6 +1729,25 @@ function loadCachedFiles() {
         cachedJs["rexsprite"] = data
     })
     
+    fs.readdir('./templates', function (err, files) {
+        if (!err) {
+            for (var i=0; i < files.length; i++) {
+                (function (fn) {
+                    console.log(fn)
+                    fs.readFile('./templates/' + fn, function (errrf, data) {
+                        if (!errrf) {
+                            genericFiles['/templates/' + fn] = [data, 'text/plain'] // TODO: Set correct mime type
+                        } else {
+                            console.log('Couldn\'t load static file: ' + name)
+                        }
+                    })
+                })(files[i])
+            }
+        } else {
+            console.log('Error reading static files: ' + err)
+        }
+    })
+    
     fs.readdir('./static', function (err, files) {
         if (!err) {
             for (var i=0; i < files.length; i++) {
@@ -1736,8 +1757,10 @@ function loadCachedFiles() {
                         if (!errrf) {
                             if (name.indexOf('.xp') >= 0) {
                                 staticFiles[name] = [data.toString('base64'), "application/octet-stream"]
+                                genericFiles['/static/' + fn] = [data, 'application/octet-stream']
                             } else {
                                 staticFiles[name] = [data, "image/png"]
+                                genericFiles['/static/' + fn] = [data, 'image/png']
                             }
                         } else {
                             console.log('Couldn\'t load static file: ' + name)
@@ -1759,6 +1782,7 @@ function loadCachedFiles() {
                         if (!errrf) {
                             var ret = new rs.RexSprite(data)
                             sprites[name] = ret
+                            genericFiles['/rex_sprites/' + name] = [data, 'application/binary']
                         } else {
                             console.log('Couldn\'t load sprite: ' + name)
                         }
@@ -1778,6 +1802,7 @@ function loadCachedFiles() {
                     fs.readFile('./sounds/' + fn, function (errrf, data) {
                         if (!errrf) {
                             sounds[name] = [data, 'audio/wav']
+                            genericFiles['/sounds/' + name] = [data, 'audio/wav']
                         } else {
                             console.log('Couldn\'t load sound: ' + name)
                         }
@@ -1796,7 +1821,10 @@ var htServer = http.createServer(function (req, res) {
     var urlp = url.parse(req.url)
     var uri = urlp.pathname
     
-    if (uri == '/') {
+    if (uri in genericFiles) {
+        res.writeHead(200, {"Content-Type": genericFiles[uri][1]})
+        res.write(genericFiles[uri][0])
+    } else if (uri == '/') {
         res.writeHead(200, {"Content-Type": "text/html; charset=utf-8"})
         res.write(indexPage)
     } else if (uri.indexOf('/css') == 0) {

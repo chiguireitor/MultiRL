@@ -2,7 +2,12 @@
 <html>
 <head>
 <title>Ganymede Gate</title>
-<link rel="stylesheet" href="/css/style">
+<!--link rel="stylesheet" href="/templates/style.css"-->
+<style>
+.onlyorigin {
+    display: none;
+}
+</style>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="viewport" content="width=device-width, initial-scale=0.6, maximum-scale=0.6, user-scalable=0"/>
@@ -14,7 +19,7 @@
 <div id="term" style="display: inline;">
 </div>
 </div>
-<a class="twitter-share-button"
+<a class="twitter-share-button onlyorigin"
   href="https://twitter.com/share?url=http://ganymedegate.com&via=johnvillarz&text=Played Ganymede Gate a pre-alpha multiplayer roguelike in development, come join me!&hashtags=roguelike">
 Tweet
 </a>
@@ -28,13 +33,10 @@ Tweet
 <div style="width: 100%" id="announce">
 </div>
 
-<script type="text/javascript">
-window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.getElementById(id)){return}js=d.createElement(s);js.id=id;js.src="https://platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);return window.twttr||(t={_e:[],ready:function(f){t._e.push(f)}})}(document,"script","twitter-wjs"));
-</script>
+<a href="http://eepurl.com/bysGjP" target="_blank" class="mail-list onlyorigin" style="display: none">Click to subscribe to Ganymede Gate's mailing list</a>
 
-<a href="http://eepurl.com/bysGjP" target="_blank" class="mail-list">Click to subscribe to Ganymede Gate's mailing list</a>
-
-<a href="https://github.com/chiguireitor/MultiRL"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/a6677b08c955af8400f44c6298f40e7d19cc5b2d/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677261795f3664366436642e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_gray_6d6d6d.png"></a>
+<a href="https://github.com/chiguireitor/MultiRL" class="onlyorigin"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/a6677b08c955af8400f44c6298f40e7d19cc5b2d/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677261795f3664366436642e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_gray_6d6d6d.png"></a>
+<a href="https://gitter.im/chiguireitor/MultiRL" class="onlyorigin">Chat on gitter</a>
 
 <script id="default-fs" type="x-shader/x-fragment">
     precision mediump float;
@@ -215,7 +217,7 @@ window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.ge
     }
 </script>
 
-<script id="rtt-2xsai-fs" type="x-shader/x-fragment">
+<script id="rtt-semipix-fs" type="x-shader/x-fragment">
     // Lousy pseudo pixellated look
     precision mediump float;
     
@@ -435,14 +437,14 @@ window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.ge
 <button onclick="updateShaders()">Update</button>
 </div>
 
-<script src="/js/jquery"></script>
-<script src="/js/ASCIITerminal"></script>
-<script src="/js/ascii_mapping"></script>
-<script src="/js/traceline"></script>
-<script src="/js/pako_inflate.min"></script>
-<script src="/js/gl-matrix"></script>
-<script src="/js/soundjs"></script>
-<script src="/js/rexsprite"></script>
+<script src="./templates/jquery-2.1.1.min.js"></script>
+<script src="./templates/ASCIITerminal.js"></script>
+<script src="./templates/ascii_mapping.js"></script>
+<script src="./templates/traceline.js"></script>
+<script src="./templates/pako_inflate.min.js"></script>
+<script src="./templates/gl-matrix.js"></script>
+<script src="./templates/soundjs-0.6.0.min.js"></script>
+<script src="./templates/RexSprite.js"></script>
 <script>
 var player = {
 }
@@ -1920,7 +1922,7 @@ if (window.location.hostname.indexOf("ganymedegate") >= 0) {
 }
 
 function startConnection() {
-    var sck = new WebSocket("ws://" + window.location.hostname + wsPortPart)
+    var sck = new WebSocket("ws://" + (window.location.hostname || "127.0.0.1") + wsPortPart)
     sck.onopen = function (event) {
         //
     }
@@ -2289,21 +2291,57 @@ function menuUse(n) {
     menuOptionsNumber = itemsPerMenu[currentMenu]
 }
 
+function str2ab(str) {
+  var buf = new ArrayBuffer(str.length);
+  var bufView = new Uint8Array(buf);
+  for (var i=0, strLen=str.length; i<strLen; i++) {
+    bufView[i] = str.charCodeAt(i) & 0xFF;
+  }
+  return buf;
+}
+
 function loadXpSprite(name, callback) {
-    $.ajax("./static/" + name + ".xp", {
+    /*$.ajax("./static/" + name + ".xp", {
         success: function(data) {
-            data = pako.inflate(atob(data))
-            data.alreadyDecompressed = true
+            try {
+                data = pako.inflate(atob(data))
+                data.alreadyDecompressed = true
+            } catch (e) {
+                if (e.name != 'InvalidCharacterError') {
+                    throw e
+                } else {
+                    data = pako.inflate(str2ab(data))
+                    data.alreadyDecompressed = true
+                }
+            }
+            
             var sp = new rexSprite.RexSprite(data)
             
             callback(sp)
         }
-    })
+    })*/
+    
+    var xhr = new XMLHttpRequest()
+    xhr.open('GET', "http://" + (window.location.hostname || "127.0.0.1") + ":8080/static/" + name + ".xp", true)
+    xhr.responseType = 'arraybuffer'
+     
+    xhr.onload = function(e) {
+        // response is unsigned 8 bit integer
+        if (this.status == 200) {
+            var data = data = pako.inflate(new Uint8Array(this.response))
+            data.alreadyDecompressed = true
+            var sp = new rexSprite.RexSprite(data)
+
+            callback(sp)
+        }
+    }
+     
+    xhr.send()
 }
 
 function loadGenXpSprite(name, callback, noretry) {
 	setTimeout(function() {
-		$.ajax("./generated/" + name + ".xp", {
+		$.ajax("http://" + (window.location.hostname || "127.0.0.1") + ":8080/generated/" + name + ".xp", {
 			success: function(data) {
 				data = pako.inflate(atob(data))
 				data.alreadyDecompressed = true
@@ -2326,6 +2364,32 @@ function loadGenXpSprite(name, callback, noretry) {
 				}
 			}
 		})
+        
+        
+        /*var xhr = new XMLHttpRequest()
+        xhr.open('GET', "./generated/" + name + ".xp", true)
+        xhr.responseType = 'arraybuffer'
+         
+        xhr.onload = function(e) {
+            // response is unsigned 8 bit integer
+            if (this.status == 200) {
+                var data = data = pako.inflate(new Uint8Array(this.response))
+                data.alreadyDecompressed = true
+                var sp = new rexSprite.RexSprite(data)
+
+                callback(sp)
+            } else if (noretry < 5) {
+                if (this.status == 404) {
+                    setTimeout(function() {
+                        console.log("Trying again to load: " + name)
+                        loadGenXpSprite(name, callback, noretry + 1)
+                    }, 1000)
+                }
+            }
+        }
+         
+        xhr.send()*/
+        
 	}, 500)
 }
 
@@ -2421,35 +2485,44 @@ $(document).ready(function () {
     
     initAsciiDisplay('term', displaySizeX, displaySizeY)
     
-    createjs.Sound.registerSound("./wav/9mmpistol.wav", "9mmpistol")
-    createjs.Sound.registerSound("./wav/rpg.wav", "rpg")
-    createjs.Sound.registerSound("./wav/shotgun.wav", "shotgun")
-    createjs.Sound.registerSound("./wav/pickup.wav", "pickup")
-    createjs.Sound.registerSound("./wav/empty_gun.wav", "empty_gun")
-    createjs.Sound.registerSound("./wav/dirt_step.wav", "dirt_step")
-    createjs.Sound.registerSound("./wav/reload.wav", "reload")
-    createjs.Sound.registerSound("./wav/hit.wav", "hit")
-    createjs.Sound.registerSound("./wav/gibs.wav", "gibs")
-    createjs.Sound.registerSound("./wav/open_door.wav", "open_door")
-    createjs.Sound.registerSound("./wav/switch.wav", "switch")
+    createjs.Sound.registerSound("./sounds/9mmpistol.wav", "9mmpistol")
+    createjs.Sound.registerSound("./sounds/rpg.wav", "rpg")
+    createjs.Sound.registerSound("./sounds/shotgun.wav", "shotgun")
+    createjs.Sound.registerSound("./sounds/pickup.wav", "pickup")
+    createjs.Sound.registerSound("./sounds/empty_gun.wav", "empty_gun")
+    createjs.Sound.registerSound("./sounds/dirt_step.wav", "dirt_step")
+    createjs.Sound.registerSound("./sounds/reload.wav", "reload")
+    createjs.Sound.registerSound("./sounds/hit.wav", "hit")
+    createjs.Sound.registerSound("./sounds/gibs.wav", "gibs")
+    createjs.Sound.registerSound("./sounds/open_door.wav", "open_door")
+    createjs.Sound.registerSound("./sounds/switch.wav", "switch")
     
     // Laser sounds
-    createjs.Sound.registerSound("./wav/laserPistol.wav", "laserPistol")
-    createjs.Sound.registerSound("./wav/laserRifle.wav", "laserRifle")
-    createjs.Sound.registerSound("./wav/laserHeavy.wav", "laserHeavy")
-    createjs.Sound.registerSound("./wav/laserGatling.wav", "laserGatling")
+    createjs.Sound.registerSound("./sounds/laserPistol.wav", "laserPistol")
+    createjs.Sound.registerSound("./sounds/laserRifle.wav", "laserRifle")
+    createjs.Sound.registerSound("./sounds/laserHeavy.wav", "laserHeavy")
+    createjs.Sound.registerSound("./sounds/laserGatling.wav", "laserGatling")
     
     // Plasma sounds
-    createjs.Sound.registerSound("./wav/plasmaPistol.wav", "plasmaPistol")
-    createjs.Sound.registerSound("./wav/plasmaRifle.wav", "plasmaRifle")
-    createjs.Sound.registerSound("./wav/plasmaLauncher.wav", "plasmaLauncher")
-    createjs.Sound.registerSound("./wav/plasmaGatling.wav", "plasmaGatling")
+    createjs.Sound.registerSound("./sounds/plasmaPistol.wav", "plasmaPistol")
+    createjs.Sound.registerSound("./sounds/plasmaRifle.wav", "plasmaRifle")
+    createjs.Sound.registerSound("./sounds/plasmaLauncher.wav", "plasmaLauncher")
+    createjs.Sound.registerSound("./sounds/plasmaGatling.wav", "plasmaGatling")
     
     createjs.Sound.on("fileload", function() {
         setupMusic()
     })
-    createjs.Sound.registerSound("./wav/seedybg.wav", "seedybg")
+    createjs.Sound.registerSound("./sounds/seedybg.wav", "seedybg")
+    
+    if (window.location.hostname.toLowerCase().indexOf("ganymedegate.com") >= 0) {
+        showOrigin()
+    }
 })
+
+function showOrigin() {
+    window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.getElementById(id)){return}js=d.createElement(s);js.id=id;js.src="https://platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);return window.twttr||(t={_e:[],ready:function(f){t._e.push(f)}})}(document,"script","twitter-wjs"));
+    $(".onlyorigin").show()
+}
 
 function goFullScreen() {
     if (

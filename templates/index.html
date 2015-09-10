@@ -2322,7 +2322,8 @@ function loadXpSprite(name, callback) {
     })*/
     
     var xhr = new XMLHttpRequest()
-    xhr.open('GET', "http://" + (window.location.hostname || "127.0.0.1") + ":8080/static/" + name + ".xp", true)
+    var port = (window.location.hostname.indexOf("ganymedegate") < 0)?":8080":""
+    xhr.open('GET', "http://" + (window.location.hostname || "127.0.0.1") + port + "/static/" + name + ".xp", true)
     xhr.responseType = 'arraybuffer'
      
     xhr.onload = function(e) {
@@ -2341,7 +2342,8 @@ function loadXpSprite(name, callback) {
 
 function loadGenXpSprite(name, callback, noretry) {
 	setTimeout(function() {
-		$.ajax("http://" + (window.location.hostname || "127.0.0.1") + ":8080/generated/" + name + ".xp", {
+        var port = (window.location.hostname.indexOf("ganymedegate") < 0)?":8080":""
+		$.ajax("http://" + (window.location.hostname || "127.0.0.1") + port + "/generated/" + name + ".xp", {
 			success: function(data) {
 				data = pako.inflate(atob(data))
 				data.alreadyDecompressed = true

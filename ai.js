@@ -78,7 +78,7 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
         var chr = {
             pix: pix,
             pos: {x: x, y: y},
-            gibs: [asciiMapping["~"], asciiMapping["∞"], asciiMapping["≈"], asciiMapping["·"], asciiMapping["%"]],
+            gibs: [{pix: asciiMapping["~"], gibType: "severed extremity"}, {pix: asciiMapping["∞"], gibType: "brain piece"}, {pix: asciiMapping["≈"], gibType: "blood pool"}, {pix: asciiMapping["·"], gibType: "internal organ"}, {pix: asciiMapping["%"], gibType: "intestine"}],
             color: color,
             username: name,
             type: 'ai',

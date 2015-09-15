@@ -580,6 +580,29 @@ var playerClasses = [
 var itemsPerMenu = [4, playerClasses.length + 2, 5, 3, 3]
 
 var level = []
+var levelTileset = ""
+
+var tilesetDescription = {
+    "base": {
+        24: "lever",
+        233: "barrel",
+        61: "closed door",
+        95: "open door"
+    },
+    "lava": {
+        24: "lever",
+        233: "barrel",
+        61: "closed door",
+        95: "open door"
+    },
+    "cave": {
+        24: "lever",
+        233: "barrel",
+        61: "closed door",
+        95: "open door"
+    }
+}
+
 var cssRules = {}
 
 var playerDivs = {}
@@ -599,6 +622,8 @@ var menuStars = []
 
 var announcements = []
 
+var descriptions = []
+
 function queueAnnouncements(msgs) {
     announcements = announcements.concat(msgs)
 }
@@ -612,6 +637,8 @@ function pickClass(cls) {
 }
 
 function start() {
+    descriptions = []
+    
     localStorage.username = ownUsername
     localStorage.chartype = playerPickClass
     
@@ -629,6 +656,8 @@ function start() {
 }
 
 function pos(ndx, ndy, shifted) {
+    descriptions = []
+    
     var npos = {x: player.pos.x, y: player.pos.y}
     if (typeof(ndx) != 'undefined') {
         npos.x += ndx
@@ -645,19 +674,94 @@ function pos(ndx, ndy, shifted) {
     })
 }
 
+function describe(x, y) {
+    /*send ({
+        type: 'describe',
+        pos: {x: x, y: y}
+    })*/
+    descriptions = []
+    
+    if ((y >= 0) && (y < level.length)) {
+        var row = level[y]
+        
+        if ((x >= 0) && (x < row.length)) {
+            var tile = row[x]
+            
+            var description = ["You see:"]
+            
+            if ("character" in tile) {
+                if (("type" in tile.character) && (tile.character.type == 'ai')) {
+                    description.push("A " + (/(.*)Nº.*/).exec(tile.character.username).pop().trim())
+                } else {
+                    description.push("Player " + tile.character.username)
+                }
+            }
+            
+            if ("item" in tile) {
+                if ("ammoType" in tile.item) {
+                    description.push("A " + tile.item.ammoType + " charger")
+                } else if ("name" in tile.item) {
+                    description.push("A " + tile.item.name)
+                }
+            }
+            
+            if ("debris" in tile) {
+                if ("type" in tile.debris) {
+                    description.push("A " + tile.debris.type)
+                }
+            }
+            
+            if (levelTileset in tilesetDescription) {
+                var thisTilesetDescriptor = tilesetDescription[levelTileset]
+                
+                if (tile.tile in thisTilesetDescriptor) {
+                    var specificTileDescriptor = thisTilesetDescriptor[tile.tile]
+                    var fgbgdesc = tile.fg + "-" + tile.bg
+                    
+                    if (typeof(specificTileDescriptor[fgbgdesc]) != "undefined") {
+                        description.push("A " + specificTileDescriptor[fgbgdesc])
+                    } else if (typeof(specificTileDescriptor[tile.fg]) != "undefined") {
+                        description.push("A " + specificTileDescriptor[tile.fg])
+                    } else if (typeof(specificTileDescriptor[tile.bg]) != "undefined") {
+                        description.push("A " + specificTileDescriptor[tile.bg])
+                    } else {
+                        description.push("A " + specificTileDescriptor)
+                    }
+                }
+            }
+            
+            console.log(tile)
+            console.log(descriptions)
+            
+            descriptions.push({
+                pos: [lastMove[0], lastMove[1] - description.length - 1],
+                lines: description
+            })
+            
+            //lastMove = [x, y]
+        }
+    }
+}
+
 function prone() {
+    descriptions = []
+    
 	send({
         type: 'prone'
     })
 }
 
 function crouch() {
+    descriptions = []
+    
 	send({
         type: 'crouch'
     })
 }
 
 function tryMoveTowardsDestination() {
+    descriptions = []
+    
     if (destinationMovement != undefined) {
         var dx = 0, dy = 0
         
@@ -682,6 +786,8 @@ function tryMoveTowardsDestination() {
 }
 
 function use() {
+    descriptions = []
+    
     if (gameStarted) {
         if (showingInventory) {
             useInventory(inventoryIndex)
@@ -696,12 +802,16 @@ function use() {
 }
 
 function grab() {
+    descriptions = []
+    
     send({
         type: 'grab'
     })
 }
 
 function fire(alternate) {
+    descriptions = []
+    
     waitTarget(function(x, y) {
             send({
                 type: 'fire',
@@ -720,6 +830,8 @@ function cheat(fn) {
 }
 
 function reload(alternate) {
+    descriptions = []
+    
     send({
         type: 'reload',
 		alt: alternate
@@ -727,12 +839,16 @@ function reload(alternate) {
 }
 
 function updateInventory() {
+    descriptions = []
+    
     send({
         type: 'inventory'
     })
 }
 
 function useInventory(idx) {
+    descriptions = []
+    
     send({
         type: 'useInventory',
         index: idx
@@ -740,13 +856,7 @@ function useInventory(idx) {
 }
 
 function clearTips() {
-    clearTipsTimeout = null
-
-    for (var i=0; i < currentTips.length; i++) {
-        currentTips[i].remove()
-    }
-    
-    currentTips = []
+    descriptions = []
 }
 
 function showTips() {
@@ -798,6 +908,7 @@ function showTips() {
 }
 
 function toggleInventory() {
+    descriptions = []
     
     if (showingInventory) {
         showingInventory = false
@@ -914,6 +1025,8 @@ function waitTarget(fn) {
 }
 
 function moveToDest(x, y) {
+    descriptions = []
+    
     var x = player.pos.x + (x - player.cpos.x)
     var y = player.pos.y + (y - player.cpos.y)
     
@@ -936,6 +1049,11 @@ function clickCell(x, y) {
 
 function moveCell(x, y) {
     lastMove = [x, y]
+    
+    var x = player.pos.x + (x - player.cpos.x)
+    var y = player.pos.y + (y - player.cpos.y)
+    
+    describe(x, y)
 }
 
 function updateWeapon(w) {
@@ -1544,6 +1662,19 @@ function updateDisplayGameStarted() {
     updateAttrs()
     updateLogs()
     
+    for (var i=0; i < descriptions.length; i++) {
+        var desc = descriptions[i]
+        var fg = [192,192,192]
+        var bg = [64,64,64]
+        var luma = [0,0,0]
+
+        if (desc.lines.length > 1) {
+            for (var j=0; j < desc.lines.length; j++) {
+                drawAsciiText(desc.pos[0], desc.pos[1] + j, desc.lines[j], fg, bg, luma)
+            }
+        }
+    }
+    
     if ((typeof(playerAttrs) != "undefined") && (playerAttrs.hp.pos <= 0)) {
         if (drawButtonWithText(((displaySizeX + 32)/2) - 24, displaySizeY - 4, "Return to Menu", 16, opsColsFg[true], opsColsBg[true], 0)) { //opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
             currentMenu = 0
@@ -1781,6 +1912,7 @@ var handlers = {
         announceMsg("Initializing game")
         console.log(obj)
         player.pos = obj.pos
+        levelTileset = obj.levelTileset
         
         for (var y=0; y < obj.dim.h; y++) {
             var row = Array.apply(null, new Array(obj.dim.w+1)).map(function(){return {particles: []}})

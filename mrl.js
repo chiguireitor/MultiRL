@@ -97,6 +97,7 @@ var items = require('./items.js')
  * The following vars are reset on every new game
  */
 var level = []
+var levelTileset = ""
 var aiState
 var lastTurnTime = 0 // Date.now() of the last turn that was completed
 
@@ -286,7 +287,7 @@ var handlers = { // These are the RPC handlers that the client can invoke
         ws.player = {pix: asciiMapping['@'],
                 color: '#44F',
                 pos: {x: startXPos + dx, y: startYPos + dy},
-                gibs: [asciiMapping["~"], asciiMapping["∞"], asciiMapping["≈"], asciiMapping["·"], asciiMapping["%"]],
+                gibs: [{pix: asciiMapping["~"], gibType: "severed extremity"}, {pix: asciiMapping["∞"], gibType: "brain piece"}, {pix: asciiMapping["≈"], gibType: "blood pool"}, {pix: asciiMapping["·"], gibType: "internal organ"}, {pix: asciiMapping["%"], gibType: "intestine"}],
                 username: obj.username,
                 player_class: obj.player_class,
                 type: "player",
@@ -376,6 +377,7 @@ var handlers = { // These are the RPC handlers that the client can invoke
         return {
             type: 'init',
             pos: ws.player.pos,
+            levelTileset: levelTileset,
             dim: {w: level[0].length, h: level.length},
             player_list: wss.clients.map(function(x) { if (x.player) { return {username: x.player.username}} } )
         }
@@ -390,6 +392,19 @@ var handlers = { // These are the RPC handlers that the client can invoke
                 ws.turn = nextTurnId
                 ws.standingOrder = false
                 processTurnIfAvailable()
+            }
+        }
+    }),
+    describe: saferpc(function(ws, obj) {
+        if (typeof(ws.player) != "undefined") {
+            if ((obj.pos.y >= 0) && (obj.pos.y < level.length)) {
+                var row = level[obj.pos.y]
+                
+                if ((obj.pos.x >= 0) && (obj.pos.x < row.length)) {
+                    var tile = row[obj.pos.x]
+                    
+                    //console.log(tile) // TODO: Remote the description
+                }
             }
         }
     }),
@@ -744,6 +759,7 @@ function resetLevel() {
 
     var levelType = Math.floor(Math.random() * 3)
     if (levelType == 0) {
+        levelTileset = "base"
         generators.bspSquares(level, 
             gameDefs.level.minRoomArea,
             gameDefs.level.randomAcceptRoom,
@@ -751,6 +767,7 @@ function resetLevel() {
             gameDefs.level.roomAcceptProbability,
             gameDefs.level.roomConvertCaveProbability)
     } else if (levelType == 1) {
+        levelTileset = "cave"
         generators.caveLevel(level, 
             gameDefs.level.minRoomArea,
             gameDefs.level.randomAcceptRoom,
@@ -758,6 +775,7 @@ function resetLevel() {
             gameDefs.level.roomAcceptProbability,
             gameDefs.level.roomConvertCaveProbability)
     } else if (levelType == 2) {
+        levelTileset = "lava"
         generators.lavaLevel(level, 
             gameDefs.level.minRoomArea,
             gameDefs.level.randomAcceptRoom,
@@ -983,11 +1001,19 @@ function spawnGibs(x, y, pix, n, nmin, colorLight, colorDark, gibs, options) {
         var tx = x+dx
         var ty = y+dy
         
+        var gibType = "gib"
+        var gibPix = gibs[Math.floor(Math.random()*gibs.length)]
+        if (typeof(gibPix.gibType) != "undefined") {
+            gibType = gibPix.gibType
+            gibPix = gibPix.pix
+        }
+        
         if ((ty >= 0) && (ty < level.length) &&
             (tx >= 0) && (tx < level[ty].length)) {
             level[ty][tx].debris = {
-                pix: gibs[Math.floor(Math.random()*gibs.length)], 
-                color: (Math.random() < 0.5)?colorLight:colorDark
+                pix: gibPix, 
+                color: (Math.random() < 0.5)?colorLight:colorDark,
+                type: gibType
             }
         }
     }
@@ -996,7 +1022,8 @@ function spawnGibs(x, y, pix, n, nmin, colorLight, colorDark, gibs, options) {
     
     level[y][x].debris = {
         pix: pix, 
-        color: colorDark
+        color: colorDark,
+        type: "corpse"
     }
 }
 

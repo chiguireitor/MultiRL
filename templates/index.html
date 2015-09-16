@@ -584,22 +584,25 @@ var levelTileset = ""
 
 var tilesetDescription = {
     "base": {
-        24: "lever",
-        233: "barrel",
-        61: "closed door",
-        95: "open door"
+        24: "Lever",
+        233: "Barrel",
+        61: "Closed door",
+        95: "Open door",
+        62: "Downstairs"
     },
     "lava": {
-        24: "lever",
-        233: "barrel",
-        61: "closed door",
-        95: "open door"
+        24: "Lever",
+        233: "Barrel",
+        61: "Closed door",
+        95: "Open door",
+        62: "Downstairs"
     },
     "cave": {
-        24: "lever",
-        233: "barrel",
-        61: "closed door",
-        95: "open door"
+        24: "Lever",
+        233: "Barrel",
+        61: "Closed door",
+        95: "Open door",
+        62: "Downstairs"
     }
 }
 
@@ -679,6 +682,8 @@ function describe(x, y) {
         type: 'describe',
         pos: {x: x, y: y}
     })*/
+    var desc = {}
+    
     descriptions = []
     
     if ((y >= 0) && (y < level.length)) {
@@ -687,27 +692,45 @@ function describe(x, y) {
         if ((x >= 0) && (x < row.length)) {
             var tile = row[x]
             
-            var description = ["You see:"]
+            var description = [{text: "You see:"}]
             
             if ("character" in tile) {
                 if (("type" in tile.character) && (tile.character.type == 'ai')) {
-                    description.push("A " + (/(.*)Nº.*/).exec(tile.character.username).pop().trim())
+                    description.push({text: (/(.*)N.*/).exec(tile.character.username).pop().trim()})
                 } else {
-                    description.push("Player " + tile.character.username)
+                    if ((x == player.pos.x) && (y == player.pos.y)) {
+                        description.push({text: "Yourself"})
+                    } else if (!tile.character.username) {
+                        description.push({text: "Player " + tile.character.username})
+                    } else {
+                        description.push({text: "A Player"})
+                    }
+                }
+                
+                if ("color" in tile.character) {
+                    description[description.length-1].fg = tile.character.color
                 }
             }
             
             if ("item" in tile) {
-                if ("ammoType" in tile.item) {
-                    description.push("A " + tile.item.ammoType + " charger")
-                } else if ("name" in tile.item) {
-                    description.push("A " + tile.item.name)
+                if ("name" in tile.item) {
+                    description.push({text: tile.item.name})
+                } else if ("ammoType" in tile.item) {
+                    description.push({text: tile.item.ammoType + " charger"})
+                }
+                
+                if ("cssClass" in tile.item) {
+                    description[description.length-1].cssClass = tile.item.cssClass
                 }
             }
             
             if ("debris" in tile) {
                 if ("type" in tile.debris) {
-                    description.push("A " + tile.debris.type)
+                    description.push({text: tile.debris.type})
+                }
+                
+                if ("color" in tile.debris) {
+                    description[description.length-1].fg = tile.debris.color
                 }
             }
             
@@ -719,26 +742,26 @@ function describe(x, y) {
                     var fgbgdesc = tile.fg + "-" + tile.bg
                     
                     if (typeof(specificTileDescriptor[fgbgdesc]) != "undefined") {
-                        description.push("A " + specificTileDescriptor[fgbgdesc])
+                        description.push({text: specificTileDescriptor[fgbgdesc]})
                     } else if (typeof(specificTileDescriptor[tile.fg]) != "undefined") {
-                        description.push("A " + specificTileDescriptor[tile.fg])
+                        description.push({text: specificTileDescriptor[tile.fg]})
                     } else if (typeof(specificTileDescriptor[tile.bg]) != "undefined") {
-                        description.push("A " + specificTileDescriptor[tile.bg])
+                        description.push({text: specificTileDescriptor[tile.bg]})
+                    } else if (typeof(specificTileDescriptor["default"]) != "undefined") {
+                        description.push({text: specificTileDescriptor["default"]})
                     } else {
-                        description.push("A " + specificTileDescriptor)
+                        description.push({text: specificTileDescriptor})
                     }
                 }
             }
             
-            console.log(tile)
-            console.log(descriptions)
+            //console.log(tile)
+            //console.log(descriptions)
             
-            descriptions.push({
-                pos: [lastMove[0], lastMove[1] - description.length - 1],
-                lines: description
-            })
+            desc.pos = [lastMove[0], lastMove[1] - description.length - 1]
+            desc.lines = description
             
-            //lastMove = [x, y]
+            descriptions.push(desc)
         }
     }
 }
@@ -1664,13 +1687,36 @@ function updateDisplayGameStarted() {
     
     for (var i=0; i < descriptions.length; i++) {
         var desc = descriptions[i]
-        var fg = [192,192,192]
-        var bg = [64,64,64]
-        var luma = [0,0,0]
-
         if (desc.lines.length > 1) {
             for (var j=0; j < desc.lines.length; j++) {
-                drawAsciiText(desc.pos[0], desc.pos[1] + j, desc.lines[j], fg, bg, luma)
+                var fg = [192,192,192]
+                var bg = [32,32,32]
+                var luma = [0,0,0]
+                var d = desc.lines[j]
+                
+                if ("cssClass" in d) {
+                    if (d.cssClass in colorMap) {
+                        var rule = colorMap[d.cssClass]
+                        
+                        if ((!tile.fg)&&("color" in rule)) {
+                            fg = fgColorFromColorMapRule(rule, x*y)
+                        }
+                        
+                        if ((!tile.bg)&&("backgroundColor" in rule)) {
+                            bg = rule.backgroundColor
+                        }
+                        
+                        if ((!tile.luma)&&("luma" in rule)) {
+                            luma = rule.luma
+                        }
+                    }
+                }
+                
+                if ("fg" in d) {
+                    fg = d.fg
+                }
+                
+                drawAsciiText(desc.pos[0], desc.pos[1] + j, d.text, fg, bg, luma)
             }
         }
     }

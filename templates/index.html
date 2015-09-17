@@ -29,7 +29,7 @@
 <body style="background: #000; overflow: hidden">
 
 <div class="ascii" style="width: 100; text-align: center">
-<div id="term" style="display: inline;">
+<div id="term" style="display: inline; cursor: none">
 </div>
 </div>
 <a class="twitter-share-button onlyorigin"
@@ -692,7 +692,13 @@ function describe(x, y) {
         if ((x >= 0) && (x < row.length)) {
             var tile = row[x]
             
-            var description = [{text: "You see:"}]
+            var description = []
+            
+            if (tile.turn != turn) {
+                description.push({text: "You saw:"})
+            } else {
+                description.push({text: "You see:"})
+            }
             
             if ("character" in tile) {
                 if (("type" in tile.character) && (tile.character.type == 'ai')) {
@@ -835,6 +841,12 @@ function grab() {
 function fire(alternate) {
     descriptions = []
     
+    if (alternate && ((typeof(player.firing) == "undefined") || (player.firing != 'alternate'))) {
+        player.firing = 'alternate'
+    } else if ((typeof(player.firing) == "undefined") || (player.firing != 'primary')) {
+        player.firing = 'primary'
+    }
+    
     waitTarget(function(x, y) {
             send({
                 type: 'fire',
@@ -842,6 +854,7 @@ function fire(alternate) {
 				alt: alternate
                 })
         })
+
     announceMsg("Click over a cell to target")
 }
 
@@ -1032,6 +1045,7 @@ function waitTarget(fn) {
         
         if (foundTarget) {
             onClickTarget(selx, sely, true)
+            player.firing = "no"
         }
     } else {
         // Wait target selection
@@ -1043,6 +1057,7 @@ function waitTarget(fn) {
             }
             fn(x, y)
             onClickTarget = null
+            player.firing = "no"
         }
     }
 }
@@ -1148,6 +1163,11 @@ function updateDisplay() {
         // Tutorial
         updateTutorial()
     }
+    
+    terminal.setPixelBg(lastMove[0], lastMove[1], 
+        [Math.round(((Date.now() / 200.0) % 1 - 0.5) * 128 + 128),
+         Math.round(((Date.now() / 400.0) % 1 - 0.5) * 128 + 32), 
+         Math.round(((Date.now() / 100.0) % 1 - 0.5) * 32 + 64)])
 }
 
 function aberrateColor(col) {
@@ -1421,6 +1441,7 @@ function updateCharMenu() {
         var selected = menuSel == i
         var name = playerClasses[i].name
         var id = playerClasses[i].id
+        var description = playerClasses[i].description
         
         if (drawButtonWithText(1, 3 + i * 3, name, 16, opsColsFg[selected], opsColsBg[selected], i)) {
             if (menuSel == i) {
@@ -1444,6 +1465,8 @@ function updateCharMenu() {
                 }
                 f(id)
             }
+            
+            drawAsciiText(18, 27, description, [224, 244, 244], [0,0,0], [0,0,0])
         }
     }
     
@@ -1680,10 +1703,26 @@ function updateDisplayGameStarted() {
         }
     }
     
-    terminal.setPixelBg(lastMove[0], lastMove[1], [128, 0, 0])
-    
     updateAttrs()
     updateLogs()
+
+    if ((typeof(playerAttrs) != "undefined") && (playerAttrs.hp.pos <= 0)) {
+        if (drawButtonWithText(((displaySizeX + 32)/2) - 24, displaySizeY - 4, "Return to Menu", 16, opsColsFg[true], opsColsBg[true], 0)) { //opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+            currentMenu = 0
+            gameStarted = false
+            lastClick = [-1, -1]
+            lastMove = [-1, -1]
+            destinationMovement = undefined
+            
+            level = []
+            queuedAnns = []
+            currentTips = []
+            showingInventory = false
+            announcements = []
+            
+            reconnect()
+        }
+    }
     
     for (var i=0; i < descriptions.length; i++) {
         var desc = descriptions[i]
@@ -1720,24 +1759,7 @@ function updateDisplayGameStarted() {
             }
         }
     }
-    
-    if ((typeof(playerAttrs) != "undefined") && (playerAttrs.hp.pos <= 0)) {
-        if (drawButtonWithText(((displaySizeX + 32)/2) - 24, displaySizeY - 4, "Return to Menu", 16, opsColsFg[true], opsColsBg[true], 0)) { //opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
-            currentMenu = 0
-            gameStarted = false
-            lastClick = [-1, -1]
-            lastMove = [-1, -1]
-            destinationMovement = undefined
-            
-            level = []
-            queuedAnns = []
-            currentTips = []
-            showingInventory = false
-            announcements = []
-            
-            reconnect()
-        }
-    }
+
 }
 
 function drawConsoleBar(x, y, w, h, percent) {
@@ -1766,6 +1788,14 @@ function pad(txt, l) {
     return txt
 }
 
+function padR(txt, l) {
+    while (txt.length < l) {
+        txt = txt + " "
+    }
+    
+    return txt
+}
+
 function drawAsciiText(x, y, txt, fg, bg, luma) {
     for (var i=0; i < txt.length; i++) {
         var c = txt.charAt(i)
@@ -1789,7 +1819,7 @@ function drawRexSprite(x, y, spr) {
                         [ras.fg.r, ras.fg.g, ras.fg.b],
                         [ras.bg.r, ras.bg.g, ras.bg.b])
                         
-                    if ((lastClick[0] == (x + ix))&&(lastClick[1] >= (y + iy))) {
+                    if ((lastClick[0] == (x + ix))&&(lastClick[1] == (y + iy))) {
                         lastClick[0] = -1
                         lastClick[1] = -1
                         clicked = true
@@ -1828,16 +1858,29 @@ function updateAttrs() {
         drawAsciiText(displaySizeX + 2, y + 10, "SP " + pad(playerAttrs.speed.pos, 3) + "/" + playerAttrs.speed.max, [0, 255, 0], [0, 0, 0])
         drawConsoleBar(displaySizeX + 13, y + 10, 12, 1, playerAttrs.speed.pos / playerAttrs.speed.max)
         
+        var firingPrimary = false
+        var firingAlternate = false
+        
+        if (typeof(player.firing) != "undefined") {
+            firingPrimary = player.firing == "primary"
+            firingAlternate = player.firing == "alternate"
+        }
+        
         drawAsciiText(displaySizeX + 2, y + 13, "Weapon", [0, 255, 0], [0, 0, 0])
         drawAsciiText(displaySizeX + 2, y + 15, currentWeapon.name, [0, 255, 0], [0, 0, 0])
-        drawAsciiText(displaySizeX + 2, y + 16, currentWeapon.ammoType, [0, 255, 0], [0, 0, 0])
-        drawAsciiText(displaySizeX + 2, y + 17, "Ammo " + pad(currentWeapon.ammo, 3) + "/" + currentWeapon.ammoMax, [0, 255, 0], [0, 0, 0])
+        
+        var bgColor = firingPrimary?[128, 128, 0]:[0, 0, 0]
+        drawAsciiText(displaySizeX + 2, y + 16, padR(currentWeapon.ammoType, 30), [0, 255, 0], bgColor)
+        var ammoStr = "Ammo " + pad(currentWeapon.ammo, 3) + "/" + currentWeapon.ammoMax
+        drawAsciiText(displaySizeX + 2, y + 17, padR(ammoStr, 30), [0, 255, 0], bgColor)
         drawConsoleBar(displaySizeX + 15, y + 17, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax)
         drawAsciiText(displaySizeX + 2, y + 18, "Dmg. " + currentWeapon.damage[0] + " - " + currentWeapon.damage[1], [0, 255, 0], [0, 0, 0])
         
 		if (currentWeapon.alternate) {
-			drawAsciiText(displaySizeX + 2, y + 19, currentWeapon.alternate.ammoType, [0, 255, 128], [0, 0, 0])
-			drawAsciiText(displaySizeX + 2, y + 20, "Ammo " + pad(currentWeapon.alternate.ammo, 3) + "/" + currentWeapon.alternate.ammoMax, [0, 255, 128], [0, 0, 0])
+            bgColor = firingAlternate?[128, 128, 0]:[0, 0, 0]
+			drawAsciiText(displaySizeX + 2, y + 19, padR(currentWeapon.alternate.ammoType, 30), [0, 255, 128], bgColor)
+            ammoStr = "Ammo " + pad(currentWeapon.alternate.ammo, 3) + "/" + currentWeapon.alternate.ammoMax
+			drawAsciiText(displaySizeX + 2, y + 20, padR(ammoStr, 30), [0, 255, 128], bgColor)
 			drawConsoleBar(displaySizeX + 15, y + 20, 10, 1, currentWeapon.alternate.ammo / currentWeapon.alternate.ammoMax)
 		}
 		

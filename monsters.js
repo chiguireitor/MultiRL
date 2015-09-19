@@ -76,7 +76,8 @@ function Drone(aiState, name, tx, ty) {
         {
             hp: {pos: hp, max: hp},
             strength: {pos: Math.floor(Math.random() * 10)},
-            armor: {pos: Math.floor(Math.random() * 10)}
+            armor: {pos: Math.floor(Math.random() * 10)},
+            knockbackFactor: 3
         },
         {},
         [])
@@ -89,7 +90,8 @@ function Tracer(aiState, name, tx, ty) {
             hp: {pos: hp, max: hp},
             strength: {pos: 40},
             armor: {pos: 0},
-            speed: {pos: 50}
+            speed: {pos: 50},
+            knockbackFactor: 0.1
         },
         {},
         [],

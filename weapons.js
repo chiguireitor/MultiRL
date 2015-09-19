@@ -513,6 +513,10 @@ Ranged.prototype.rpcRepr = function(c) {
 			ammoType: this.alternate.chargerAmmoType,
 		}
 	}
+    
+    if (this.ranged) {
+        res.ranged = true
+    }
 	
 	return res
 }

@@ -606,6 +606,13 @@ var tilesetDescription = {
     }
 }
 
+var tilePixActions = {
+    24: "Activate",
+    61: "Open door",
+    95: "Close door",
+    62: "Exit level"
+}
+
 var cssRules = {}
 
 var playerDivs = {}
@@ -626,6 +633,9 @@ var menuStars = []
 var announcements = []
 
 var descriptions = []
+var actionMenuShown = false
+var actionMenuCenter = [0, 0]
+var actionMenuActions
 
 function queueAnnouncements(msgs) {
     announcements = announcements.concat(msgs)
@@ -788,10 +798,15 @@ function crouch() {
     })
 }
 
+var expectedPlayerPos
+var onReachCallback
 function tryMoveTowardsDestination() {
     descriptions = []
     
-    if (destinationMovement != undefined) {
+    if ((destinationMovement != undefined)&&
+        ((expectedPlayerPos == undefined)||
+         ((expectedPlayerPos[0] == player.pos.x)&&
+          (expectedPlayerPos[1] == player.pos.y)) ) ) {
         var dx = 0, dy = 0
         
         if (player.pos.x < destinationMovement[0]) {
@@ -807,10 +822,20 @@ function tryMoveTowardsDestination() {
         }
         
         if ((dx != 0) || (dy != 0)) {
+            expectedPlayerPos = [player.pos.x + dx, player.pos.y + dy]
             pos(dx, dy)
         } else {
             destinationMovement = undefined
+            delete expectedPlayerPos
+            
+            if (onReachCallback) {
+                onReachCallback()
+                onReachCallback = undefined
+            }
         }
+    } else {
+        expectedPlayerPos = undefined
+        destinationMovement = undefined
     }
 }
 
@@ -838,7 +863,7 @@ function grab() {
     })
 }
 
-function fire(alternate) {
+function fire(alternate, pos) {
     descriptions = []
     
     if (alternate && ((typeof(player.firing) == "undefined") || (player.firing != 'alternate'))) {
@@ -847,15 +872,22 @@ function fire(alternate) {
         player.firing = 'primary'
     }
     
-    waitTarget(function(x, y) {
-            send({
-                type: 'fire',
-                tgt: {x: x, y: y},
-				alt: alternate
-                })
-        })
-
-    announceMsg("Click over a cell to target")
+    var fireFunc = function(x, y) {
+        send({
+            type: 'fire',
+            tgt: {x: x, y: y},
+            alt: alternate
+            })
+    }
+    
+    if (!pos) {
+        waitTarget(fireFunc)
+        
+        announceMsg("Click over a cell to target")
+    } else {
+        fireFunc(pos.x, pos.y)
+        player.firing = 'no'
+    }
 }
 
 function cheat(fn) {
@@ -985,6 +1017,18 @@ function drawInventory() {
     drawAsciiText(1, 0, 'Inventory', [0, 255, 0], [0, 0, 0])
     if (inventoryList) {
         inventoryIndex = Math.min(Math.max(0, inventoryIndex), inventoryList.length - 1)
+        if ((lastMove[1] >= 2) && (lastMove[0] >= 1) && (lastMove[0] < 64)) {
+            var ni = Math.floor((lastMove[1] - 2)/2)
+            
+            if (ni < 0) {
+                ni = -1
+            } else if (ni >= inventoryList.length) {
+                ni = -1
+            }
+            
+            inventoryIndex = ni
+        }
+        
         for (var i=0; i < inventoryList.length; i++) {
             var item = inventoryList[i]
             var txt = ''
@@ -1002,7 +1046,17 @@ function drawInventory() {
             }
             
             drawAsciiText(1, 2 + i * 2, txt, fgcol, opsColsBg[i == inventoryIndex])
+            
+            if ((lastClick[0] == lastMove[0]) && (lastClick[1] == lastMove[1])&&
+                (inventoryIndex == i)) {
+                use()
+                lastClick = [-1, -1]
+            }
         }
+    }
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 24, displaySizeY - 4, "Close", 16, opsColsFg, opsColsBg, 0)) {
+        showingInventory = false
     }
 }
 
@@ -1062,7 +1116,7 @@ function waitTarget(fn) {
     }
 }
 
-function moveToDest(x, y) {
+function moveToDest(x, y, reachCallback) {
     descriptions = []
     
     var x = player.pos.x + (x - player.cpos.x)
@@ -1070,6 +1124,7 @@ function moveToDest(x, y) {
     
     destinationMovement = [x, y]
     
+    onReachCallback = reachCallback
     tryMoveTowardsDestination()
 }
 
@@ -1080,18 +1135,105 @@ function clickCell(x, y) {
         if ((typeof(onClickTarget) != "undefined")&&(onClickTarget != null)) {
             onClickTarget(x, y)
         } else if (gameStarted && (x < displaySizeX)) {
-            moveToDest(x, y)
+            if (actionMenuShown) {
+                //actionMenuShown = false
+            } else {
+                var tx = player.pos.x + (x - player.cpos.x)
+                var ty = player.pos.y + (y - player.cpos.y)
+                
+                if ((ty >= 0) && (ty < level.length)) {
+                    var row = level[ty]
+                    
+                    if ((tx >= 0) && (tx < row.length)) {
+                        var tile = row[tx]
+                        var actions = []
+                        
+                        console.log(tile)
+                        
+                        if ("character" in tile) {
+                            // TODO Check if the character is friend or foe
+                            var dx = Math.abs(player.cpos.x - x)
+                            var dy = Math.abs(player.cpos.y - y)
+                            var meleeDistance = (dx <= 1) && (dy <= 1)
+
+                            if ((dx == 0) && (dy == 0)) {
+                                // The player itself
+                                actions.push({"text": "Show inventory", "pos": {x: x, y: y}})
+                                
+                                actions.push({"text": "Wait", "pos": {x: x, y: y}})
+                                
+                                if (currentWeapon.ranged && (currentWeapon.ammo < currentWeapon.ammoMax)) {
+                                    actions.push({"text": "Reload", "pos": {x: x, y: y}})
+                                }
+                                
+                                if (currentWeapon.ranged && currentWeapon.alternate && (currentWeapon.alternate.ammo < currentWeapon.alternate.ammoMax)) {
+                                    actions.push({"text": "Reload alternate", "pos": {x: x, y: y}})
+                                }
+                                
+                                if (player.crouch  || player.prone) {
+                                    actions.push({"text": "Stand", "pos": {x: x, y: y}})
+                                }
+                                
+                                if (!player.crouch) {
+                                    actions.push({"text": "Crouch", "pos": {x: x, y: y}})
+                                }
+                                
+                                if (!player.prone) {
+                                    actions.push({"text": "Prone", "pos": {x: x, y: y}})
+                                }
+                            } else {
+                                if (meleeDistance) {
+                                    actions.push({"text": "Attack (melee)", "pos": {x: x, y: y}})
+                                    
+                                    if (!currentWeapon.ranged && currentWeapon.alternate) {
+                                        actions.push({"text": "Attack (melee, alternate)", "pos": {x: x, y: y}})
+                                    }
+                                }
+                                
+                                if (currentWeapon.ranged) {
+                                    actions.push({"text": "Attack (ranged)", "pos": {x: x, y: y}})
+                                }
+                                
+                                if (currentWeapon.ranged && currentWeapon.alternate) {
+                                    actions.push({"text": "Attack (ranged, alternate)", "pos": {x: x, y: y}})
+                                }
+                            }
+                        }
+                        
+                        if ("item" in tile) {
+                            actions.push({"text": "Walk here", "pos": {x: x, y: y}})
+                            actions.push({"text": "Grab", "pos": {x: x, y: y}})
+                        }
+                        
+                        if (tile.tile in tilePixActions) {
+                            actions.push({"text": "Walk here", "pos": {x: x, y: y}})
+                            actions.push({"text": tilePixActions[tile.tile], "pos": {x: x, y: y}})
+                        }
+                        
+                        if (actions.length > 0) {
+                            actions.push({"text": "Close", "bg": {true: [192, 64, 64], false: [48, 0, 0]}})
+                            actionMenuShown = true
+                            actionMenuActions = actions
+                            actionMenuCenter = [x, y]
+                        } else {
+                            moveToDest(x, y)
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 function moveCell(x, y) {
     lastMove = [x, y]
-    
-    var x = player.pos.x + (x - player.cpos.x)
-    var y = player.pos.y + (y - player.cpos.y)
-    
-    describe(x, y)
+
+    if ("pos" in player) {
+        var x = player.pos.x + (x - player.cpos.x)
+        var y = player.pos.y + (y - player.cpos.y)
+        
+        describe(x, y)
+    }
 }
 
 function updateWeapon(w) {
@@ -1190,6 +1332,16 @@ function drawButtonWithText(x, y, txt, width, fg, bg, menuOp) {
     
     var luma = (menuSel == menuOp)?[255,255,255]:[0,0,0]
     
+    var moveWithinBounds = (lastMove[0] >= x)&&(lastMove[0] <= (x + width))&&(lastMove[1] >= y)&&(lastMove[1] < (y + 3))
+    
+    if (!Array.isArray(fg)) {
+        fg = fg[moveWithinBounds]
+    }
+    
+    if (!Array.isArray(bg)) {
+        bg = bg[moveWithinBounds]
+    }
+    
     drawAsciiText(x, y, vpadtxt, fg, bg, luma)
     drawAsciiText(x, y + 1, Array(lpad).join(" ") + txt + Array(rpad).join(" "), fg, bg, luma)
     drawAsciiText(x, y + 2, vpadtxt, fg, bg, luma)
@@ -1198,8 +1350,7 @@ function drawButtonWithText(x, y, txt, width, fg, bg, menuOp) {
         (lastClick[1] >= y)&&(lastClick[1] < (y + 3))) {
         return true
     } else {
-        if ((lastMove[0] >= x)&&(lastMove[0] <= (x + width))&&
-            (lastMove[1] >= y)&&(lastMove[1] < (y + 3))) {
+        if (moveWithinBounds) {
             if ((menuSel != menuOp)&&(editMode)) {
                 finishEditText()
             }
@@ -1568,7 +1719,88 @@ function updateTutorial() {
         menuUse(2)
     }
 }
-    
+
+var mouseActions = {
+    "Walk here": function(x, y, data) {
+        moveToDest(x, y)
+    },
+    "Wait": function(x, y, data) {
+        pos(0, 0, false)
+    },
+    "Grab": function(x, y, data) {
+        moveToDest(x, y, function() {
+            grab() 
+        })
+    },
+    "Attack (melee)": function(x, y, data) {
+        moveToDest(x, y)
+    },
+    "Attack (melee, alternate)": function(x, y, data) {
+        // Correct x and y relative to the player position display
+        x = player.pos.x + (x - player.cpos.x)
+        y = player.pos.y + (y - player.cpos.y)
+
+        fire(true, {x: x, y: y})
+    },
+    "Attack (ranged)": function(x, y, data) {
+        // Correct x and y relative to the player position display
+        x = player.pos.x + (x - player.cpos.x)
+        y = player.pos.y + (y - player.cpos.y)
+
+        fire(false, {x: x, y: y})
+    },
+    "Attack (ranged, alternate)": function(x, y, data) {
+        // Correct x and y relative to the player position display
+        x = player.pos.x + (x - player.cpos.x)
+        y = player.pos.y + (y - player.cpos.y)
+
+        fire(true, {x: x, y: y})
+    },
+    "Activate": function(x, y, data) {
+        moveToDest(x, y, function() {
+            use()
+        })
+    },
+    "Open door": function(x, y, data) {
+        moveToDest(x, y, function() {
+            // Nothing to do
+        })
+    },
+    "Close door": function(x, y, data) {
+        // TODO Fix this one
+        moveToDest(x, y, function() {
+        })
+    },
+    "Exit level": function(x, y, data) {
+        moveToDest(x, y, function() {
+            use()
+        })
+    },
+    "Show inventory": function(x, y, data) {
+        toggleInventory()
+    },
+    "Reload": function(x, y, data) {
+        reload(false)
+    },
+    "Reload alternate": function(x, y, data) {
+        reload(true)
+    },
+    "Stand": function(x, y, data) {
+        if (player.crouch) {
+            crouch()
+        } else if (player.prone) {
+            prone()
+        }
+    },
+    "Crouch": function(x, y, data) {
+        crouch()
+    },
+    "Prone": function(x, y, data) {
+        prone()
+    },
+}
+
+
 function updateDisplayGameStarted() {
     var sx0 = Math.min(Math.max(player.pos.x - displaySizeX/2, 0), level[0].length - displaySizeX)
     var sy0 = Math.min(Math.max(player.pos.y - displaySizeY/2, 0), level.length - displaySizeY)
@@ -1579,6 +1811,7 @@ function updateDisplayGameStarted() {
     terminal.clear()
 
     if (showingInventory) {
+        descriptions = []
         drawInventory()
     } else {
         for (var y=0; y < displaySizeY; y++) {
@@ -1707,6 +1940,7 @@ function updateDisplayGameStarted() {
     updateLogs()
 
     if ((typeof(playerAttrs) != "undefined") && (playerAttrs.hp.pos <= 0)) {
+        actionMenuShown = false
         if (drawButtonWithText(((displaySizeX + 32)/2) - 24, displaySizeY - 4, "Return to Menu", 16, opsColsFg[true], opsColsBg[true], 0)) { //opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
             currentMenu = 0
             gameStarted = false
@@ -1757,6 +1991,45 @@ function updateDisplayGameStarted() {
                 
                 drawAsciiText(desc.pos[0], desc.pos[1] + j, d.text, fg, bg, luma)
             }
+        }
+    }
+    
+    if (actionMenuShown) {
+        var mx = actionMenuCenter[0], my = actionMenuCenter[1], mw = 0, mh = actionMenuActions.length * 4
+        for (var i=0; i < actionMenuActions.length; i++) {
+            if (mw < actionMenuActions[i].text.length) {
+                mw = actionMenuActions[i].text.length
+            }
+        }
+        
+        mx += 2
+        my -= Math.floor(mh / 2)
+        
+        if (my < 0) {
+            my = 0
+        }
+        
+        if ((my + mh) >= displaySizeY) {
+            my = displaySizeY - mh - 1
+        }
+        
+        if ((mx + mw) >= (displaySizeX - 1)) {
+            mx = actionMenuCenter[0] - 3 - mw
+        }
+        
+        var verx = ((lastMove[0] >= mx) && (lastMove[0] < (mx + mw + 2)))
+        for (var i=0; i < actionMenuActions.length; i++) {
+            var by = my + i * 4
+            var very = (lastMove[1] >= by) && (lastMove[1] < (by + 3))
+            
+            if (drawButtonWithText(mx, by, actionMenuActions[i].text, mw + 2, (actionMenuActions[i].fg || opsColsFg)[verx && very], (actionMenuActions[i].bg || opsColsBg)[verx && very], 0)) {
+                actionMenuShown = false
+                
+                if (mouseActions[actionMenuActions[i].text]) {
+                    mouseActions[actionMenuActions[i].text](actionMenuActions[i].pos.x, actionMenuActions[i].pos.y, actionMenuActions[i])
+                }
+            }
+        
         }
     }
 
@@ -2033,7 +2306,7 @@ var handlers = {
         player.pos.x = obj.plyr_pos.x
         player.pos.y = obj.plyr_pos.y
         player.fov = obj.fov
-		player.crouch = obj.crouch
+        player.crouch = obj.crouch
 		player.prone = obj.prone
         turn++
         
@@ -2087,7 +2360,9 @@ var handlers = {
         }
         
         spawnParticles()
-        tryMoveTowardsDestination() // If there's a standing command, move
+        if (("couldMove" in obj) && (obj.couldMove)) {
+            tryMoveTowardsDestination() // If there's a standing command, move
+        }
     },
     new_player: function(obj) {
         announceMsg("Player " + obj.username + " joined the game!")

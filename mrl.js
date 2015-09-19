@@ -612,6 +612,7 @@ function applyPlayerClassBonusesAndPenalties(player) {
         player.attrs.precision.max = 30
         player.attrs.speed.pos = 50
         player.attrs.speed.max = 200
+        player.attrs.agile = true
     } else if (player.player_class == 'melee') {
         player.attrs.armor.pos = 30
         player.attrs.armor.max = 200
@@ -619,6 +620,7 @@ function applyPlayerClassBonusesAndPenalties(player) {
         player.attrs.strength.max = 200
         player.attrs.precision.max = 20
         player.attrs.speed.max = 50
+        player.attrs.agile = true
     } else if (player.player_class == 'tech') {
         defaultWeapon = "Gatling Laser"
         defaultCharger = "Energy cell"
@@ -653,6 +655,7 @@ function applyPlayerClassBonusesAndPenalties(player) {
         player.attrs.armor.max = 50
         player.attrs.precision.max = 50
         player.attrs.speed.max = 200
+        player.attrs.agile = true
     } else if (player.player_class == 'explo') {
         defaultWeapon = "H80 RPG Launcher"
         defaultCharger = "H80 RPG"
@@ -958,6 +961,10 @@ function inflictMeleeDamage(org, chr) {
             var dmg = Math.ceil(Math.max(1, (o_strength - c_armor) / 10))
             var knk = Math.ceil(Math.max(0, (o_armor - c_strength) / 5))
             
+            if (typeof(org.attrs.knockbackFactor) != "undefined") {
+                knk *= org.attrs.knockbackFactor
+            }
+            
             chr.attrs.hp.pos -= dmg
             
             if (!chr.knockback) {
@@ -1112,14 +1119,11 @@ function _processTurnIfAvailable_priv_() {
                     var dx = sign(agent.pos.x - agent.knockback.ox)
                     var dy = sign(agent.pos.y - agent.knockback.oy)
                     
-                    console.log(dx + " - " + dy)
-                    
                     var x = agent.pos.x + dx
                     var y = agent.pos.y + dy
                     for (var i=0; i < Math.floor(agent.knockback.amount); i++) {
                         var psbl = passable(level[y][x])
                         if (psbl == 1) {
-                            console.log("Moved a tile " + x + " " + y)
                             level[agent.pos.y][agent.pos.x].character = null
                             
                             agent.pos.x = x
@@ -1144,7 +1148,9 @@ function _processTurnIfAvailable_priv_() {
             
             if (ws.wait > 0) {
                 ws.wait--
+                ws.couldMove = false
             } else {
+                ws.couldMove = true
                 var playerDefined = (typeof(ws.player) != "undefined")&&(ws.player != null)
                 somethingHappened = true // Something could happen, let the player that can do something play
                 if ((typeof(ws.dst) != 'undefined')&&(ws.dst != null)&&
@@ -1166,7 +1172,10 @@ function _processTurnIfAvailable_priv_() {
                         if (canJumpTrample && (typeof(ws.special_movement) != "undefined") && ws.special_movement) {
                             jumpTrample = true
                             ws.special_movement = false
-                            ws.wait *= 2
+                            
+                            if (!ws.player.attrs.agile) {
+                                ws.wait *= 2
+                            }
                         }
 						
                         ws.player.idleCounter = 0
@@ -1632,13 +1641,16 @@ function sendScopeToClient(ws) {
         msg.weapon = ws.player.weapon.rpcRepr(ws.player)
     }
     msg.particles = particleManager.getParticlesInScope(ws.player.pos.x, ws.player.pos.y, tfov, ws.player.username)
+    msg.couldMove = ws.couldMove
     
     if ((typeof(ws.player.damaged) != "undefined") && (ws.player.damaged)) {
         msg.damaged = true
         ws.player.damaged = false
     }
 
-	msg.msgs = ws.player.messages    
+	msg.msgs = ws.player.messages
+    msg.crouch = ws.player.crouch
+    msg.prone = ws.player.prone
     ws.player.messages = []
     
     if ((typeof(ws.useInventory) != "undefined")&&(ws.useInventory >= 0)) {

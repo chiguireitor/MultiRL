@@ -63,6 +63,8 @@ var asciiMapping = require('./templates/ascii_mapping.js') // Code shared betwee
 var effects = require('./effects.js')
 var soundManager = require('./soundman.js').getManager()
 
+var util = require('./util.js')
+
 var gameDefs = require('./conf/gamedefs.js')
 
 var indexPage, cssPage = {}
@@ -102,29 +104,45 @@ var aiState
 var lastTurnTime = 0 // Date.now() of the last turn that was completed
 
 function grab(c, itm) {
+    var pickedUp = false
+    
     if (itm.type == "weapon") {
         if ((typeof(c.weapon) == "undefined") || (c.weapon == null)) {
             c.weapon = itm
             c.messages.push("You equip the " + itm.name)
+            pickedUp = true
         } else {
-            c.inventory.push(itm)
-            c.messages.push("You grab the " + itm.name)
+            if (c.inventory.length >= gameDefs.maxInventoryItems) {
+                c.messages.push("Your inventory is full")
+            } else {
+                c.inventory.push(itm)
+                c.messages.push("You grab the " + itm.name)
+                pickedUp = true
+            }
         }
         
-        if (typeof(itm.sndOnPickup) != "undefined") {
+        if (pickedUp && (typeof(itm.sndOnPickup) != "undefined")) {
             soundManager.addSound(c.pos.x, c.pos.y, 5, itm.sndOnPickup, 0)
         }
     } else if (itm.instant){
         itm.use(level, c)
         c.messages.push("You use the " + itm.name)
+        pickedUp = true
     } else {
-        c.inventory.push(itm)
-        c.messages.push("You grab the " + (itm.name || itm.ammoType))
-        
-        if (typeof(itm.sndOnPickup) != "undefined") {
-            soundManager.addSound(c.pos.x, c.pos.y, 5, itm.sndOnPickup, 0)
+        if (c.inventory.length >= gameDefs.maxInventoryItems) {
+            c.messages.push("Your inventory is full")
+        } else {
+            c.inventory.push(itm)
+            c.messages.push("You grab the " + (itm.name || itm.ammoType))
+            pickedUp = true
+            
+            if (typeof(itm.sndOnPickup) != "undefined") {
+                soundManager.addSound(c.pos.x, c.pos.y, 5, itm.sndOnPickup, 0)
+            }
         }
     }
+    
+    return pickedUp
 }
 
 function tryToUseInventory(ws, index) {
@@ -152,6 +170,81 @@ function tryToUseInventory(ws, index) {
             }
         }
     }
+    return false
+}
+
+function tryToDropInventory(ws, index) {
+    if ((index >= 0)&&(index < ws.player.inventory.length)) {
+        var item = ws.player.inventory[index]
+        if (util.dropInventory(ws.player, level, passable, index)) {
+            ws.player.messages.push("You drop " + (item.name || item.ammoType))
+            return true
+        } else {
+            ws.player.messages.push("Seems the floor is full")
+        }
+    } else {
+        ws.player.messages.push("Invalid item")
+    }
+    
+    return false
+}
+
+function tryToUnloadInventory(ws, index) {
+    if ((index >= 0)&&(index < ws.player.inventory.length)) {
+        var item = ws.player.inventory[index]
+        
+        if (item.type == "weapon") {
+            // TODO: Check if there's space to unload the friggen weapon
+            if (ws.player.inventory.length < gameDefs.maxInventoryItems) {
+                if (Math.random() > gameDefs.jamOnUnloadProbability) {
+                    // Create a charger, assign the amount of armor and add it to the inventory
+                    // TODO: Create the charger mofo
+                    
+                    item.ammo = 0
+                    
+                    if (item.alternate && (ws.player.inventory.length < gameDefs.maxInventoryItems)) {
+                        // Once again, but for the alternate weapon
+                        item.alternate.ammo = 0
+                    }
+                    
+                    
+                    ws.player.messages.push("You unload the weapon")
+                    return true
+                } else {
+                    ws.player.messages.push("You suck so much, that you jam the weapon and destroy it")
+                    ws.player.inventory.splice(index, 1)
+                }
+            } else {
+                ws.player.messages.push("Inventory full")
+            }
+            return false
+        } else {
+            ws.player.messages.push("This isn't a chargeable item")
+        }
+    } else {
+        ws.player.messages.push("Invalid item")
+    }
+    
+    return false
+}
+
+function tryToInspectInventory(ws, index) {
+    if ((index >= 0)&&(index < ws.player.inventory.length)) {
+        var item = ws.player.inventory[index]
+        
+        // TODO: Do a "inspect" check, and if it passes, the item gets identified. There's also a posibility to destroy the weapon
+        if (typeof(item.identified) == "undefined") {
+            ws.player.messages.push("Item doesn't need identification")
+        } else if (!item.identified) {
+            // TODO: Check precision
+            ws.player.messages.push("You suck so much at identifying, you have destroyed it")
+        } else {
+            ws.player.messages.push("Item already identified")
+        }
+    } else {
+        ws.player.messages.push("Invalid item")
+    }
+    
     return false
 }
 
@@ -298,6 +391,8 @@ var handlers = { // These are the RPC handlers that the client can invoke
 						this.attrs.hp.pos = Math.round(this.attrs.hp.pos)
                         if (this.attrs.hp.pos <= 0) {
                             level[this.pos.y][this.pos.x].character = null
+                            
+                            util.dropInventory(this, level, passable)
                             
                             if (typeof(deathType) != undefined) {
                                 if (deathType == "lava") {
@@ -490,6 +585,46 @@ var handlers = { // These are the RPC handlers that the client can invoke
             }
         }
     }),
+    dropInventory: saferpc(function(ws, obj) {
+        if (typeof(ws.player) != "undefined") {
+            if (ws.player.attrs.hp.pos > 0) {
+                
+                ws.turn = nextTurnId
+                ws.dropInventory = obj.index
+                
+                if (!continuousTurns) {
+                    processTurnIfAvailable()
+                }
+            }
+        }
+    }),
+    unloadInventory: saferpc(function(ws, obj) {
+        if (typeof(ws.player) != "undefined") {
+            if (ws.player.attrs.hp.pos > 0) {
+                
+                ws.turn = nextTurnId
+                ws.unloadInventory = obj.index
+                
+                if (!continuousTurns) {
+                    processTurnIfAvailable()
+                }
+            }
+        }
+    }),
+    inspectInventory: saferpc(function(ws, obj) {
+        if (typeof(ws.player) != "undefined") {
+            if (ws.player.attrs.hp.pos > 0) {
+                
+                ws.turn = nextTurnId
+                ws.inspectInventory = obj.index
+                
+                if (!continuousTurns) {
+                    processTurnIfAvailable()
+                }
+            }
+        }
+    }),
+    
     cheat: saferpc(function(ws, obj) {
         if (gameDefs.allowCheating) {
             if (obj.fn == 'nextlevel') {
@@ -1112,7 +1247,7 @@ function _processTurnIfAvailable_priv_() {
         for (var i in wss.clients) {
             var ws = wss.clients[i]
 
-            var evaluateKnockback = function() {
+            /*var evaluateKnockback = function() {
                 var agent = ws.player
                 if ((agent.knockback) && (agent.attrs.hp.pos > 0)) {
                     console.log(agent.knockback)
@@ -1142,9 +1277,10 @@ function _processTurnIfAvailable_priv_() {
                     
                     delete agent.knockback
                 }
-            }
+            }            
             
-            evaluateKnockback()
+            evaluateKnockback()*/
+            util.processKnockback(ws.player, level, passable)
             
             if (ws.wait > 0) {
                 ws.wait--
@@ -1313,8 +1449,9 @@ function _processTurnIfAvailable_priv_() {
                     var t = level[ws.player.pos.y][ws.player.pos.x]
                     
                     if ((typeof(t.item) != "undefined") && (t.item != null)) {
-                        grab(ws.player, t.item)
-                        t.item = null
+                        if (grab(ws.player, t.item)) {
+                            t.item = null
+                        }
                     }
                 } else if ((typeof(ws.fireWeapon) != "undefined") && (ws.fireWeapon)) {
                     ws.fireWeapon = false
@@ -1389,7 +1526,8 @@ function _processTurnIfAvailable_priv_() {
                 }
             }
             
-            evaluateKnockback()
+            //evaluateKnockback()
+            util.processKnockback(ws.player, level, passable)
             
             somethingHappened |= aiState.process()
         }
@@ -1614,6 +1752,12 @@ function sendScopeToClient(ws) {
     var msg = {type: 'pos', pos: {x: ws.player.pos.x - tfov, y: Math.max(0, ws.player.pos.y - tfov)}}
     var scope = []
     
+    // This gets processed before scanning the scope because it can turn into an item around the player
+    if ((typeof(ws.dropInventory) != "undefined")&&(ws.dropInventory >= 0)) {
+        ws.sendInventory |= tryToDropInventory(ws, ws.dropInventory)
+        ws.dropInventory = -1
+    }
+    
     for (var y=Math.max(0, ws.player.pos.y - tfov); y <= Math.min(ws.player.pos.y + tfov, level.length-1); y++) {
         var row = Array.apply(null, new Array(tfov*2+1)).map(function(){return null})
         
@@ -1648,17 +1792,22 @@ function sendScopeToClient(ws) {
         ws.player.damaged = false
     }
 
-	msg.msgs = ws.player.messages
     msg.crouch = ws.player.crouch
     msg.prone = ws.player.prone
-    ws.player.messages = []
     
     if ((typeof(ws.useInventory) != "undefined")&&(ws.useInventory >= 0)) {
-        //var item = ws.player.inventory[ws.useInventory]
-        
-        ws.sendInventory = tryToUseInventory(ws, ws.useInventory)
-        
+        ws.sendInventory |= tryToUseInventory(ws, ws.useInventory)
         ws.useInventory = -1
+    }
+    
+    if ((typeof(ws.unloadInventory) != "undefined")&&(ws.unloadInventory >= 0)) {
+        ws.sendInventory |= tryToUnloadInventory(ws, ws.unloadInventory)
+        ws.unloadInventory = -1
+    }
+    
+    if ((typeof(ws.inspectInventory) != "undefined")&&(ws.inspectInventory >= 0)) {
+        ws.sendInventory |= tryToInspectInventory(ws, ws.inspectInventory)
+        ws.inspectInventory = -1
     }
     
     if ((typeof(ws.sendInventory) != "undefined")&&(ws.sendInventory)) {
@@ -1675,6 +1824,9 @@ function sendScopeToClient(ws) {
     }
     
     msg.snds = soundManager.collectSounds(ws.player.pos.x, ws.player.pos.y)
+    
+    msg.msgs = ws.player.messages
+    ws.player.messages = []
     
     return msg
 }

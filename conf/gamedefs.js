@@ -60,9 +60,12 @@ module.exports = {
 	pronePrecisionFact: 1.07,
 	crouchPrecisionFact: 1.14,
     playerBaseFov: 10, // WARNING: too high a value can hog all the server bandwidth
+    dropProbability: 0.15, // Too high and the game gets VERY easy
+    maxInventoryItems: 15,
+    jamOnUnloadProbability: 0.02, // This must be a rare event, it is REALLY frustrating
     level: {
-        width: 128,
-        height: 64,
+        width: 128, // Minimum width is 64
+        height: 64, // Minimum height is 64
         minRoomArea: 36, // Minimum squared area of a room to be accepted
         randomAcceptRoom: 0.05, // Random probability of accepting a non-conforming room
         roomAcceptProbability: 0.4, // Once accepted, there's some probability we don't use that room

@@ -44,16 +44,7 @@
  
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var effects = require('./effects.js')
-
-function sign(n) {
-    if (n == 0) {
-        return 0
-    } else if (n < 0) {
-        return -1
-    } else {
-        return 1
-    }
-}
+var util = require('./util.js')
 
 var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, meleeDamageFn, spawnGibsFn) {
     this.level = level
@@ -141,31 +132,7 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
         while (i < this.agents.length) {
             var agent = this.agents[i]
             
-            if ((agent.knockback) /*&& (agent.attrs.hp.pos > 0)*/) {
-                var dx = sign(agent.pos.x - agent.knockback.ox)
-                var dy = sign(agent.pos.y - agent.knockback.oy)
-                
-                var x = Math.min(Math.max(0, agent.pos.x + dx), this.level[0].length)
-                var y = Math.min(Math.max(0, agent.pos.y + dy), this.level.length)
-                for (var i=0; i < agent.knockback.amount; i++) {
-                    var psbl = this.passable(this.level[y][x])
-                    if (psbl == 1) {
-                        this.level[agent.pos.y][agent.pos.x].character = null
-                        
-                        agent.pos.x = x
-                        agent.pos.y = y
-                        this.level[agent.pos.y][agent.pos.x].character = agent
-                    } else if (psbl == 2) {
-                        this.level[agent.pos.y][agent.pos.x].character.knockback = {
-                            ox: agent.pos.x,
-                            oy: agent.pos.y,
-                            amount: agent.knockback - i
-                        }
-                    }
-                }
-                
-                delete agent.knockback
-            }
+            util.processKnockback(agent, this.level, this.passable)
             
             if (agent.attrs.hp.pos <= 0) {
                 this.level[agent.pos.y][agent.pos.x].character = null
@@ -175,6 +142,9 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
                 var options = {spread: gmul*2}
                 
                 this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(Math.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs, options)
+                
+                util.dropInventory(agent, level, this.passable)
+                
                 i--
             } else if (agent.wait > 0) {
                 agent.wait--
@@ -195,8 +165,18 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
                             && (agent.weapon != null)
                             && (Math.random() < 0.2)) {
                             
-                            if (agent.weapon.ranged) {
-                                agent.weapon.fire(character.pos.x, character.pos.y, agent)
+                            if (agent.weapon.ranged && agent.weapon.alternate && (Math.random() < 0.2)) {
+                                if (agent.weapon.alternate.ammo == 0) {
+                                    agent.weapon.reload(agent, true)
+                                } else {
+                                    agent.weapon.fire(character.pos.x, character.pos.y, agent, {useAlternate: true})
+                                }
+                            } else if (agent.weapon.ranged) {
+                                if (agent.weapon.ammo == 0) {
+                                    agent.weapon.reload(agent)
+                                } else {
+                                    agent.weapon.fire(character.pos.x, character.pos.y, agent)
+                                }
                             }
                             
                         }

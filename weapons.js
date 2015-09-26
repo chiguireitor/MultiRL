@@ -530,8 +530,6 @@ Ranged.prototype.fire = function(x, y, c, options) {
 	var weapon = c.weapon
 	if (options && (options.useAlternate)) {
 		weapon = c.weapon.alternate
-		/*console.log("Using alternate fire")
-		console.log(weapon)*/
 	}
 	
     var burst = 0

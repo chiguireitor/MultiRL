@@ -60,12 +60,24 @@ function Monsta(aiState, name, tx, ty) {
         [])
         
     var weapons = ["9mm Pistol", "xM3 Shotgun", "Flamethrower", "xM50 Rifle", "H80 RPG Launcher"]
-    var pistol = items.searchWeaponByName(weapons[Math.floor(Math.random() * weapons.length)]).clone()
-    var chargerOrig = pistol.findChargerAndAssign(items)
-    pistol.assignCharger(chargerOrig.clone())
-    ai.inventory.push(chargerOrig.clone())
-    ai.inventory.push(chargerOrig.clone())
-    ai.weapon = pistol
+    var weap = items.searchWeaponByName(weapons[Math.floor(Math.random() * weapons.length)]).clone()
+    var chargerOrig = weap.findChargerAndAssign(items)
+    weap.assignCharger(chargerOrig.clone())
+    
+    var numChrgrs = Math.floor(Math.pow(Math.random(), 2) * 6) + 2
+    
+    for (var i=0; i < numChrgrs; i++) {
+        ai.inventory.push(chargerOrig.clone())
+    }
+    ai.weapon = weap
+    
+    if (Math.random() < 0.2) {
+        ai.inventory.push(items.itemByName("+10 Health"))
+    }
+    
+    if (Math.random() < 0.1) {
+        ai.inventory.push(items.itemByName("+50 Health"))
+    }
         
     return ai
 }

@@ -556,7 +556,27 @@ function countDirt(level, sq, floor) {
     return cnt
 }
 
-function expandAsPossibleStep(level, sq, floor, curCnt, maxCnt) {
+function squareCollidesWithRooms(sq, rooms) {
+    var collides = false
+    
+    for (var i=0; i < rooms.length; i++) {
+        var osq = rooms[i]
+        
+        collides |= !(
+            ((sq.y + sq.h) < osq.y) ||
+            (sq.y > (osq.y + osq.h)) ||
+            (sq.x > (osq.x + osq.w)) ||
+            ((sq.x + sq.w) < osq.x) )
+            
+        if (collides) {
+            break
+        }
+    }
+    
+    return collides
+}
+
+function expandAsPossibleStep(level, sq, floor, curCnt, maxCnt, rooms) {
     var sq_xl = {x: sq.x - 1, y: sq.y, w: sq.w + 1, h: sq.h}
     var sq_xr = {x: sq.x, y: sq.y, w: sq.w + 1, h: sq.h}
     var sq_yt = {x: sq.x, y: sq.y - 1, w: sq.w, h: sq.h + 1}
@@ -568,6 +588,10 @@ function expandAsPossibleStep(level, sq, floor, curCnt, maxCnt) {
     var curCnt = maxCnt
     
     var evalFns = [function () {
+            if (squareCollidesWithRooms(sq_xl, rooms)) {
+                return
+            }
+            
             if (sq.x > 0) {
                 var cnt = countDirt(level, sq_xl, floor)
                 if ((cnt < maxCnt) && (cnt < curCnt)) {
@@ -577,6 +601,10 @@ function expandAsPossibleStep(level, sq, floor, curCnt, maxCnt) {
             }
         },
         function () {
+            if (squareCollidesWithRooms(sq_xr, rooms)) {
+                return
+            }
+            
             if ((sq.x + sq.w) < (level[0].length - 1)) {
                 cnt = countDirt(level, sq_xr, floor)
                 if (cnt < curCnt) {
@@ -587,6 +615,10 @@ function expandAsPossibleStep(level, sq, floor, curCnt, maxCnt) {
         },
         
         function () {
+            if (squareCollidesWithRooms(sq_yt, rooms)) {
+                return
+            }
+            
             if (sq.y > 0) {
                 cnt = countDirt(level, sq_yt, floor)
                 if (cnt < curCnt) {
@@ -597,6 +629,10 @@ function expandAsPossibleStep(level, sq, floor, curCnt, maxCnt) {
         },
         
         function () {
+            if (squareCollidesWithRooms(sq_yb, rooms)) {
+                return
+            }
+            
             if ((sq.y + sq.h) < (level.length - 1)) {
                 cnt = countDirt(level, sq_yb, floor)
                 if (cnt < curCnt) {
@@ -618,11 +654,11 @@ function equalSquare(sq0, sq1) {
     return (sq0.x == sq1.x) && (sq0.y == sq1.y) && (sq0.w == sq1.w) && (sq0.h == sq1.h)
 }
 
-function expandAsPossible(level, sq, floor, curCnt, maxDirt) {
+function expandAsPossible(level, sq, floor, curCnt, maxDirt, rooms) {
     var mustTry = true
     
     while (mustTry) {
-        var res = expandAsPossibleStep(level, sq, floor, curCnt, maxDirt)
+        var res = expandAsPossibleStep(level, sq, floor, curCnt, maxDirt, rooms)
         if ((res[1] < maxDirt) && (!equalSquare(sq, res[0]))) {
             curCnt = res[1]
             sq = res[0]
@@ -657,7 +693,7 @@ function caveLevel(level, minarea, randomaccept, floor, wall, door, probabilityU
             
             var cnt = countDirt(level, sq, floor)
             if (cnt == 0) {
-                sq = expandAsPossible(level, sq, floor, cnt, maxDirt)
+                sq = expandAsPossible(level, sq, floor, cnt, maxDirt, rooms)
                 
                 if ((((sq.w-2) * (sq.h - 2)) >= minarea) || (Math.random() < randomaccept)) {
                     drawSquareWalls(level, sq, wall, floor)
@@ -703,16 +739,18 @@ function lavaLevel(level, minarea, randomaccept, floor, wall, door, lava, lavaDa
             var h = 1
             var sq = {x: x, y: y, w: w, h: h}
             
-            var cnt = countDirt(level, sq, floor)
-            if (cnt == 0) {
-                sq = expandAsPossible(level, sq, floor, cnt, maxDirt)
-                
-                if ((((sq.w-2) * (sq.h - 2)) >= minarea) || (Math.random() < randomaccept)) {
-                    drawSquareWalls(level, sq, wall, floor)
-                    var cntDoors = Math.floor(Math.random() * 6)
-                    drawSquareDoors(level, sq, door, cntDoors)
-                    rooms.push(sq)
-                    tries = 1000
+            if (!squareCollidesWithRooms(sq, rooms)) {
+                var cnt = countDirt(level, sq, floor)
+                if (cnt == 0) {
+                    sq = expandAsPossible(level, sq, floor, cnt, maxDirt, rooms)
+                    
+                    if ((((sq.w-2) * (sq.h - 2)) >= minarea) || (Math.random() < randomaccept)) {
+                        drawSquareWalls(level, sq, wall, floor)
+                        var cntDoors = Math.floor(Math.random() * 6)
+                        drawSquareDoors(level, sq, door, cntDoors)
+                        rooms.push(sq)
+                        tries = 1000
+                    }
                 }
             }
             

@@ -1075,6 +1075,15 @@ items.searchWeaponByName = function(name) {
     }
 }
 
+items.itemByName = function(name) {
+    for (var i=0; i < items.length; i++) {
+        var itm = items[i]
+        if (itm.name == name) {
+            return itm
+        }
+    }
+}
+
 items.generate = generate
 
 module.exports = items

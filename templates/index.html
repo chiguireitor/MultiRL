@@ -4,6 +4,11 @@
 <title>Ganymede Gate</title>
 <!--link rel="stylesheet" href="/templates/style.css"-->
 <style>
+.itchio {
+    display: block;
+    margin: 10px auto;
+}
+
 .onlyorigin {
     display: none;
 }
@@ -47,6 +52,8 @@ Tweet
 </div>
 
 <a href="http://eepurl.com/bysGjP" target="_blank" class="mail-list onlyorigin" style="display: none">Click to subscribe to Ganymede Gate's mailing list</a>
+
+<iframe src="//itch.io/embed/36939?dark=true&amp;linkback=true" class="itchio onlyorigin" width="552" height="167" frameborder="0"></iframe>
 
 <a href="https://github.com/chiguireitor/MultiRL" class="onlyorigin"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/a6677b08c955af8400f44c6298f40e7d19cc5b2d/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677261795f3664366436642e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_gray_6d6d6d.png"></a>
 <a href="https://gitter.im/chiguireitor/MultiRL" class="onlyorigin">Chat on gitter</a>
@@ -460,6 +467,7 @@ Tweet
 <script src="./templates/RexSprite.js"></script>
 <script>
 var player = {
+    isAlive: false
 }
 var colorMap = {
     "lava": {"color": "FF8800", "cycle": "882200", "backgroundColor": [64, 0, 0], "msscale": 4000, "luma": [5120, 5120, 5120]},
@@ -712,7 +720,11 @@ function describe(x, y) {
             
             if ("character" in tile) {
                 if (("type" in tile.character) && (tile.character.type == 'ai')) {
-                    description.push({text: (/(.*)N.*/).exec(tile.character.username).pop().trim()})
+                    if (tile.character.username) {
+                        description.push({text: (/(.*)N.*/).exec(tile.character.username).pop().trim()})
+                    } else {
+                        description.push({text: "Unnamed enemy"})
+                    }
                 } else {
                     if ((x == player.pos.x) && (y == player.pos.y)) {
                         description.push({text: "Yourself"})
@@ -844,7 +856,7 @@ function use() {
     
     if (gameStarted) {
         if (showingInventory) {
-            useInventory(inventoryIndex)
+            activateInventory(inventoryIndex)
         } else {
             send({
                 type: 'use'
@@ -853,6 +865,34 @@ function use() {
     } else {
         menuUse()
     }
+}
+
+function useInventory(idx) {
+    send({
+        type: 'useInventory',
+        index: idx
+    })
+}
+
+function drop(idx) {
+    send({
+        type: 'dropInventory',
+        index: idx
+    })
+}
+
+function unload(idx) {
+    send({
+        type: 'unloadInventory',
+        index: idx
+    })
+}
+
+function inspect(idx) {
+    send({
+        type: 'inspectInventory',
+        index: idx
+    })
 }
 
 function grab() {
@@ -914,13 +954,19 @@ function updateInventory() {
     })
 }
 
-function useInventory(idx) {
+function activateInventory(idx) {
     descriptions = []
+
+    var actions = []
     
-    send({
-        type: 'useInventory',
-        index: idx
-    })
+    actions.push({"text": "Use"})
+    actions.push({"text": "Drop"})
+    actions.push({"text": "Unload"})
+    actions.push({"text": "Inspect"})
+    actions.push({"text": "Close", "bg": {true: [192, 64, 64], false: [48, 0, 0]}})
+    actionMenuShown = true
+    actionMenuActions = actions
+    actionMenuCenter = lastClick
 }
 
 function clearTips() {
@@ -977,6 +1023,8 @@ function showTips() {
 
 function toggleInventory() {
     descriptions = []
+    actionMenuShown = false
+    lastClick = [-1, -1]
     
     if (showingInventory) {
         showingInventory = false
@@ -986,38 +1034,12 @@ function toggleInventory() {
     }
 }
 
-function fillInventory(list) {
-    var invlst = $("#inventory_list")
-    
-    invlst.empty()
-    for (var i=0; i < list.length; i++) {
-        var li = $("<li>")
-        var item = list[i]
-        var line
-        if (item.type == 'ammo') {
-            line = $('<span>')
-            line.text()
-            line.css('color', '#990')
-        } else if (item.type == 'weapon') {
-            line = $('<span>')
-            line.text()
-            line.css('color', '#D00')
-        }
-        li.append(line)
-        li.click((function(idx) {
-            return function() {
-                useInventory(idx)
-            }
-        })(i))
-        invlst.append(li)
-    }
-}
-
 function drawInventory() {
     drawAsciiText(1, 0, 'Inventory', [0, 255, 0], [0, 0, 0])
     if (inventoryList) {
         inventoryIndex = Math.min(Math.max(0, inventoryIndex), inventoryList.length - 1)
-        if ((lastMove[1] >= 2) && (lastMove[0] >= 1) && (lastMove[0] < 64)) {
+        
+        if (!actionMenuShown && (lastMove[1] >= 2) && (lastMove[0] >= 1) && (lastMove[0] < 64)) {
             var ni = Math.floor((lastMove[1] - 2)/2)
             
             if (ni < 0) {
@@ -1047,7 +1069,7 @@ function drawInventory() {
             
             drawAsciiText(1, 2 + i * 2, txt, fgcol, opsColsBg[i == inventoryIndex])
             
-            if ((lastClick[0] == lastMove[0]) && (lastClick[1] == lastMove[1])&&
+            if (!actionMenuShown && (lastClick[0] == lastMove[0]) && (lastClick[1] == lastMove[1])&&
                 (inventoryIndex == i)) {
                 use()
                 lastClick = [-1, -1]
@@ -1057,6 +1079,7 @@ function drawInventory() {
     
     if (drawButtonWithText(((displaySizeX + 32)/2) - 24, displaySizeY - 4, "Close", 16, opsColsFg, opsColsBg, 0)) {
         showingInventory = false
+        actionMenuShown = false
     }
 }
 
@@ -1105,7 +1128,7 @@ function waitTarget(fn) {
         // Wait target selection
         onClickTarget = function(x, y, direct) {
             // Correct x and y relative to the player position display
-            if (!direct) {
+            if (!direct && player.cpos) {
                 x = player.pos.x + (x - player.cpos.x)
                 y = player.pos.y + (y - player.cpos.y)
             }
@@ -1119,13 +1142,15 @@ function waitTarget(fn) {
 function moveToDest(x, y, reachCallback) {
     descriptions = []
     
-    var x = player.pos.x + (x - player.cpos.x)
-    var y = player.pos.y + (y - player.cpos.y)
-    
-    destinationMovement = [x, y]
-    
-    onReachCallback = reachCallback
-    tryMoveTowardsDestination()
+    if (player.cpos) {
+        var x = player.pos.x + (x - player.cpos.x)
+        var y = player.pos.y + (y - player.cpos.y)
+        
+        destinationMovement = [x, y]
+        
+        onReachCallback = reachCallback
+        tryMoveTowardsDestination()
+    }
 }
 
 function clickCell(x, y) {
@@ -1228,7 +1253,7 @@ function clickCell(x, y) {
 function moveCell(x, y) {
     lastMove = [x, y]
 
-    if ("pos" in player) {
+    if (("pos" in player) && ("cpos" in player)) {
         var x = player.pos.x + (x - player.cpos.x)
         var y = player.pos.y + (y - player.cpos.y)
         
@@ -1368,8 +1393,8 @@ function drawEditWithHint(x, y, txt, hint, width, fg, bg, menuOp) {
     }
     
     var dw = width - txt.length
-    var lpad = Math.ceil(dw / 2) + 1
-    var rpad = Math.floor(dw / 2) + 1
+    var lpad = Math.max(1, Math.ceil(dw / 2) + 1)
+    var rpad = Math.max(1, Math.floor(dw / 2) + 1)
     
     drawAsciiText(x, y, vpadtxt, fg, bg)
     drawAsciiText(x, y + 1, Array(lpad).join(" ") + txt + Array(rpad).join(" "), fg, bg)
@@ -1798,6 +1823,18 @@ var mouseActions = {
     "Prone": function(x, y, data) {
         prone()
     },
+    "Use": function() { // Inventory action
+        useInventory(inventoryIndex)
+    },
+    "Drop": function() { // Inventory action
+        drop(inventoryIndex)
+    },
+    "Unload": function() { // Inventory action
+        unload(inventoryIndex)
+    },
+    "Inspect": function() { // Inventory action
+        inspect(inventoryIndex)
+    },
 }
 
 
@@ -1941,6 +1978,13 @@ function updateDisplayGameStarted() {
 
     if ((typeof(playerAttrs) != "undefined") && (playerAttrs.hp.pos <= 0)) {
         actionMenuShown = false
+        
+        if (player.isAlive) {
+            player.isAlive = false
+            lastClick = [-1, -1]
+            lastMove = [-1, -1]
+        }
+        
         if (drawButtonWithText(((displaySizeX + 32)/2) - 24, displaySizeY - 4, "Return to Menu", 16, opsColsFg[true], opsColsBg[true], 0)) { //opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
             currentMenu = 0
             gameStarted = false
@@ -1956,6 +2000,8 @@ function updateDisplayGameStarted() {
             
             reconnect()
         }
+    } else {
+        player.isAlive = true
     }
     
     for (var i=0; i < descriptions.length; i++) {
@@ -2024,9 +2070,11 @@ function updateDisplayGameStarted() {
             
             if (drawButtonWithText(mx, by, actionMenuActions[i].text, mw + 2, (actionMenuActions[i].fg || opsColsFg)[verx && very], (actionMenuActions[i].bg || opsColsBg)[verx && very], 0)) {
                 actionMenuShown = false
+                lastClick = [-1, -1]
                 
                 if (mouseActions[actionMenuActions[i].text]) {
-                    mouseActions[actionMenuActions[i].text](actionMenuActions[i].pos.x, actionMenuActions[i].pos.y, actionMenuActions[i])
+                    var pos = actionMenuActions[i].pos || {x: -1, y: -1} // A good fallback to avoid unnecessary logic
+                    mouseActions[actionMenuActions[i].text](pos.x, pos.y, actionMenuActions[i])
                 }
             }
         

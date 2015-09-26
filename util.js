@@ -42,7 +42,7 @@
  *
  */
  
- var gameDefs = require('./conf/gameDefs.js')
+ var gameDefs = require('./conf/gamedefs.js')
 
 function sign(n) {
     if (n == 0) {

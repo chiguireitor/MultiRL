@@ -109,7 +109,7 @@ var templates = {
                 "ammoMax": {fn: "random-pick", val: [15, {"aspect": "extended", "score": 20, "val": 30}]},
                 "ammoType": {fn: "concatenate", val: [{"var": "category"}, "Bullets"]},
                 "precisionFactor": {fn: "random", val: {"range": [0.2, 0.35], "subaspects": [{"name": "scoped", "score": 30}, {"name": "stocked", "score": 15}, {"name": "", "score": 0}]}},
-				"range": {fn: "random", val: {"range": [4, 10], "subaspects": [{"name": "", "score": 0}, {"name": "accelerated", "score": 25}]}},
+				"range": {fn: "random", val: {"range": [10, 30], "subaspects": [{"name": "", "score": 0}, {"name": "accelerated", "score": 25}]}},
 				"volume": {fn: "random", val: {"range": [1, 10], "aspects": [{"name": "silenced", "score": 20}, {"name": "", "score": 0}, {"name": "noisy", "score": -20}]}},
                 "burstLength": 3,
 				"alternate": {fn: "random-null", val: {"subaspect": "grenade launcher", "score": 50, "probability": 0.5, "val": {"ammoType": "M2 Grenade", "ammoPath": "ammo/charger/M2 Grenade", "ammoMax": 1, "volume": 5, "precisionFactor": 0.4, "sndOnFire": "smg_grenade"}}},

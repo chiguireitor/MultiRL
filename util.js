@@ -126,7 +126,31 @@ function dropInventory(agent, level, passableFn, index) {
         }
     }
 }
- 
+
+function findInInventory(tp) {
+    for (var i=0; i < this.inventory.length; i++) {
+        var item = this.inventory[i]
+        
+        if (item.type == "ammo") {
+            if (item.ammoType.indexOf(tp) == 0) {
+                return item
+            }
+        }
+    }
+}
+
+function removeFromInventory(itm) {
+    var i = 0
+    while (i < this.inventory.length) {
+        if (this.inventory[i] == itm) {
+            this.inventory.splice(i, 1)
+            
+            break
+        }
+        i++
+    }
+}
+
 function processKnockback(agent, level, passableFn) {
     if (agent.knockback) {
         var dx = sign(agent.pos.x - agent.knockback.ox)
@@ -158,5 +182,7 @@ function processKnockback(agent, level, passableFn) {
  module.exports = {
      dropInventory: dropInventory,
      processKnockback: processKnockback,
+     findInInventory: findInInventory,
+     removeFromInventory: removeFromInventory,
      sign: sign
  }

@@ -565,6 +565,8 @@ var currentMenu = 0
 var menuOptionsNumber = 4
 var lastClick = [-1, -1]
 var lastMove = [-1, -1]
+var keyboardLook = false
+var onClickTarget
 var destinationMovement
 var tutorialSeen = false
 var tutorialPage = 0
@@ -857,6 +859,12 @@ function use() {
     if (gameStarted) {
         if (showingInventory) {
             activateInventory(inventoryIndex)
+        } else if (keyboardLook) {
+            if ((typeof(onClickTarget) != "undefined") && (onClickTarget != null)) {
+                var x = player.pos.x + (lastMove[0] - player.cpos.x)
+                var y = player.pos.y + (lastMove[1] - player.cpos.y)
+                onClickTarget(x, y, true)
+            }
         } else {
             send({
                 type: 'use'
@@ -904,6 +912,7 @@ function grab() {
 }
 
 function fire(alternate, pos) {
+    var ret
     descriptions = []
     
     if (alternate && ((typeof(player.firing) == "undefined") || (player.firing != 'alternate'))) {
@@ -918,16 +927,26 @@ function fire(alternate, pos) {
             tgt: {x: x, y: y},
             alt: alternate
             })
+            
+        shutdownKeyboardLook()
     }
     
     if (!pos) {
         waitTarget(fireFunc)
         
+        if (!keyboardLook) {
+            fnCommands.toggleKeyboardLook()
+        }
+        ret = "cursor"
         announceMsg("Click over a cell to target")
     } else {
         fireFunc(pos.x, pos.y)
         player.firing = 'no'
+        
+        shutdownKeyboardLook()
     }
+    
+    return ret
 }
 
 function cheat(fn) {
@@ -1069,7 +1088,8 @@ function drawInventory() {
             
             drawAsciiText(1, 2 + i * 2, txt, fgcol, opsColsBg[i == inventoryIndex])
             
-            if (!actionMenuShown && (lastClick[0] == lastMove[0]) && (lastClick[1] == lastMove[1])&&
+            if (!actionMenuShown && (lastClick[0] != -1) && (lastClick[1] != -1) &&
+                (lastClick[0] == lastMove[0]) && (lastClick[1] == lastMove[1])&&
                 (inventoryIndex == i)) {
                 use()
                 lastClick = [-1, -1]
@@ -1083,7 +1103,6 @@ function drawInventory() {
     }
 }
 
-var onClickTarget
 function waitTarget(fn) {
     if (onClickTarget) {
         // Autoselect target
@@ -1122,6 +1141,7 @@ function waitTarget(fn) {
         
         if (foundTarget) {
             onClickTarget(selx, sely, true)
+            shutdownKeyboardLook()
             player.firing = "no"
         }
     } else {
@@ -1134,6 +1154,7 @@ function waitTarget(fn) {
             }
             fn(x, y)
             onClickTarget = null
+            shutdownKeyboardLook()
             player.firing = "no"
         }
     }
@@ -2525,6 +2546,9 @@ var fnCommands = {
         if (gameStarted) {
             if (showingInventory) {
                 inventoryIndex--
+            } else if (keyboardLook) {
+                moveCell(lastMove[0], Math.max(0, lastMove[1] - 1))
+                return "cursor"
             } else {
                 pos(0, -1, shift)
             }
@@ -2539,6 +2563,9 @@ var fnCommands = {
         if (gameStarted) {
             if (showingInventory) {
                 inventoryIndex++
+            } else if (keyboardLook) {
+                moveCell(lastMove[0], Math.min(displaySizeY - 1, lastMove[1] + 1))
+                return "cursor"
             } else {
                 pos(0, 1, shift)
             }
@@ -2549,6 +2576,9 @@ var fnCommands = {
     left: function(shift) {
         if (gameStarted) {
             if (showingInventory) {
+            } else if (keyboardLook) {
+                moveCell(Math.max(0, lastMove[0] - 1), lastMove[1])
+                return "cursor"
             } else {
                 pos(-1, 0, shift)
             }
@@ -2557,6 +2587,9 @@ var fnCommands = {
     right: function(shift) {
         if (gameStarted) {
             if (showingInventory) {
+            } else if (keyboardLook) {
+                moveCell(Math.min(displaySizeX - 1, lastMove[0] + 1), lastMove[1])
+                return "cursor"
             } else {
                 pos(1, 0, shift)
             }
@@ -2565,6 +2598,9 @@ var fnCommands = {
     upleft: function(shift) {
         if (gameStarted) {
             if (showingInventory) {
+            } else if (keyboardLook) {
+                moveCell(Math.max(0, lastMove[0] - 1), Math.max(0, lastMove[1] - 1))
+                return "cursor"
             } else {
                 pos(-1, -1, shift)
             }
@@ -2573,6 +2609,9 @@ var fnCommands = {
     upright: function(shift) {
         if (gameStarted) {
             if (showingInventory) {
+            } else if (keyboardLook) {
+                moveCell(Math.min(displaySizeX - 1, lastMove[0] + 1), Math.max(0, lastMove[1] - 1))
+                return "cursor"
             } else {
                 pos(1, -1, shift)
             }
@@ -2581,6 +2620,9 @@ var fnCommands = {
     downright: function(shift) {
         if (gameStarted) {
             if (showingInventory) {
+            } else if (keyboardLook) {
+                moveCell(Math.min(displaySizeX - 1, lastMove[0] + 1), Math.min(displaySizeY - 1, lastMove[1] + 1))
+                return "cursor"
             } else {
                 pos(1, 1, shift)
             }
@@ -2589,20 +2631,42 @@ var fnCommands = {
     downleft: function(shift) {
         if (gameStarted) {
             if (showingInventory) {
+            } else if (keyboardLook) {
+                moveCell(Math.max(0, lastMove[0] - 1), Math.min(displaySizeY - 1, lastMove[1] + 1))
+                return "cursor"
             } else {
                 pos(-1, 1, shift)
             }
         }
     },
     wait: function(shift) {
-        pos(0, 0, shift)
+        if (keyboardLook) {
+        } else {
+            pos(0, 0, shift)
+        }
     },
 	prone: function() {
 		prone()
 	},
 	crouch: function() {
 		crouch()
-	}
+	},
+    toggleKeyboardLook: function() {
+        if (gameStarted && !showingInventory) {
+            keyboardLook = !keyboardLook
+            
+            if (keyboardLook) {
+                lastMove = [player.cpos.x, player.cpos.y]
+                
+                return "cursor"
+            }
+        }
+    }
+}
+
+function shutdownKeyboardLook() {
+    keyboardLook = false
+    lastMove = [-1, -1]
 }
 
 var kb_hnd = {
@@ -2689,7 +2753,10 @@ var kb_hnd = {
     
     "U+00BA": showTips, // Tab
     "i": toggleInventory,
-    "U+0049": toggleInventory
+    "U+0049": toggleInventory,
+    
+    "v": fnCommands.toggleKeyboardLook,
+    "U+0056": fnCommands.toggleKeyboardLook,
 }
 
 function render() {
@@ -2952,13 +3019,28 @@ function loadGenXpSprite(name, callback, noretry) {
 	}, 500)
 }
 
+var inspectKeyboardCodes = false
 $(document).ready(function () {
     $(document).keyup(function (event) {
         if (!editMode) {
             event = window.event || event
             var k = event.keyIdentifier || event.key
+            
+            if (inspectKeyboardCodes) {
+                console.log(k)
+            }
+            
             if (k in kb_hnd) {
-                kb_hnd[k](event.shiftKey)
+                var res = kb_hnd[k](event.shiftKey)
+                
+                if (res != "cursor") {
+                    lastMove[0] = -1
+                    lastMove[1] = -1
+                    
+                    lastClick[0] = -1
+                    lastClick[1] = -1
+                }
+                
                 event.preventDefault()
             }
         } else {

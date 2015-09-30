@@ -77,7 +77,9 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
             weapon: weapon,
             inventory: inventory,
             wait: Math.random(10) - 5,
-            customDecision: customDecision
+            customDecision: customDecision,
+            findInInventory: util.findInInventory,
+            removeFromInventory: util.removeFromInventory
         }
         
         this.agents.push(chr)

@@ -435,28 +435,8 @@ var handlers = { // These are the RPC handlers that the client can invoke
                 weapon: null,
                 inventory: [],
                 messages: [],
-                findInInventory: function(tp) {
-                    for (var i=0; i < this.inventory.length; i++) {
-                        var item = this.inventory[i]
-                        
-                        if (item.type == "ammo") {
-                            if (item.ammoType.indexOf(tp) == 0) {
-                                return item
-                            }
-                        }
-                    }
-                },
-                removeFromInventory: function(itm) {
-                    var i = 0
-                    while (i < this.inventory.length) {
-                        if (this.inventory[i] == itm) {
-                            this.inventory.splice(i, 1)
-                            
-                            break
-                        }
-                        i++
-                    }
-                }
+                findInInventory: util.findInInventory,
+                removeFromInventory: util.removeFromInventory
             }
         ws.turn = 0
         ws.standingOrder = false

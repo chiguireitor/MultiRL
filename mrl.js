@@ -609,6 +609,9 @@ var handlers = { // These are the RPC handlers that the client can invoke
         if (gameDefs.allowCheating) {
             if (obj.fn == 'nextlevel') {
                 nextLevel()
+            } else if (obj.fn == 'megafov') {
+                ws.player.fov = ws.player.fov * 20
+                ws.player.fov_sq = ws.player.fov * ws.player.fov
             }
         }
     }),

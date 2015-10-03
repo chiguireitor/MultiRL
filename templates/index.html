@@ -864,7 +864,10 @@ function use() {
                 var x = player.pos.x + (lastMove[0] - player.cpos.x)
                 var y = player.pos.y + (lastMove[1] - player.cpos.y)
                 onClickTarget(x, y, true)
+            } else {
+                clickCell(lastMove[0], lastMove[1])
             }
+            fnCommands.toggleKeyboardLook()
         } else {
             send({
                 type: 'use'
@@ -932,9 +935,10 @@ function fire(alternate, pos) {
     }
     
     if (!pos) {
+        var didntHaveLook = !keyboardLook
         waitTarget(fireFunc)
         
-        if (!keyboardLook) {
+        if (didntHaveLook) {
             fnCommands.toggleKeyboardLook()
         }
         ret = "cursor"
@@ -1141,9 +1145,9 @@ function waitTarget(fn) {
         
         if (foundTarget) {
             onClickTarget(selx, sely, true)
-            shutdownKeyboardLook()
             player.firing = "no"
         }
+        shutdownKeyboardLook()
     } else {
         // Wait target selection
         onClickTarget = function(x, y, direct) {

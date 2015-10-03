@@ -867,7 +867,8 @@ function use() {
             } else {
                 clickCell(lastMove[0], lastMove[1])
             }
-            fnCommands.toggleKeyboardLook()
+            
+            shutdownKeyboardLook()
         } else {
             send({
                 type: 'use'

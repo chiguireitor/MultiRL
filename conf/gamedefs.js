@@ -59,7 +59,7 @@ module.exports = {
 	crouchFovMult: 1.2,
 	pronePrecisionFact: 1.07,
 	crouchPrecisionFact: 1.14,
-    playerBaseFov: 10, // WARNING: too high a value can hog all the server bandwidth
+    playerBaseFov: 15, // WARNING: too high a value can hog all the server bandwidth
     dropProbability: 0.15, // Too high and the game gets VERY easy
     maxInventoryItems: 15,
     jamOnUnloadProbability: 0.02, // This must be a rare event, it is REALLY frustrating

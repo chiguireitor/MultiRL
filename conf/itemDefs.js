@@ -112,6 +112,8 @@ var templates = {
 				"range": {fn: "random", val: {"range": [10, 30], "subaspects": [{"name": "", "score": 0}, {"name": "accelerated", "score": 25}]}},
 				"volume": {fn: "random", val: {"range": [1, 10], "aspects": [{"name": "silenced", "score": 20}, {"name": "", "score": 0}, {"name": "noisy", "score": -20}]}},
                 "burstLength": 3,
+                "minDamage": 3,
+                "maxDamage": 8,
 				"alternate": {fn: "random-null", val: {"subaspect": "grenade launcher", "score": 50, "probability": 0.5, "val": {"ammoType": "M2 Grenade", "ammoPath": "ammo/charger/M2 Grenade", "ammoMax": 1, "volume": 5, "precisionFactor": 0.4, "sndOnFire": "smg_grenade"}}},
                 "repeatDelay": 100,
                 "pix": '╓',

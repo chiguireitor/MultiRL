@@ -387,6 +387,8 @@ var handlers = { // These are the RPC handlers that the client can invoke
                 idleCounter: 0,
                 chartype: obj.chartype,
                 attrs: {
+                    suPow: 100,
+                    suPowWait: 0,
                     hp: {pos: 100, max: 100, onchange: function(deathType, amnt) {
 						this.attrs.hp.pos = Math.round(this.attrs.hp.pos)
                         if (this.attrs.hp.pos <= 0) {
@@ -1229,40 +1231,6 @@ function _processTurnIfAvailable_priv_() {
     while ((!somethingHappened) && (nturns < 10)) { // Only wait 10 turns before bailing out
         for (var i in wss.clients) {
             var ws = wss.clients[i]
-
-            /*var evaluateKnockback = function() {
-                var agent = ws.player
-                if ((agent.knockback) && (agent.attrs.hp.pos > 0)) {
-                    console.log(agent.knockback)
-                    var dx = sign(agent.pos.x - agent.knockback.ox)
-                    var dy = sign(agent.pos.y - agent.knockback.oy)
-                    
-                    var x = agent.pos.x + dx
-                    var y = agent.pos.y + dy
-                    for (var i=0; i < Math.floor(agent.knockback.amount); i++) {
-                        var psbl = passable(level[y][x])
-                        if (psbl == 1) {
-                            level[agent.pos.y][agent.pos.x].character = null
-                            
-                            agent.pos.x = x
-                            agent.pos.y = y
-                            level[agent.pos.y][agent.pos.x].character = agent
-                            somethingHappened = true
-                        } else if (psbl == 2) {
-                            level[agent.pos.y][agent.pos.x].character.knockback = {
-                                ox: agent.pos.x,
-                                oy: agent.pos.y,
-                                amount: agent.knockback - i
-                            }
-                            somethingHappened = true
-                        }
-                    }
-                    
-                    delete agent.knockback
-                }
-            }            
-            
-            evaluateKnockback()*/
             util.processKnockback(ws.player, level, passable)
             
             if (ws.wait > 0) {
@@ -1270,6 +1238,16 @@ function _processTurnIfAvailable_priv_() {
                 ws.couldMove = false
             } else {
                 ws.couldMove = true
+                
+                if (ws.player.attrs.suPow >= 100) {
+                    ws.player.attrs.suPowWait++
+                    
+                    if (ws.player.attrs.suPowWait >= gameDefs.suPowWaitMax) {
+                        ws.player.attrs.suPowWait = 0
+                        ws.player.attrs.suPow = 0
+                    }
+                }
+                
                 var playerDefined = (typeof(ws.player) != "undefined")&&(ws.player != null)
                 somethingHappened = true // Something could happen, let the player that can do something play
                 if ((typeof(ws.dst) != 'undefined')&&(ws.dst != null)&&

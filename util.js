@@ -156,8 +156,8 @@ function processKnockback(agent, level, passableFn) {
         var dx = sign(agent.pos.x - agent.knockback.ox)
         var dy = sign(agent.pos.y - agent.knockback.oy)
         
-        var x = Math.min(Math.max(0, agent.pos.x + dx), level[0].length)
-        var y = Math.min(Math.max(0, agent.pos.y + dy), level.length)
+        var x = Math.min(Math.max(0, agent.pos.x + dx), level[0].length-1)
+        var y = Math.min(Math.max(0, agent.pos.y + dy), level.length-1)
         for (var i=0; i < agent.knockback.amount; i++) {
             var psbl = passableFn(level[y][x])
             if (psbl == 1) {

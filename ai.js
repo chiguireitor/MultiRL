@@ -45,6 +45,7 @@
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var effects = require('./effects.js')
 var util = require('./util.js')
+var gameDefs = require('./conf/gamedefs.js')
 
 var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, meleeDamageFn, spawnGibsFn) {
     this.level = level
@@ -66,6 +67,22 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
             attrs.speed = {pos: 0}
         }
         
+        if ((typeof(attrs.hp) != "undefined") && (typeof(attrs.hp.onchange) == "undefined")) {
+            attrs.hp.onchange = function(changeType, dmg, c) {
+                if (typeof(c) != "undefined") {
+                    if (typeof(c.attrs) != "undefined") {
+                        if (typeof(c.attrs.suPow) != "undefined") {
+                            c.attrs.suPow += (this.pts || 1) * gameDefs.suPowGainMultiplier
+                        }
+                        
+                        if (typeof(c.attrs.pts) != "undefined") {
+                            c.attrs.pts += this.pts || 1
+                        }
+                    }
+                }
+            }
+        }
+        
         var chr = {
             pix: pix,
             pos: {x: x, y: y},
@@ -75,12 +92,15 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
             type: 'ai',
             attrs: attrs,
             weapon: weapon,
+            fov: gameDefs.enemyBaseFov,
             inventory: inventory,
             wait: Math.random(10) - 5,
             customDecision: customDecision,
             findInInventory: util.findInInventory,
             removeFromInventory: util.removeFromInventory
         }
+        
+        chr.pts = Math.ceil(attrs.hp.pos / 5)
         
         this.agents.push(chr)
         level[y][x].character = chr
@@ -158,7 +178,7 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
                     tx = agent.pos.x + ret.x
                     ty = agent.pos.y + ret.y
                 } else {
-                    var character = this.findNearestPlayer(agent.pos.x, agent.pos.y, 8)
+                    var character = this.findNearestPlayer(agent.pos.x, agent.pos.y, agent.fov)
                     var dx = 0
                     var dy = 0
                     
@@ -205,24 +225,29 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
                 }
                     
                 if ((tx >= 0) && (tx < this.level[0].length) && (ty >= 0) && (ty < this.level.length)) {
-                    var p = this.passable(this.level[ty][tx])
-                    if (p == 1) {
-                        agent.wait += 10 - Math.floor(agent.attrs.speed.pos/10)
-                        
-                        this.level[agent.pos.y][agent.pos.x].character = null
-                        agent.pos.x = tx
-                        agent.pos.y = ty
-                        var t = this.level[ty][tx]
-                        t.character = agent
-                        if (this.activable(t)) {
-                            this.activableTiles[t.tile](t, agent)
-                        }
-                        somethingHappened = true
-                    } else if (p == 2) {
-                        if (((agent.pos.x != tx) && (agent.pos.y != ty))) {
-                            agent.wait += 20
-                            this.meleeDamage(agent, this.level[ty][tx].character)
+                    var tile = this.level[ty][tx]
+                    
+                    // Won't walk purposefully over a damaging tile
+                    if ((!tile.damage) || (tile.damage <= 0)) {
+                        var p = this.passable(tile)
+                        if (p == 1) {
+                            agent.wait += 10 - Math.floor(agent.attrs.speed.pos/10)
+                            
+                            this.level[agent.pos.y][agent.pos.x].character = null
+                            agent.pos.x = tx
+                            agent.pos.y = ty
+                            var t = this.level[ty][tx]
+                            t.character = agent
+                            if (this.activable(t)) {
+                                this.activableTiles[t.tile](t, agent)
+                            }
                             somethingHappened = true
+                        } else if (p == 2) {
+                            if (((agent.pos.x != tx) && (agent.pos.y != ty))) {
+                                agent.wait += 20
+                                this.meleeDamage(agent, this.level[ty][tx].character)
+                                somethingHappened = true
+                            }
                         }
                     }
                 }

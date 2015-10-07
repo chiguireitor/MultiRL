@@ -876,6 +876,7 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                 knockback: this.knockback
                             }
                             decorators = this.damageDecorators.concat(c.damageDecorators || []).concat(weapon.ammoDecorators.damage || [])
+                            
                             for (var i=0; i < decorators.length; i++) {
                                 dmgVals = decorators[i].call(c, dmgVals)
                             }
@@ -937,7 +938,7 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                 }
                                 
                                 if (typeof(tgt.character.attrs.hp.onchange) != "undefined") {
-                                    tgt.character.attrs.hp.onchange.call(tgt.character, "ammo-" + weapon.ammoType, dmg)
+                                    tgt.character.attrs.hp.onchange.call(tgt.character, "ammo-" + weapon.ammoType, dmg, c)
                                 }
                             } else if ((typeof(tgt.item) != "undefined") && (tgt.item != null)) {
                                 console.log("Hitting an item")

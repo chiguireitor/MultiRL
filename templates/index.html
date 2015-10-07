@@ -853,22 +853,41 @@ function tryMoveTowardsDestination() {
     }
 }
 
+function activateMenuAction(i) {
+    actionMenuShown = false
+    lastClick = [-1, -1]
+    
+    if (mouseActions[actionMenuActions[i].text]) {
+        var pos = actionMenuActions[i].pos || {x: -1, y: -1} // A good fallback to avoid unnecessary logic
+        mouseActions[actionMenuActions[i].text](pos.x, pos.y, actionMenuActions[i])
+    }
+}
+
 function use() {
     descriptions = []
     
     if (gameStarted) {
         if (showingInventory) {
-            activateInventory(inventoryIndex)
+            if ((actionMenuShown) && (actionMenuActions) && (menuSel >= 0) && (menuSel < actionMenuActions.length)) {
+                // Activate the option
+                activateMenuAction(menuSel)
+            } else {
+                activateInventory(inventoryIndex)
+            }
         } else if (keyboardLook) {
             if ((typeof(onClickTarget) != "undefined") && (onClickTarget != null)) {
                 var x = player.pos.x + (lastMove[0] - player.cpos.x)
                 var y = player.pos.y + (lastMove[1] - player.cpos.y)
                 onClickTarget(x, y, true)
             } else {
+                menuSel = 0
                 clickCell(lastMove[0], lastMove[1])
             }
             
             shutdownKeyboardLook()
+        } else if ((actionMenuShown) && (actionMenuActions) && (menuSel >= 0) && (menuSel < actionMenuActions.length)) {
+            // Activate the option
+            activateMenuAction(menuSel)
         } else {
             send({
                 type: 'use'
@@ -2093,15 +2112,24 @@ function updateDisplayGameStarted() {
         for (var i=0; i < actionMenuActions.length; i++) {
             var by = my + i * 4
             var very = (lastMove[1] >= by) && (lastMove[1] < (by + 3))
+            var verKeyb = menuSel == i
             
-            if (drawButtonWithText(mx, by, actionMenuActions[i].text, mw + 2, (actionMenuActions[i].fg || opsColsFg)[verx && very], (actionMenuActions[i].bg || opsColsBg)[verx && very], 0)) {
-                actionMenuShown = false
+            if (verx && very) {
+                menuSel = -1
+            }
+            
+            var totVer = (verx && very) || verKeyb
+            
+            if (drawButtonWithText(mx, by, actionMenuActions[i].text, mw + 2, (actionMenuActions[i].fg || opsColsFg)[totVer], (actionMenuActions[i].bg || opsColsBg)[totVer], 0)) {
+                /*actionMenuShown = false
                 lastClick = [-1, -1]
                 
                 if (mouseActions[actionMenuActions[i].text]) {
                     var pos = actionMenuActions[i].pos || {x: -1, y: -1} // A good fallback to avoid unnecessary logic
                     mouseActions[actionMenuActions[i].text](pos.x, pos.y, actionMenuActions[i])
-                }
+                }*/
+                
+                activateMenuAction(i)
             }
         
         }
@@ -2244,6 +2272,20 @@ function updateAttrs() {
             var spr = weaponSprites[currentWeapon.id]
             
             drawRexSprite(displaySizeX + 2, y + ((!currentWeapon.alternate)?20:21), spr)
+        }
+        
+        var ramp = [[64, 0, 0], [128, 0, 0], [128, 64, 0], [128, 128, 0], [64, 128, 0], [0, 128, 64], [0, 128, 128], [64, 192, 192], [128, 192, 192], [255, 255, 255]]
+        var maxY = displaySizeY - Math.floor(playerAttrs.suPow * displaySizeY / 100)
+        
+        var colorCycle = Math.floor(Date.now() / 50.0)
+        //var bg = (maxY <= 0)?ramp[Math.floor((Math.sin(Date.now()/50.0)+1) / 2 * (ramp.length - 1))]:[0,0,0]
+        
+        for (var i=displaySizeY - 1; i >= maxY; i--) {
+            var fgIdx = ramp.length - Math.floor(i * ramp.length / displaySizeY) - 1
+            var bg = (maxY <= 0)?ramp[Math.floor((Math.sin(Date.now()/150.0 + Math.cos(Date.now()/300.0 + i*10.0) * 0.5)+1) / 2 * (ramp.length - 1))]:[0,0,0]
+            
+            var fg = (maxY <= 0)?[0, 0, 0]:ramp[fgIdx]
+            drawAsciiText(displaySizeX, i, "\u25B2", fg, bg)
         }
     }
 }
@@ -2549,7 +2591,12 @@ function send(obj) {
 var fnCommands = {
     up: function(shift) {
         if (gameStarted) {
-            if (showingInventory) {
+            if (actionMenuShown) {
+                menuSel -= 1
+                if (menuSel < 0) {
+                    menuSel += actionMenuActions.length
+                }
+            } else if (showingInventory) {
                 inventoryIndex--
             } else if (keyboardLook) {
                 moveCell(lastMove[0], Math.max(0, lastMove[1] - 1))
@@ -2566,7 +2613,9 @@ var fnCommands = {
     },
     down: function(shift) {
         if (gameStarted) {
-            if (showingInventory) {
+            if (actionMenuShown) {
+                menuSel = (menuSel + 1) % actionMenuActions.length
+            } else if (showingInventory) {
                 inventoryIndex++
             } else if (keyboardLook) {
                 moveCell(lastMove[0], Math.min(displaySizeY - 1, lastMove[1] + 1))
@@ -2584,6 +2633,8 @@ var fnCommands = {
             } else if (keyboardLook) {
                 moveCell(Math.max(0, lastMove[0] - 1), lastMove[1])
                 return "cursor"
+            } else if (actionMenuShown) {
+                // Do nothing
             } else {
                 pos(-1, 0, shift)
             }
@@ -2595,6 +2646,8 @@ var fnCommands = {
             } else if (keyboardLook) {
                 moveCell(Math.min(displaySizeX - 1, lastMove[0] + 1), lastMove[1])
                 return "cursor"
+            } else if (actionMenuShown) {
+                // Do nothing
             } else {
                 pos(1, 0, shift)
             }
@@ -2606,6 +2659,8 @@ var fnCommands = {
             } else if (keyboardLook) {
                 moveCell(Math.max(0, lastMove[0] - 1), Math.max(0, lastMove[1] - 1))
                 return "cursor"
+            } else if (actionMenuShown) {
+                // Do nothing
             } else {
                 pos(-1, -1, shift)
             }
@@ -2617,6 +2672,8 @@ var fnCommands = {
             } else if (keyboardLook) {
                 moveCell(Math.min(displaySizeX - 1, lastMove[0] + 1), Math.max(0, lastMove[1] - 1))
                 return "cursor"
+            } else if (actionMenuShown) {
+                // Do nothing
             } else {
                 pos(1, -1, shift)
             }
@@ -2628,6 +2685,8 @@ var fnCommands = {
             } else if (keyboardLook) {
                 moveCell(Math.min(displaySizeX - 1, lastMove[0] + 1), Math.min(displaySizeY - 1, lastMove[1] + 1))
                 return "cursor"
+            } else if (actionMenuShown) {
+                // Do nothing
             } else {
                 pos(1, 1, shift)
             }
@@ -2639,6 +2698,8 @@ var fnCommands = {
             } else if (keyboardLook) {
                 moveCell(Math.max(0, lastMove[0] - 1), Math.min(displaySizeY - 1, lastMove[1] + 1))
                 return "cursor"
+            } else if (actionMenuShown) {
+                // Do nothing
             } else {
                 pos(-1, 1, shift)
             }
@@ -2646,6 +2707,8 @@ var fnCommands = {
     },
     wait: function(shift) {
         if (keyboardLook) {
+        } else if (actionMenuShown) {
+            // Do nothing
         } else {
             pos(0, 0, shift)
         }

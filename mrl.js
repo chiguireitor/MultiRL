@@ -528,6 +528,20 @@ var handlers = { // These are the RPC handlers that the client can invoke
             }
         }
     }),
+    supow: saferpc(function(ws, obj) {
+        if (typeof(ws.player) != "undefined") {
+            if (ws.player.attrs.hp.pos > 0) {
+                if (obj.alt) {
+                    ws.useSuPowAlternate = true
+                } else {
+                    ws.useSuPow = true
+                }
+                
+                ws.turn = nextTurnId
+                processTurnIfAvailable()
+            }
+        }
+    }),
     reload: saferpc(function(ws, obj) {
         if (typeof(ws.player) != "undefined") {
             if ((ws.player.attrs.hp.pos > 0) && 
@@ -1468,6 +1482,16 @@ function _processTurnIfAvailable_priv_() {
 					} else {
 						ws.player.color = '#44F'
 					}
+                } else if ((typeof(ws.useSuPow) != "undefined") && ws.useSuPow) {
+                    ws.useSuPow = false
+                    ws.player.attrs.suPowWait = 0
+                    ws.player.attrs.suPow = 0
+                    somethingHappened = true
+                } else if ((typeof(ws.useSuPowAlternate) != "undefined") && ws.useSuPowAlternate) {
+                    ws.useSuPowAlternate = false
+                    ws.player.attrs.suPowWait = 0
+                    ws.player.attrs.suPow = 0
+                    somethingHappened = true
                 } else if (playerDefined) {
                     var ctl = level[ws.player.pos.y][ws.player.pos.x]
                     ws.player.idleCounter++

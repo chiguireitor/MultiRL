@@ -554,6 +554,7 @@ var terminal
 var showDamage = 0
 var useSounds = true
 var playerAttrs
+var displaySuPow
 var titleSprite
 var gplusSprite
 var twitterSprite
@@ -661,6 +662,7 @@ function pickClass(cls) {
 
 function start() {
     descriptions = []
+    displaySuPow = 0
     
     localStorage.username = ownUsername
     localStorage.chartype = playerPickClass
@@ -971,6 +973,13 @@ function fire(alternate, pos) {
     }
     
     return ret
+}
+
+function superPower(alternate) {
+    send({
+        type: 'supow',
+        alt: alternate
+        })
 }
 
 function cheat(fn) {
@@ -2275,7 +2284,14 @@ function updateAttrs() {
         }
         
         var ramp = [[64, 0, 0], [128, 0, 0], [128, 64, 0], [128, 128, 0], [64, 128, 0], [0, 128, 64], [0, 128, 128], [64, 192, 192], [128, 192, 192], [255, 255, 255]]
-        var maxY = displaySizeY - Math.floor(playerAttrs.suPow * displaySizeY / 100)
+        
+        if (displaySuPow < playerAttrs.suPow) {
+            displaySuPow++
+        } else if (displaySuPow > playerAttrs.suPow) {
+            displaySuPow--
+        }
+        
+        var maxY = displaySizeY - Math.floor(displaySuPow * displaySizeY / 100)
         
         var colorCycle = Math.floor(Date.now() / 50.0)
         //var bg = (maxY <= 0)?ramp[Math.floor((Math.sin(Date.now()/50.0)+1) / 2 * (ramp.length - 1))]:[0,0,0]
@@ -2809,6 +2825,9 @@ var kb_hnd = {
     
     "f": fire,
     "U+0046": fire,
+    
+    "t": superPower,
+    "U+0054": superPower,
     
     "r": reload,
     "U+0052": reload,

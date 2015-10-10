@@ -580,6 +580,7 @@ items.push(new weapons.Ranged({
     ammoType: "7.62x54mm bullets",
     minDamage: 10,
     maxDamage: 35,
+    range: 30,
     precisionFactor: 0.1,
     cssClass: 'good-weapon',
     pix: asciiMapping['⌠'],

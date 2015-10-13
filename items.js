@@ -581,7 +581,7 @@ items.push(new weapons.Ranged({
     minDamage: 10,
     maxDamage: 35,
     range: 30,
-    precisionFactor: 0.1,
+    precisionFactor: 0.0,
     cssClass: 'good-weapon',
     pix: asciiMapping['⌠'],
     sndOnFire: 'sniper'

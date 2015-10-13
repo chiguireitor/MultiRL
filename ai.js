@@ -42,19 +42,24 @@
  *
  */
  
+var particles = require('./particles.js')
+var soundManager = require('./soundman.js').getManager()
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var effects = require('./effects.js')
 var util = require('./util.js')
 var gameDefs = require('./conf/gamedefs.js')
 
-var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, meleeDamageFn, spawnGibsFn) {
-    this.level = level
-    this.traceable = traceableFn
-    this.passable = passableFn
-    this.activable = activableFn
-    this.activableTiles = activablesDict
-    this.meleeDamage = meleeDamageFn
-    this.spawnGibs = spawnGibsFn
+var AI = function(params) {
+    this.level = params.level
+    this.traceable = params.traceable
+    this.passable = params.passable
+    this.activable = params.activable
+    this.activableTiles = params.activableTiles
+    this.meleeDamage = params.inflictMeleeDamage
+    this.spawnGibs = params.spawnGibs
+    this.usableTiles = params.usableTiles
+    this.grab = params.grab
+    this.soundManager = params.soundManager
     
     this.agents = []
     
@@ -73,6 +78,7 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
                     if (typeof(c.attrs) != "undefined") {
                         if (typeof(c.attrs.suPow) != "undefined") {
                             c.attrs.suPow += (this.pts || 1) * gameDefs.suPowGainMultiplier
+                            c.attrs.suPowWait = 0
                         }
                         
                         if (typeof(c.attrs.pts) != "undefined") {
@@ -97,13 +103,14 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
             wait: Math.random(10) - 5,
             customDecision: customDecision,
             findInInventory: util.findInInventory,
+            waitMultiplier: gameDefs.enemiesWaitMultiplier,
             removeFromInventory: util.removeFromInventory
         }
         
         chr.pts = Math.ceil(attrs.hp.pos / 5)
         
         this.agents.push(chr)
-        level[y][x].character = chr
+        this.level[y][x].character = chr
         
         return chr
     }
@@ -147,7 +154,7 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
         return character
     }
     
-    this.process = function() {
+    this.process_old = function() {
         var somethingHappened = false
         
         var i = 0
@@ -165,7 +172,19 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
                 
                 this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(Math.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs, options)
                 
-                util.dropInventory(agent, level, this.passable)
+                /**/
+                var bloodSplats = "+-{};\"^%&()|º<>"
+                var cnt = Math.floor(Math.random() * 12) + 6
+                for (var sb=0; sb < cnt; sb++) {
+                    particles.Singleton().spawnParticle(
+                        agent.pos.x, agent.pos.y, 
+                        agent.pos.x + Math.round(Math.random() * 7 - 3),
+                        agent.pos.y + Math.round(Math.random() * 7 - 3), 1, bloodSplats[Math.floor(Math.random() * bloodSplats.length)], 
+                        "blood",  
+                        "instant", undefined, Math.round((Math.random() * 100) + 100), undefined)
+                }
+                
+                util.dropInventory(agent, this.level, this.passable)
                 
                 i--
             } else if (agent.wait > 0) {
@@ -174,7 +193,7 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
                 // Process the agent state and take a decision accordingly
                 var tx, ty
                 if (agent.customDecision) {
-                    var ret = agent.customDecision.call(agent, level, this)
+                    var ret = agent.customDecision.call(agent, this.level, this)
                     tx = agent.pos.x + ret.x
                     ty = agent.pos.y + ret.y
                 } else {
@@ -252,7 +271,7 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
                     }
                 }
                 
-                var ctl = level[agent.pos.y][agent.pos.x]
+                var ctl = this.level[agent.pos.y][agent.pos.x]
                 /*if (ctl.tile in activableTiles) {
                     activableTiles[ctl.tile](ctl, ws)
                 }*/
@@ -270,6 +289,164 @@ var AI = function(level, traceableFn, passableFn, activableFn, activablesDict, m
                 
             }
             effects.applyAllStickies(agent)
+            i++
+        }
+        
+        return somethingHappened
+    }
+    
+    this.process = function() {
+        var somethingHappened = false
+        
+        var i = 0
+        while (i < this.agents.length) {
+            var agent = this.agents[i]
+            var cmd = {player: agent, wait: agent.wait}
+            
+            if (agent.attrs.hp.pos <= 0) {
+                this.level[agent.pos.y][agent.pos.x].character = null
+                
+                if (!(agent.knockback && (agent.knockback.amount > 0))) {
+                    this.agents.splice(i, 1)
+                } else {
+                    somethingHappened = true
+                }
+                
+                var bloodSplats = "+-{};\"^%&()|º<>"
+                var cnt = Math.floor(Math.random() * 12) + 6
+                
+                if (agent.knockback && (agent.knockback.amount > 0)) {
+                    cnt /= agent.knockback.amount
+                }
+                
+                for (var sb=0; sb < cnt; sb++) {
+                    particles.Singleton().spawnParticle(
+                        agent.pos.x, agent.pos.y, 
+                        agent.pos.x + Math.round(Math.random() * 7 - 3),
+                        agent.pos.y + Math.round(Math.random() * 7 - 3), 1, bloodSplats[Math.floor(Math.random() * bloodSplats.length)], 
+                        "blood",  
+                        "instant", undefined, Math.round((Math.random() * 100) + 100), undefined)
+                }
+                
+                if (!(agent.knockback && (agent.knockback.amount > 0))) {
+                    var gmul = (agent.attrs.hp.pos < -agent.attrs.hp.max)?2:1
+                    var options = {spread: gmul*2}
+                    
+                    this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(Math.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs, options)
+                    
+                    util.dropInventory(agent, this.level, this.passable)
+                    agent = undefined
+                    i--
+                }
+            }
+
+            if (agent) {
+                // Process the agent state and take a decision accordingly
+                var tx, ty
+                if (agent.customDecision) {
+                    var ret = agent.customDecision.call(agent, this.level, this)
+                    tx = agent.pos.x + ret.x
+                    ty = agent.pos.y + ret.y
+                } else {
+                    var character = this.findNearestPlayer(agent.pos.x, agent.pos.y, agent.fov)
+                    var dx = 0
+                    var dy = 0
+                    
+                    if (character) {
+                        if ((typeof(agent.weapon) != "undefined")
+                            && (agent.weapon != null)
+                            && (Math.random() < 0.2)) {
+                            
+                            if (agent.weapon.ranged && agent.weapon.alternate && (Math.random() < 0.2)) {
+                                if (agent.weapon.alternate.ammo == 0) {
+                                    //agent.weapon.reload(agent, true)
+                                    cmd.reloadWeapon = true
+                                    cmd.reloadAlternate = true
+                                    
+                                    somethingHappened = true
+                                } else {
+                                    //agent.weapon.fire(character.pos.x, character.pos.y, agent, {useAlternate: true})
+                                    
+                                    cmd.fireWeapon = true
+                                    cmd.fireAlternate = true
+                                    cmd.fireTarget = {x: character.pos.x, y: character.pos.y}
+                                    
+                                    somethingHappened = true
+                                }
+                            } else if (agent.weapon.ranged) {
+                                if (agent.weapon.ammo == 0) {
+                                    //agent.weapon.reload(agent)
+                                    cmd.reloadWeapon = true
+                                    cmd.reloadAlternate = true
+                                    
+                                    somethingHappened = true
+                                } else {
+                                    //agent.weapon.fire(character.pos.x, character.pos.y, agent)
+                                    cmd.fireWeapon = true
+                                    cmd.fireTarget = {x: character.pos.x, y: character.pos.y}
+                                    
+                                    somethingHappened = true
+                                }
+                            }
+                            
+                        }
+                    
+                        if (character.pos.x < agent.pos.x) {
+                            dx = -1
+                        } else if (character.pos.x > agent.pos.x) {
+                            dx = 1
+                        }
+                        
+                        if (character.pos.y < agent.pos.y) {
+                            dy = -1
+                        } else if (character.pos.y > agent.pos.y) {
+                            dy = 1
+                        }
+                    } else {
+                        var nm = Math.floor(Math.random() * 8)
+                        dx = [-1, 0, 1, -1, 1, -1, 0, 1][nm]
+                        dy = [-1, -1, -1, 0, 0, 1, 1, 1][nm]
+                    }
+                    
+                    tx = agent.pos.x + dx
+                    ty = agent.pos.y + dy
+                }
+                    
+                if ((tx >= 0) && (tx < this.level[0].length) && (ty >= 0) && (ty < this.level.length)) {
+                    var tile = this.level[ty][tx]
+                    
+                    // Won't walk purposefully over a damaging tile
+                    if ((!tile.damage) || (tile.damage <= 0)) {
+                        var p = this.passable(tile)
+                        if (p == 1) {
+                            cmd.dst = {x: tx, y: ty}
+                            somethingHappened = true
+                        } else if (p == 2) {
+                            if (((agent.pos.x != tx) && (agent.pos.y != ty))) {
+                                /*agent.wait += 20
+                                this.meleeDamage(agent, this.level[ty][tx].character)*/
+                                cmd.dst = {x: tx, y: ty}
+                                somethingHappened = true
+                            }
+                        }
+                    }
+                }
+                
+                somethingHappened |= util.processSemiturn({
+                    agent: cmd,
+                    level: this.level,
+                    passable: this.passable,
+                    activableTiles: this.activableTiles,
+                    soundManager: this.soundManager,
+                    grab: this.grab,
+                    inflictMeleeDamage: this.meleeDamage,
+                    usableTiles: this.usableTiles,
+                    activable: this.activable
+                })
+                
+                agent.wait = cmd.wait
+            }
+
             i++
         }
         

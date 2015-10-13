@@ -238,7 +238,7 @@ var effectFunction = {
             manager.spawnParticle(
                 x, y, x + Math.floor(Math.random() * 5 - 3), y + Math.floor(Math.random() * 5 - 3),
                 //x, y, x-10, y - 10,
-                1 + Math.floor(Math.random() * 3), "☼", "fire", "instant", undefined, 200 + Math.floor(Math.random() * 300),
+                1/* + Math.floor(Math.random() * 3)*/, "☼", "fire", "instant", undefined, 200 + Math.floor(Math.random() * 300),
                 {from: "DDDD00", to: "AA0000", ttl: 200, num: 8, inherit: false, spread: [9, 9], delay: 0})
                 
             if ((typeof(cell.character) != "undefined") && (cell.character != null)) {

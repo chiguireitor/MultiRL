@@ -59,11 +59,14 @@ module.exports = {
 	crouchFovMult: 1.2,
 	pronePrecisionFact: 1.07,
 	crouchPrecisionFact: 1.14,
+    enemiesWaitMultiplier: 1,
     playerBaseFov: 15, // WARNING: too high a value can hog all the server bandwidth
     enemyBaseFov: 18, // Enemies should spot the player before they spot the enemies
     suPowWaitMax: 5, // How much turns can the player wait with the super power fully charged without draining completely
     suPowGainMultiplier: 3, // How much super power factor from the enemy points does the player gain
+    suPowDecayAfterWait: 2, // How much absolute super power gets decreased by turn after the wait timer hits its max
     dropProbability: 0.15, // Too high and the game gets VERY easy
+    knockbackStaticDestroy: 3, // How much knockback should a agent have to destroy trough walls
     maxInventoryItems: 15,
     jamOnUnloadProbability: 0.02, // This must be a rare event, it is REALLY frustrating
     level: {

@@ -389,7 +389,7 @@ var handlers = { // These are the RPC handlers that the client can invoke
                 attrs: {
                     suPow: 100,
                     suPowWait: 0,
-                    hp: {pos: 100, max: 100, onchange: function(deathType, amnt) {
+                    hp: {pos: 100, max: 100, onchange: function(deathType, amnt, originator) {
 						this.attrs.hp.pos = Math.round(this.attrs.hp.pos)
                         if (this.attrs.hp.pos <= 0) {
                             level[this.pos.y][this.pos.x].character = null
@@ -748,13 +748,14 @@ function applyPlayerClassBonusesAndPenalties(player) {
         player.attrs.speed.max = 200
         player.attrs.agile = true
     } else if (player.player_class == 'melee') {
-        player.attrs.armor.pos = 30
+        player.attrs.armor.pos = 60
         player.attrs.armor.max = 200
         player.attrs.strength.pos = 50
         player.attrs.strength.max = 200
         player.attrs.precision.max = 20
         player.attrs.speed.max = 50
         player.attrs.agile = true
+        player.attrs.extraMelee = true
     } else if (player.player_class == 'tech') {
         defaultWeapon = "Gatling Laser"
         defaultCharger = "Energy cell"
@@ -1000,14 +1001,18 @@ function resetLevel() {
     if (aiState) {
         aiState.purge()
     } else {
-        aiState = new ai(
-            level, 
-            traceable, 
-            passable, 
-            activable,
-            activableTiles,
-            inflictMeleeDamage, 
-            spawnGibs)
+        aiState = new ai({
+            level: level, 
+            traceable: traceable, 
+            passable: passable, 
+            activable: activable,
+            activableTiles: activableTiles,
+            inflictMeleeDamage: inflictMeleeDamage, 
+            spawnGibs: spawnGibs,
+            usableTiles: usableTiles,
+            grab: grab,
+            soundManager: soundManager
+        })
     }
     
     var numEnemies = gameDefs.level.numEnemies
@@ -1099,6 +1104,10 @@ function inflictMeleeDamage(org, chr) {
                 knk *= org.attrs.knockbackFactor
             }
             
+            if (org.extraMelee) {
+                knk *= 4
+            }
+            
             chr.attrs.hp.pos -= dmg
             
             if (!chr.knockback) {
@@ -1111,14 +1120,13 @@ function inflictMeleeDamage(org, chr) {
                 if (chr.knockback.amount < knk) {
                     chr.knockback.ox = ox
                     chr.knockback.oy = oy
-                    
                 }
                 
                 chr.knockback.amount += knk
             }
             
             if (typeof(chr.attrs.hp.onchange) != "undefined") {
-                chr.attrs.hp.onchange.call(chr, "melee", dmg)
+                chr.attrs.hp.onchange.call(chr, "melee", dmg, org)
             }
             
             soundManager.addSound(chr.pos.x, chr.pos.y, 10, "hit", 0)
@@ -1245,275 +1253,17 @@ function _processTurnIfAvailable_priv_() {
     while ((!somethingHappened) && (nturns < 10)) { // Only wait 10 turns before bailing out
         for (var i in wss.clients) {
             var ws = wss.clients[i]
-            util.processKnockback(ws.player, level, passable)
-            
-            if (ws.wait > 0) {
-                ws.wait--
-                ws.couldMove = false
-            } else {
-                ws.couldMove = true
-                
-                if (ws.player.attrs.suPow >= 100) {
-                    ws.player.attrs.suPowWait++
-                    
-                    if (ws.player.attrs.suPowWait >= gameDefs.suPowWaitMax) {
-                        ws.player.attrs.suPowWait = 0
-                        ws.player.attrs.suPow = 0
-                    }
-                }
-                
-                var playerDefined = (typeof(ws.player) != "undefined")&&(ws.player != null)
-                somethingHappened = true // Something could happen, let the player that can do something play
-                if ((typeof(ws.dst) != 'undefined')&&(ws.dst != null)&&
-                    playerDefined &&
-                    (typeof(ws.player.pos) != "undefined")) {
-                    // Gotta move
-                    if ((ws.player.pos.x != ws.dst.x)||(ws.player.pos.y != ws.dst.y)) {
-                        var jumpTrample = false
-                        var canJumpTrample = false
-						if ((typeof(ws.player.prone) != "undefined") && ws.player.prone) {
-							ws.wait = gameDefs.turnsForStep * 3
-						} else if ((typeof(ws.player.crouch) != "undefined") && ws.player.crouch) {
-							ws.wait = gameDefs.turnsForStep * 2
-						} else {
-							ws.wait = gameDefs.turnsForStep
-                            canJumpTrample = true
-						}
-                        
-                        if (canJumpTrample && (typeof(ws.special_movement) != "undefined") && ws.special_movement) {
-                            jumpTrample = true
-                            ws.special_movement = false
-                            
-                            if (!ws.player.attrs.agile) {
-                                ws.wait *= 2
-                            }
-                        }
-						
-                        ws.player.idleCounter = 0
-                        var dx = ws.dst.x - ws.player.pos.x
-                        var dy = ws.dst.y - ws.player.pos.y
-                        
-                        dx = sign(dx)
-                        dy = sign(dy)
-                        
-                        var jtIters = jumpTrample?2:1
-                        var jumped = false
-                        
-                        for (var jt=0; jt < jtIters; jt++) {
-                            var nx = ws.player.pos.x + dx
-                            var ny = ws.player.pos.y + dy
-                            level[ws.player.pos.y][ws.player.pos.x].character = null
-                            
-                            var didMove = false
-                            if ((ny >= 0) && (ny < level.length) &&
-                                (nx >= 0) && (nx < level[0].length)) {
-                                var p = passable(level[ws.player.pos.y + dy][ws.player.pos.x + dx])
-                                if (p == 1) {
-                                    // Sum of both is best case, and it is passable, so go with it
-                                    ws.player.pos.x += dx
-                                    ws.player.pos.y += dy
-                                    didMove = true
-                                    jumped = jumpTrample
-                                } else if (p == 2) {
-                                    // Check to see if we can melee attack the character
-                                    var dt = level[ws.player.pos.y + dy][ws.player.pos.x + dx]
-                                    
-                                    if (dt.character) {
-                                        inflictMeleeDamage(ws, dt.character)
-                                        if (jumped) {
-                                            dt.character.knockback = {
-                                                ox: ws.player.pos.x,
-                                                oy: ws.player.pos.y,
-                                                amount: 2
-                                            }
-                                            dt.character.wait += 20
-                                        } else if (jumpTrample) {
-                                            dt.character.knockback = {
-                                                ox: ws.player.pos.x,
-                                                oy: ws.player.pos.y,
-                                                amount: 1
-                                            }
-                                            dt.character.wait += 10
-                                        }
-                                    }
-                                } else if (activable(level[ws.player.pos.y + dy][ws.player.pos.x + dx])) {
-                                    var t = level[ws.player.pos.y + dy][ws.player.pos.x + dx]
-                                    activableTiles[t.tile](t, ws)
-                                } else {
-                                    var dh_x = ws.dst.x - (ws.player.pos.x + dx)
-                                    var dh_y = ws.dst.y - ws.player.pos.y
-                                    p = passable(level[ws.player.pos.y][ws.player.pos.x + dx])
-                                    var dh_pass = p == 1
-                                    var dh_char = p == 2
-                                    
-                                    var dv_x = ws.dst.x - (ws.player.pos.x)
-                                    var dv_y = ws.dst.y - (ws.player.pos.y + dy)
-                                    p = passable(level[ws.player.pos.y + dy][ws.player.pos.x])
-                                    var dv_pass = p == 1
-                                    var dv_char = p == 2
-                                    
-                                    if (dh_pass && dv_pass) {
-                                        var dh2 = dh_x*dh_x + dh_y*dh_y
-                                        var dv2 = dv_x*dv_x + dv_y*dv_y
-                                        
-                                        if (dh2 < dv2) {
-                                            dv_pass = false
-                                        } else if (dv2 < dh2) {
-                                            dh_pass = false
-                                        } else {
-                                            // Both movements are equal, pick at random
-                                            if (Math.random() < 0.5) {
-                                                dh_pass = false
-                                            } else {
-                                                dv_pass = false
-                                            }
-                                        }
-                                    }
-                                    
-                                    if (dh_pass) {
-                                        ws.player.pos.x += dx
-                                        didMove = true
-                                    } else if (dv_pass) {
-                                        ws.player.pos.y += dy
-                                        didMove = true
-                                    } else {
-                                        // Check if we can attack
-                                    }
-                                }
-                            }
-                        }
-                        
-                        var ctl = level[ws.player.pos.y][ws.player.pos.x]
-                        ctl.character = ws.player
-                        if (ctl.tile in activableTiles) {
-                            activableTiles[ctl.tile](ctl, ws)
-                        }
-                        
-                        if (ctl.damage) {
-                            // Walking over damaging tile
-                            if (ws.player.attrs.hp.pos > 0) {
-                                ws.player.attrs.hp.pos -= ctl.damage
-                                
-                                if (typeof(ws.player.attrs.hp.onchange) != "undefined") {
-                                    ws.player.attrs.hp.onchange.call(ws.player, "floor-hazard", ctl.damage)
-                                }
-                            }                                
-                        }
-                        
-                        if (didMove) {
-                            if (jumped) {
-                                soundManager.addSound(ws.player.pos.x, ws.player.pos.y, 5, "jump", 0)
-                            } else {
-                                soundManager.addSound(ws.player.pos.x, ws.player.pos.y, 5, "dirt_step", 0)
-                            }
-                        }
-                        
-                        //ws.standingOrder = !((ws.player.pos.x == ws.dst.x) && (ws.player.pos.y == ws.dst.y))
-                        ws.standingOrder = false
-                        ws.dst = null
-                    }
-                } else if ((typeof(ws.useTile) != "undefined") && (ws.useTile)) {
-                    ws.useTile = false
-                    
-                    var t = level[ws.player.pos.y][ws.player.pos.x]
-                    if (t.tile in usableTiles) {
-                        usableTiles[t.tile](t, ws)
-                    }
-                } else if ((typeof(ws.grabTile) != "undefined") && (ws.grabTile)) {
-                    ws.grabTile = false
-                    var t = level[ws.player.pos.y][ws.player.pos.x]
-                    
-                    if ((typeof(t.item) != "undefined") && (t.item != null)) {
-                        if (grab(ws.player, t.item)) {
-                            t.item = null
-                        }
-                    }
-                } else if ((typeof(ws.fireWeapon) != "undefined") && (ws.fireWeapon)) {
-                    ws.fireWeapon = false
-                    
-                    if ((typeof(ws.player.weapon) != "undefined") && 
-                        (typeof(ws.player.weapon.fire) != "undefined")) {
-						var precisionFact = 1.0
-						
-						if (ws.player.prone) {
-							precisionFact = gameDefs.pronePrecisionFact
-						} else if (ws.player.crouch) {
-							precisionFact = gameDefs.crouchPrecisionFact
-						}
-						
-                        ws.player.weapon.fire(ws.fireTarget.x, ws.fireTarget.y, ws.player, {
-							precision: precisionFact,
-							useAlternate: ws.fireAlternate
-						})
-                    }
-					ws.fireAlternate = false
-                } else if (typeof(ws.reloadWeapon) != "undefined" && ws.reloadWeapon) {
-                    ws.reloadWeapon = false
-                    if ((typeof(ws.player.weapon) != "undefined") && 
-                        ws.player.weapon != null) {
-                        ws.player.weapon.reload(ws.player, ws.reloadAlternate)
-                    }
-					ws.reloadAlternate = false
-				} else if (typeof(ws.goProne) != "undefined" && ws.goProne) {
-					if ((typeof(ws.player.prone) != "undefined")) {
-						ws.player.prone = !ws.player.prone
-						ws.player.crouch = false
-					} else {
-						ws.player.prone = true
-						ws.player.crouch = false
-					}
-					
-					if (ws.player.prone) {
-						ws.player.color = '#00B'
-					} else {
-						ws.player.color = '#44F'
-					}
-				} else if (typeof(ws.goCrouch) != "undefined" && ws.goCrouch) {
-					if ((typeof(ws.player.crouch) != "undefined")) {
-						ws.player.crouch = !ws.player.crouch
-						ws.player.prone = false
-					} else {
-						ws.player.crouch = true
-						ws.player.prone = false
-					}
-					
-					if (ws.player.crouch) {
-						ws.player.color = '#22D'
-					} else {
-						ws.player.color = '#44F'
-					}
-                } else if ((typeof(ws.useSuPow) != "undefined") && ws.useSuPow) {
-                    ws.useSuPow = false
-                    ws.player.attrs.suPowWait = 0
-                    ws.player.attrs.suPow = 0
-                    somethingHappened = true
-                } else if ((typeof(ws.useSuPowAlternate) != "undefined") && ws.useSuPowAlternate) {
-                    ws.useSuPowAlternate = false
-                    ws.player.attrs.suPowWait = 0
-                    ws.player.attrs.suPow = 0
-                    somethingHappened = true
-                } else if (playerDefined) {
-                    var ctl = level[ws.player.pos.y][ws.player.pos.x]
-                    ws.player.idleCounter++
-                    
-                    if (ctl.tile in activableTiles) {
-                        activableTiles[ctl.tile](ctl, ws)
-                    } else if ((ws.player.idleCounter > gameDefs.spyIdleCounter) && (ws.player.player_class == 'spy')) {
-                        ctl.character = null // TODO: Poor way to go stealth
-                    }
-                }
-                
-                if (playerDefined) {
-                    // Do all player based processing required
-                    if (effects.applyAllStickies(ws.player)) {
-                        somethingHappened = true
-                    }
-                }
-            }
-            
-            //evaluateKnockback()
-            util.processKnockback(ws.player, level, passable)
-            
+            somethingHappened |= util.processSemiturn({
+                agent: ws,
+                level: level,
+                passable: passable,
+                activableTiles: activableTiles,
+                soundManager: soundManager,
+                grab: grab,
+                inflictMeleeDamage: inflictMeleeDamage,
+                usableTiles: usableTiles,
+                activable: activable
+            })
             somethingHappened |= aiState.process()
         }
         nturns++

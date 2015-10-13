@@ -838,8 +838,8 @@ Ranged.prototype.fire = function(x, y, c, options) {
                      */
                     
                     //console.log("dl: " + difl + " | p: " + p + " | ndx: " + ndifx + " | ndy: " + ndify )
-                    var tx = Math.floor(x + ndify * p * (Math.random() - 0.5))
-                    var ty = Math.floor(y - ndifx * p * (Math.random() - 0.5))
+                    var tx = Math.round(x + ndify * p * (Math.random() - 0.5))
+                    var ty = Math.round(y - ndifx * p * (Math.random() - 0.5))
                     
                     // The path tracer handles all the clipping now, so no need to protect for it
                     /*if (((ty >= 0) && (ty < level.length)&&
@@ -941,8 +941,6 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                     tgt.character.attrs.hp.onchange.call(tgt.character, "ammo-" + weapon.ammoType, dmg, c)
                                 }
                             } else if ((typeof(tgt.item) != "undefined") && (tgt.item != null)) {
-                                console.log("Hitting an item")
-                                console.log(tgt.item)
                                 if (typeof(tgt.item.health) == "undefined") {
                                     tgt.item.health = 1
                                 }
@@ -956,9 +954,11 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                     pushPlayerMessage("You hit a " + (tgt.item.name || tgt.item.ammoType) + " with " + dmg + " damage")
                                 }
                             } else if (typeof(tgt.tileHealth) != "undefined") {
+                                processTileHealth(tgt, dmg, level, tx, ty)
+                                
                                 tgt.tileHealth = tgt.tileHealth - dmg
                                 
-                                if (tgt.tileHealth <= 0) {
+                                /*if (tgt.tileHealth <= 0) {
                                     delete tgt.tileHealth
                                     tgt.tile = asciiMapping['.']
 
@@ -979,11 +979,11 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                     
                                     explosion.applyToSource(level, tx, ty)
                                     explosion.applyToTarget(level, tx, ty)
-                                }
+                                }*/
                             }
                             
                             particles.Singleton().spawnParticle(
-                                c.pos.x, c.pos.y, tx, ty, 1, "*", 
+                                c.pos.x, c.pos.y, tx, ty, 1, "•", 
                                 "particle-ammo-" + weapon.ammoType.replace(/ /g, '-'),  
                                 "instant", undefined, burst * weapon.repeatDelay, weapon.trail)
                             soundManager.addSound(c.pos.x, c.pos.y, 15, weapon.sndOnFire, burst * weapon.repeatDelay)
@@ -1006,11 +1006,14 @@ Ranged.prototype.fire = function(x, y, c, options) {
 }
 
 Ranged.prototype.reload = function(c, alternate) {
-	
 	var weapon = c.weapon
 	if (alternate) {
 		weapon = c.weapon.alternate
 	}
+    
+    if (!weapon) {
+        return
+    }
 	
     var charger = c.findInInventory(weapon.ammoType)
     
@@ -1019,6 +1022,10 @@ Ranged.prototype.reload = function(c, alternate) {
 }
 
 Ranged.prototype.reloadWithCharger = function(c, charger, alternate) {
+    if (!c.weapon) {
+        return
+    }
+    
     if ((typeof(charger) != "undefined")) {
 		var weapon = c.weapon
 		if (alternate) {

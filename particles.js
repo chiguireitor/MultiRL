@@ -51,55 +51,24 @@ function Manager(w, h) {
     this.particles = []
 }
 
-// Taken from http://jsperf.com/circle-line-collisions
 function testCP(circleX,circleY,radius,lineX1,lineY1,lineX2,lineY2,returnPoints) {
-    //modified from: http://stackoverflow.com/questions/1073336/circle-line-collision-detection
-    var dlineX2lineX1 = (lineX2-lineX1);
-    var dlineY2lineY1 = (lineY2-lineY1);
-    var LAB = Math.sqrt( dlineX2lineX1*dlineX2lineX1+dlineY2lineY1*dlineY2lineY1 );
-
-    var Dx = (lineX2-lineX1)/LAB;
-    var Dy = (lineY2-lineY1)/LAB;
-
-    var t = Dx*(circleX-lineX1) + Dy*(circleY-lineY1);
-
-    var Ex = t*Dx+lineX1;
-    var Ey = t*Dy+lineY1;
-
-    //check to see if Ex is on the line
-    if ((lineX2>lineX1 && Ex>=lineX1 && Ex<=lineX2) || (lineX2<lineX1 && Ex>=lineX2 && Ex<=lineX1)) {
-            if ((lineY2>lineY1 && Ey>=lineY1 && Ey<=lineY2) || (lineY2<lineY1 && Ey>=lineY2 && Ey<=lineY1)) {
-                    //on segment
-            }
-            else {return returnPoints?-1:false;}
-    }
-    else {return returnPoints?-1:false;}
-
-    var dEycircleY = (Ey-circleY);
-    var LEC = Math.sqrt( (Ex-circleX)+dEycircleY*dEycircleY );
-
-    if( LEC < radius ) {
-            if (returnPoints) {
-                var dt = Math.sqrt( radius*radius - LEC*LEC);
-
-                var Fx = (t-dt)*Dx + lineX1;
-                var Fy = (t-dt)*Dy + lineY1;
-
-                var Gx = (t+dt)*Dx + lineX1;
-                var Gy = (t+dt)*Dy + lineY1;
-
-                return [Fx,Fy,Gx,Gy];
-            }
-            else {return true;}
-    }
-
-    else if( LEC == radius ) {
-            return returnPoints?1:true;
-    }
-
-    else {
-            return returnPoints?-1:false;
-    }
+    // http://mathworld.wolfram.com/Circle-LineIntersection.html
+    
+    var x1 = lineX1 - circleX
+    var x2 = lineX2 - circleX
+    var y1 = lineY1 - circleY
+    var y2 = lineY2 - circleY
+    
+    var r2 = radius * radius
+    var dx = x2 - x1
+    var dy = y2 - y1
+    var dr2 = dx * dx + dy * dy
+    var D = x1 * y2 - x2 * y1
+    
+    var det = r2 * dr2 - D * D
+    // We just need the determinant
+    
+    return det >= 0
 }
 
 Manager.prototype.getParticlesInScope = function(x, y, fov, label) {

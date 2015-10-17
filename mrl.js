@@ -628,6 +628,9 @@ var handlers = { // These are the RPC handlers that the client can invoke
             } else if (obj.fn == 'megafov') {
                 ws.player.fov = ws.player.fov * 20
                 ws.player.fov_sq = ws.player.fov * ws.player.fov
+            } else if (obj.fn == 'supow') {
+                ws.player.attrs.suPow = 100
+                ws.player.attrs.suPowWait = 0
             }
         }
     }),
@@ -1097,15 +1100,17 @@ function inflictMeleeDamage(org, chr) {
             ox = org.pos.x
             oy = org.pos.y
             
-            var dmg = Math.ceil(Math.max(1, (o_strength - c_armor) / 10))
-            var knk = Math.ceil(Math.max(0, (o_armor - c_strength) / 5))
+            var dmg = Math.round(Math.max(1, (o_strength - c_armor) / 10))
+            var knk = Math.round(Math.max(0, (o_armor - c_strength) / 10))
             
             if (typeof(org.attrs.knockbackFactor) != "undefined") {
                 knk *= org.attrs.knockbackFactor
             }
             
-            if (org.extraMelee) {
-                knk *= 4
+            if (org.attrs.extraMelee) {
+                if (org.attrs.suPow) {
+                    knk *= Math.round(6 * Math.pow(org.attrs.suPow / 100.0, 4))
+                }
             }
             
             chr.attrs.hp.pos -= dmg

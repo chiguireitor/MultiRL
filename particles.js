@@ -44,6 +44,7 @@
  
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var gameDefs = require('./conf/gamedefs.js')
+var collide = require('line-circle-collision')
 
 function Manager(w, h) {
     this.w = w
@@ -51,7 +52,7 @@ function Manager(w, h) {
     this.particles = []
 }
 
-function testCP(circleX,circleY,radius,lineX1,lineY1,lineX2,lineY2,returnPoints) {
+/*function testCP_old(circleX,circleY,radius,lineX1,lineY1,lineX2,lineY2,returnPoints) {
     // http://mathworld.wolfram.com/Circle-LineIntersection.html
     
     var x1 = lineX1 - circleX
@@ -66,9 +67,24 @@ function testCP(circleX,circleY,radius,lineX1,lineY1,lineX2,lineY2,returnPoints)
     var D = x1 * y2 - x2 * y1
     
     var det = r2 * dr2 - D * D
-    // We just need the determinant
+    // We just need the determinant and...
+    
+    var lx = lineX2 - lineX1
+    var ly = lineY2 - lineY1
+    
+    var dot = lx * x1 + ly * y1
     
     return det >= 0
+}*/
+
+function testCP(circleX,circleY,radius,lineX1,lineY1,lineX2,lineY2,returnPoints) {
+    var circle = [circleX,circleY],
+        a = [lineX1,lineY1],
+        b = [lineX2,lineY2]
+ 
+    var hit = collide(a, b, circle, radius)
+    
+    return hit
 }
 
 Manager.prototype.getParticlesInScope = function(x, y, fov, label) {

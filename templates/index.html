@@ -477,6 +477,7 @@ var colorMap = {
     "acid": {"color": "008800", "cycle": "44FF00", "msscale": 1500, "backgroundColor": [0, 64, 0], "luma": [2550, 2550, 2550]},
     "water": {"color": "0044FF", "cycle": "002288", "msscale": 2000},
     "smoke": {"color": "888888", "cycle": "444444", "msscale": 1000},
+    "debris": {"color": "888888", "cycle": "444444", "msscale": 500},
     "fire": {"color": "FF0000", "cycle": "CC8800", "msscale": 200, "luma": [255, 255, 255]},
     "particle-ammo-9mm-bullets": {"color": "FF0000"},
     "particle-ammo-9mm": {"color": "FF0000"},
@@ -883,7 +884,7 @@ function use() {
                 var y = player.pos.y + (lastMove[1] - player.cpos.y)
                 onClickTarget(x, y, true)
             } else {
-                menuSel = 0
+                menuSel = -1
                 clickCell(lastMove[0], lastMove[1])
             }
             
@@ -2125,12 +2126,12 @@ function updateDisplayGameStarted() {
             var verKeyb = menuSel == i
             
             if (verx && very) {
-                menuSel = -1
+                menuSel = i
             }
             
             var totVer = (verx && very) || verKeyb
             
-            if (drawButtonWithText(mx, by, actionMenuActions[i].text, mw + 2, (actionMenuActions[i].fg || opsColsFg)[totVer], (actionMenuActions[i].bg || opsColsBg)[totVer], 0)) {
+            if (drawButtonWithText(mx, by, actionMenuActions[i].text, mw + 2, (actionMenuActions[i].fg || opsColsFg)[totVer], (actionMenuActions[i].bg || opsColsBg)[totVer], i)) {
                 /*actionMenuShown = false
                 lastClick = [-1, -1]
                 

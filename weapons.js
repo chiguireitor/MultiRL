@@ -47,6 +47,7 @@ var soundManager = require('./soundman.js').getManager()
 var gameDefs = require('./conf/gamedefs.js')
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var effects = require('./effects.js')
+var util = require('./util.js')
 var passable
 var level
 
@@ -954,9 +955,7 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                     pushPlayerMessage("You hit a " + (tgt.item.name || tgt.item.ammoType) + " with " + dmg + " damage")
                                 }
                             } else if (typeof(tgt.tileHealth) != "undefined") {
-                                processTileHealth(tgt, dmg, level, tx, ty)
-                                
-                                tgt.tileHealth = tgt.tileHealth - dmg
+                                util.processTileHealth(tgt, dmg, level, tx, ty)
                                 
                                 /*if (tgt.tileHealth <= 0) {
                                     delete tgt.tileHealth

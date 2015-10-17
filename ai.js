@@ -178,8 +178,8 @@ var AI = function(params) {
                 for (var sb=0; sb < cnt; sb++) {
                     particles.Singleton().spawnParticle(
                         agent.pos.x, agent.pos.y, 
-                        agent.pos.x + Math.round(Math.random() * 7 - 3),
-                        agent.pos.y + Math.round(Math.random() * 7 - 3), 1, bloodSplats[Math.floor(Math.random() * bloodSplats.length)], 
+                        agent.pos.x + Math.round(Math.random() * 7 - 3.5),
+                        agent.pos.y + Math.round(Math.random() * 7 - 3.5), 1, bloodSplats[Math.floor(Math.random() * bloodSplats.length)], 
                         "blood",  
                         "instant", undefined, Math.round((Math.random() * 100) + 100), undefined)
                 }

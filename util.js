@@ -42,9 +42,11 @@
  *
  */
  
- var gameDefs = require('./conf/gamedefs.js')
- var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
- var effects = require('./effects.js')
+var gameDefs = require('./conf/gamedefs.js')
+var particles = require('./particles.js')
+var soundManager = require('./soundman.js').getManager()
+var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
+var effects = require('./effects.js')
 
 function sign(n) {
     if (n == 0) {
@@ -187,6 +189,20 @@ function processKnockback(agent, level, passableFn) {
                 
                 if (gameDefs.knockbackStaticDestroy <= agent.knockback.amount) {
                     level[agent.pos.y][agent.pos.x].character = null
+                    
+                    // Spawn some particles and crushing sounds based on the kind of tile that was here
+                    var debris = "+{;,:.}^\"'"
+                    var cnt = Math.floor(Math.random() * 5 + 3)
+                    
+                    for (var i=0; i < cnt; i++) {
+                        var tx = Math.min(Math.max(0, x + Math.round(Math.random() * 7 - 3.5) - dx), level[y].length)
+                        var ty = Math.min(Math.max(0, y + Math.round(Math.random() * 7 - 3.5) - dy), level.length)
+                        
+                        particles.Singleton().spawnParticle(
+                            x, y, tx, ty, 1, debris[Math.floor(Math.random() * debris.length)], 
+                            "debris", "instant", undefined, Math.floor(Math.random() * 500) + 500)
+                    }
+                    soundManager.addSound(x, y, 10, "debris", 0)
                 
                     agent.pos.x = x
                     agent.pos.y = y

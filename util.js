@@ -47,6 +47,7 @@ var particles = require('./particles.js')
 var soundManager = require('./soundman.js').getManager()
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var effects = require('./effects.js')
+var generator
 
 function sign(n) {
     if (n == 0) {
@@ -76,7 +77,7 @@ function dropInventory(agent, level, passableFn, index) {
             if (typeof(probability) == "undefined") {
                 probability = -3
             }
-            var fitted = Math.random() < probability
+            var fitted = generator.random() < probability
             
             if (!fitted) {
                 var tryDeltas = deltasSquare(-1, -1, 1, 1)
@@ -192,15 +193,15 @@ function processKnockback(agent, level, passableFn) {
                     
                     // Spawn some particles and crushing sounds based on the kind of tile that was here
                     var debris = "+{;,:.}^\"'"
-                    var cnt = Math.floor(Math.random() * 5 + 3)
+                    var cnt = Math.floor(generator.random() * 5 + 3)
                     
                     for (var i=0; i < cnt; i++) {
-                        var tx = Math.min(Math.max(0, x + Math.round(Math.random() * 7 - 3.5) - dx), level[y].length)
-                        var ty = Math.min(Math.max(0, y + Math.round(Math.random() * 7 - 3.5) - dy), level.length)
+                        var tx = Math.min(Math.max(0, x + Math.round(generator.random() * 7 - 3.5) - dx), level[y].length)
+                        var ty = Math.min(Math.max(0, y + Math.round(generator.random() * 7 - 3.5) - dy), level.length)
                         
                         particles.Singleton().spawnParticle(
-                            x, y, tx, ty, 1, debris[Math.floor(Math.random() * debris.length)], 
-                            "debris", "instant", undefined, Math.floor(Math.random() * 500) + 500)
+                            x, y, tx, ty, 1, debris[Math.floor(generator.random() * debris.length)], 
+                            "debris", "instant", undefined, Math.floor(generator.random() * 500) + 500)
                     }
                     soundManager.addSound(x, y, 10, "debris", 0)
                 
@@ -223,7 +224,65 @@ function processKnockback(agent, level, passableFn) {
     }
  }
  
- function processSemiturn(params) {
+function trySurroundMeleeDamage(cx, cy, c, level, inflictMeleeDamage) {
+    for (var i=-1; i < 2; i++) {
+        var ty = cy + i
+        
+        if ((ty >= 0) && (ty < level.length) && (ty != cy)) {
+            for (var j=-1; j < 2; j++) {
+                var tx = cx + j
+                
+                if ((tx >= 0) && (tx < level[0].length) && (tx != cx)) {
+                    var dt = level[ty][tx]
+                            
+                    if (dt.character) {
+                        inflictMeleeDamage(c, dt.character)
+                    }
+                }
+            }
+        }
+    }
+}
+
+function pushCharacterToRandomPassableSpot(level, generator, x, y) {
+    var availableSpots = []
+    
+    for (var i=-1; i < 2; i++) {
+        var ty = y + i
+        
+        if ((ty >= 0) && (ty < level.length) && (ty != y)) {
+            for (var j=-1; j < 2; j++) {
+                var tx = x + j
+                
+                if ((tx >= 0) && (tx < level[0].length) && (tx != x)) {
+                    var dt = level[ty][tx]
+                            
+                    if ((typeof(dt.character) == "undefined") || (dt.character == null)) {
+                        availableSpots.push([tx, ty])
+                    }
+                }
+            }
+        }
+    }
+    
+    if (availableSpots.length > 0) {
+        var otile = level[y][x]
+        var spot = availableSpots[generator.randomInt(availableSpots.length)]
+        var dtile = level[spot[1]][spot[0]]
+        
+        dtile.character = otile.character
+        otile.character = null
+        
+        dtile.character.pos.x = spot[0]
+        dtile.character.pos.y = spot[1]
+        
+        return true
+    } else {
+        return false
+    }
+}
+
+function processSemiturn(params) {
     var cli = params.agent
     var level = params.level
     var passable = params.passable
@@ -233,14 +292,29 @@ function processKnockback(agent, level, passableFn) {
     var inflictMeleeDamage = params.inflictMeleeDamage
     var usableTiles = params.usableTiles
     var activable = params.activable
+    var generator = params.generator
     
     processKnockback(cli.player, level, passable)
     var somethingHappened = false
-            
+
     if (cli.wait > 0) {
         cli.wait--
         cli.couldMove = false
     } else {
+        if (typeof(cli.player.resistance) !== "undefined") {
+            cli.player.resistance /= 2
+        }
+        
+        if (cli.player.player_class == 'spy') {
+            // The spy has a passive ability that cloaks it
+            // The cloaked attribute is the squared radius of the max distance to detection
+            cli.player.cloaked = (100.0 - Math.max(0, Math.min(100, cli.player.attrs.suPow)))/0.3
+        } else if (cli.player.player_class == 'medic') {
+            // The medic regenerates some HP each turn depending on the super power
+            cli.player.attrs.hp.pos = Math.min(cli.player.attrs.hp.max, cli.player.attrs.hp.pos + Math.round(Math.max(0, Math.min(100, cli.player.attrs.suPow))/ 25.0))
+            cli.player.resistance += Math.round(Math.max(0, Math.min(100, cli.player.attrs.suPow)) / 20.0)
+        }
+        
         cli.couldMove = true
         
         if (cli.player.attrs.suPow > 0) {
@@ -282,12 +356,19 @@ function processKnockback(agent, level, passableFn) {
                     canJumpTrample = true
                 }
                 
+                var jtItersMultiplier = 1
                 if (canJumpTrample && (typeof(cli.special_movement) != "undefined") && cli.special_movement) {
                     jumpTrample = true
                     cli.special_movement = false
                     
                     if (!cli.player.attrs.agile) {
                         cli.wait *= 2
+                    }
+                    
+                    if (cli.player.player_class == 'swords') {
+                        jtItersMultiplier = 1 + Math.max(0, Math.min(100, cli.player.attrs.suPow) / 20.0)
+                    } else if (cli.player.player_class == 'melee') {
+                        jtItersMultiplier = 1 + Math.max(0, Math.min(100, cli.player.attrs.suPow) / 40.0)
                     }
                 }
                 
@@ -298,13 +379,24 @@ function processKnockback(agent, level, passableFn) {
                 dx = sign(dx)
                 dy = sign(dy)
                 
-                var jtIters = jumpTrample?2:1
+                var jtIters = Math.floor((jumpTrample?2:1)*jtItersMultiplier)
                 var jumped = false
                 
                 for (var jt=0; jt < jtIters; jt++) {
                     var nx = cli.player.pos.x + dx
                     var ny = cli.player.pos.y + dy
                     level[cli.player.pos.y][cli.player.pos.x].character = null
+                    
+                    if (jumped) {
+                        var dsgn = 1
+                        if (generator.eventOccurs(0.5)) {
+                            dsgn = -1
+                        }
+                        particles.Singleton().spawnParticle(
+                            cli.player.pos.x + dy * dsgn, cli.player.pos.y - dx * dsgn, 
+                            cli.player.pos.x - dy * 2 * dsgn, cli.player.pos.y + dx * 2 * dsgn, 1, "@", 
+                            "player-shadow", "instant", undefined, Math.floor(generator.random() * 250) + 50 + jt * 50)
+                    }
                     
                     var didMove = false
                     if ((ny >= 0) && (ny < level.length) &&
@@ -316,34 +408,42 @@ function processKnockback(agent, level, passableFn) {
                             cli.player.pos.y += dy
                             didMove = true
                             jumped = jumpTrample
+                            
+                            if ((cli.player.player_class == 'swords') && (cli.player.weapon && cli.player.weapon.melee) && jumped) {
+                                trySurroundMeleeDamage(cli.player.pos.x, cli.player.pos.y, cli.player, level, inflictMeleeDamage)
+                            }
                         } else if (p == 2) {
                             // Check to see if we can melee attack the character
                             var dt = level[cli.player.pos.y + dy][cli.player.pos.x + dx]
                             
                             if (dt.character) {
-                                inflictMeleeDamage(cli, dt.character)
-                                if (jumped) {
-                                    if (dt.character.knockback) {
-                                        dt.character.knockback += 2
-                                    } else {
-                                        dt.character.knockback = {
-                                            ox: cli.player.pos.x,
-                                            oy: cli.player.pos.y,
-                                            amount: 2
+                                if (dt.character.attrs.hp.pos <= 0) {
+                                    pushCharacterToRandomPassableSpot(level, generator, cli.player.pos.x + dx, cli.player.pos.y + dy)
+                                } else {
+                                    inflictMeleeDamage(cli, dt.character)
+                                    if (jumped) {
+                                        if (dt.character.knockback) {
+                                            dt.character.knockback += 2
+                                        } else {
+                                            dt.character.knockback = {
+                                                ox: cli.player.pos.x,
+                                                oy: cli.player.pos.y,
+                                                amount: 2
+                                            }
                                         }
-                                    }
-                                    dt.character.wait += 20
-                                } else if (jumpTrample) {
-                                    if (dt.character.knockback) {
-                                        dt.character.knockback += 1
-                                    } else {
-                                        dt.character.knockback = {
-                                            ox: cli.player.pos.x,
-                                            oy: cli.player.pos.y,
-                                            amount: 1
+                                        dt.character.wait += 20
+                                    } else if (jumpTrample) {
+                                        if (dt.character.knockback) {
+                                            dt.character.knockback += 1
+                                        } else {
+                                            dt.character.knockback = {
+                                                ox: cli.player.pos.x,
+                                                oy: cli.player.pos.y,
+                                                amount: 1
+                                            }
                                         }
+                                        dt.character.wait += 10
                                     }
-                                    dt.character.wait += 10
                                 }
                             }
                         } else if (activable(level[cli.player.pos.y + dy][cli.player.pos.x + dx])) {
@@ -372,7 +472,7 @@ function processKnockback(agent, level, passableFn) {
                                     dh_pass = false
                                 } else {
                                     // Both movements are equal, pick at random
-                                    if (Math.random() < 0.5) {
+                                    if (generator.random() < 0.5) {
                                         dh_pass = false
                                     } else {
                                         dv_pass = false
@@ -582,6 +682,10 @@ function processTileHealth(tile, dmg, level, tx, ty) {
     }
 }
 
+function registerGenerator(gen) {
+    generator = gen
+}
+
 module.exports = {
     dropInventory: dropInventory,
     processKnockback: processKnockback,
@@ -590,5 +694,6 @@ module.exports = {
     processSemiturn: processSemiturn,
     watchableStat: watchableStat,
     processTileHealth: processTileHealth,
-    sign: sign
+    sign: sign,
+    registerGenerator: registerGenerator
 }

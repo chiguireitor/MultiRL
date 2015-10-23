@@ -494,6 +494,7 @@ var colorMap = {
     "good-weapon": {"color": "FFEB69", "cycle": "DEC628", "msscale": 1000},
     "standard-weapon": {"color": "28DE9E", "cycle": "15BD82", "msscale": 1000},
     "dangerous-weapon": {"color": "D86000", "cycle": "804000", "msscale": 1000},
+    "player-shadow": {"color": "0000AA", "cycle": "000044", "msscale": 1000},
     
     "health-powerup": {"color": "FF6688"},
     "armor-powerup": {"color": "FFFF66"},
@@ -2255,32 +2256,61 @@ function updateAttrs() {
         drawAsciiText(displaySizeX + 2, y + 13, "Weapon", [0, 255, 0], [0, 0, 0])
         drawAsciiText(displaySizeX + 2, y + 15, currentWeapon.name, [0, 255, 0], [0, 0, 0])
         
-        var bgColor = firingPrimary?[128, 128, 0]:[0, 0, 0]
-        drawAsciiText(displaySizeX + 2, y + 16, padR(currentWeapon.ammoType, 30), [0, 255, 0], bgColor)
-        var ammoStr = "Ammo " + pad(currentWeapon.ammo, 3) + "/" + currentWeapon.ammoMax
-        drawAsciiText(displaySizeX + 2, y + 17, padR(ammoStr, 30), [0, 255, 0], bgColor)
-        drawConsoleBar(displaySizeX + 15, y + 17, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax)
-        drawAsciiText(displaySizeX + 2, y + 18, "Dmg. " + currentWeapon.damage[0] + " - " + currentWeapon.damage[1], [0, 255, 0], [0, 0, 0])
+        var ntxtPy = y + 16
+        
+        if (typeof(currentWeapon.ammoType) !== "undefined") {
+            var bgColor = firingPrimary?[128, 128, 0]:[0, 0, 0]
+            drawAsciiText(displaySizeX + 2, ntxtPy, padR(currentWeapon.ammoType, 30), [0, 255, 0], bgColor)
+            ntxtPy++
+        }
+        
+        if (currentWeapon.ammoMax !== 0) {
+            var ammoStr = "Ammo " + pad(currentWeapon.ammo, 3) + "/" + currentWeapon.ammoMax
+            drawAsciiText(displaySizeX + 2, y + 17, padR(ammoStr, 30), [0, 255, 0], bgColor)
+            drawConsoleBar(displaySizeX + 15, ntxtPy, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax)
+            ntxtPy++
+        }
+            
+        drawAsciiText(displaySizeX + 2, ntxtPy, "Dmg. " + currentWeapon.damage[0] + " - " + currentWeapon.damage[1], [0, 255, 0], [0, 0, 0])
+        ntxtPy++
         
 		if (currentWeapon.alternate) {
-            bgColor = firingAlternate?[128, 128, 0]:[0, 0, 0]
-			drawAsciiText(displaySizeX + 2, y + 19, padR(currentWeapon.alternate.ammoType, 30), [0, 255, 128], bgColor)
-            ammoStr = "Ammo " + pad(currentWeapon.alternate.ammo, 3) + "/" + currentWeapon.alternate.ammoMax
-			drawAsciiText(displaySizeX + 2, y + 20, padR(ammoStr, 30), [0, 255, 128], bgColor)
-			drawConsoleBar(displaySizeX + 15, y + 20, 10, 1, currentWeapon.alternate.ammo / currentWeapon.alternate.ammoMax)
+            if (typeof(currentWeapon.alternate.ammoType) !== "undefined") {
+                bgColor = firingAlternate?[128, 128, 0]:[0, 0, 0]
+                drawAsciiText(displaySizeX + 2, ntxtPy, padR(currentWeapon.alternate.ammoType, 30), [0, 255, 128], bgColor)
+                ntxtPy++
+            }
+            
+            if (currentWeapon.alternate.ammoMax !== 0) {
+                ammoStr = "Ammo " + pad(currentWeapon.alternate.ammo, 3) + "/" + currentWeapon.alternate.ammoMax
+                drawAsciiText(displaySizeX + 2, y + 20, padR(ammoStr, 30), [0, 255, 128], bgColor)
+                drawConsoleBar(displaySizeX + 15, ntxtPy, 10, 1, currentWeapon.alternate.ammo / currentWeapon.alternate.ammoMax)
+                ntxtPy++
+            }
 		}
 		
-        if (!(currentWeapon.id in weaponSprites)) {
-            weaponSprites[currentWeapon.id] = undefined
+        if (!((currentWeapon.id in weaponSprites) || (currentWeapon.name in weaponSprites))) {
             
             var f = function(weap) {
                 loadGenXpSprite(pruneWeaponName(weap), function(sp) { 
 					weaponSprites[weap] = sp 
 				})
             }
-            f(currentWeapon.id)
+            var n = currentWeapon.id
+            if (n == "------") {
+                loadXpSprite(pruneWeaponName(currentWeapon.name.toLowerCase()), (function(nm) {
+                        return function(sp) { weaponSprites[nm] = sp }
+                    })(currentWeapon.name))
+            } else {
+                weaponSprites[currentWeapon.id] = undefined
+                f(currentWeapon.id)
+            }
         } else if (weaponSprites[currentWeapon.id]) {
             var spr = weaponSprites[currentWeapon.id]
+            
+            drawRexSprite(displaySizeX + 2, y + ((!currentWeapon.alternate)?20:21), spr)
+        } else if (currentWeapon.name in weaponSprites) {
+            var spr = weaponSprites[currentWeapon.name]
             
             drawRexSprite(displaySizeX + 2, y + ((!currentWeapon.alternate)?20:21), spr)
         }
@@ -2485,6 +2515,7 @@ var handlers = {
             for (var i=0; i < obj.snds.length; i++) {
                 var snd = obj.snds[i]
                 
+                console.log(snd.s)
                 createjs.Sound.play(snd.s, {
                     volume: snd.v/128.0,
                     pan: snd.p/128.0,
@@ -3238,6 +3269,9 @@ $(document).ready(function () {
     createjs.Sound.registerSound("./sounds/plasmaRifle.wav", "plasmaRifle")
     createjs.Sound.registerSound("./sounds/plasmaLauncher.wav", "plasmaLauncher")
     createjs.Sound.registerSound("./sounds/plasmaGatling.wav", "plasmaGatling")
+    
+    createjs.Sound.registerSound("./sounds/sword.wav", "sword")
+    createjs.Sound.registerSound("./sounds/hammer.wav", "hammer")
     
     createjs.Sound.on("fileload", function() {
         setupMusic()

@@ -78,7 +78,7 @@ SoundManager.prototype.collectSounds = function(x, y) {
         if (d2 <= snd.r2) {
             col.push({
                 v: Math.floor((1.0 - d2 / snd.r2) * 128),
-                p: Math.floor((dx * (1.0 + (Math.random()*0.2 - 0.1))) / snd.r * 128),
+                p: Math.floor((dx * (1.0 + (Math.random()*0.2 - 0.1))) / snd.r * 128), // This needs to be determinist?
                 s: snd.s,
                 d: snd.d
             })

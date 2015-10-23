@@ -62,6 +62,7 @@ var monsters = require('./monsters.js')
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var effects = require('./effects.js')
 var soundManager = require('./soundman.js').getManager()
+var determinist = require('./determinist.js')
 
 var util = require('./util.js')
 
@@ -102,6 +103,7 @@ var level = []
 var levelTileset = ""
 var aiState
 var lastTurnTime = 0 // Date.now() of the last turn that was completed
+var sessionRandom
 
 function grab(c, itm) {
     var pickedUp = false
@@ -196,7 +198,7 @@ function tryToUnloadInventory(ws, index) {
         if (item.type == "weapon") {
             // TODO: Check if there's space to unload the friggen weapon
             if (ws.player.inventory.length < gameDefs.maxInventoryItems) {
-                if (Math.random() > gameDefs.jamOnUnloadProbability) {
+                if (!sessionRandom.eventOccurs(gameDefs.jamOnUnloadProbability)) {
                     // Create a charger, assign the amount of armor and add it to the inventory
                     // TODO: Create the charger mofo
                     
@@ -253,52 +255,54 @@ function tryToInspectInventory(ws, index) {
  * Functions must have the prototype function(tile, client)
  */
 var poolSpawnEventConstructor = function(pix, radiusmax, cssClass, specialCellAttrs) {
-    return function (t, c) {
-        var radius = Math.ceil(Math.random() * radiusmax) + 1
-        var r2 = radius * radius
-        var rndr = r2 / 3
+    return function() { // Yeah, we're nesting two function returns here... yay functional design
+        var radius = Math.ceil(sessionRandom.child('events').random() * radiusmax) + 1
+        var poolGen = sessionRandom.child()
         
-        var particle = "a"
-        if ("aeiouAEIOU".indexOf(cssClass[0]) >= 0) {
-            particle = "an"
-        }
-        
-        c.player.messages.push("You spawn " + particle + " " + cssClass + " pool")
-        for (var y=-radius; y < radius; y++) {
-            var ty = c.player.pos.y + y
-            if ((ty > 0)&&(ty < level.length-1)) {
-                var row = level[ty]
-                
-                for (var x=-radius; x < radius; x++) {
-                    var tx = c.player.pos.x + x
+        return function (t, c) {
+            
+            var r2 = radius * radius
+            var rndr = r2 / 3
+            
+            var particle = "a"
+            if ("aeiouAEIOU".indexOf(cssClass[0]) >= 0) {
+                particle = "an"
+            }
+            
+            c.player.messages.push("You spawn " + particle + " " + cssClass + " pool")
+            for (var y=-radius; y < radius; y++) {
+                var ty = c.player.pos.y + y
+                if ((ty > 0)&&(ty < level.length-1)) {
+                    var row = level[ty]
                     
-                    if ((tx > 0)&&(tx < row.length-1)) {
-                        var d2 = (x*x + y*y)
-                        d2 = d2 + (Math.random() * rndr - rndr/2)
-                        if (d2 < r2) {
-                            row[tx].tile = pix
-                            row[tx].cssClass = cssClass
-                            
-                            for (var n in specialCellAttrs) {
-                                row[tx][n] = specialCellAttrs[n]
+                    for (var x=-radius; x < radius; x++) {
+                        var tx = c.player.pos.x + x
+                        
+                        if ((tx > 0)&&(tx < row.length-1)) {
+                            var d2 = (x*x + y*y)
+                            d2 = d2 + (poolGen.random() * rndr - rndr/2)
+                            if (d2 < r2) {
+                                row[tx].tile = pix
+                                row[tx].cssClass = cssClass
+                                
+                                for (var n in specialCellAttrs) {
+                                    row[tx][n] = specialCellAttrs[n]
+                                }
                             }
                         }
                     }
                 }
             }
+            
+            return true
         }
-        
-        return true
     }
 }
- 
-var leverEvents = [
-    poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "lava", {damage: gameDefs.lavaDamage}),
-    poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "acid", {damage: gameDefs.acidDamage}),
-    poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "plasma", {damage: gameDefs.plasmaDamage}),
-    poolSpawnEventConstructor(asciiMapping["~"], gameDefs.spawnPoolMaxRadius, "water"),
-    function (t, c) {
-        var radius = Math.round(Math.random()*5 + 10)
+
+function wallExplosionEventConstructor() {
+    var radius = Math.round(sessionRandom.child('events').random()*5 + 10)
+    
+    return function (t, c) {
         var r2 = radius * radius
         c.player.messages.push("The walls explode around you")
         for (var y=-radius; y < radius; y++) {
@@ -322,11 +326,15 @@ var leverEvents = [
             }
         }
         return true
-    },
-    function (t, c) {
-        var radius = Math.round(Math.random()*10 + 5)
+    }
+}
+
+function monsterSpawnEventConstructor() {
+    var radius = Math.round(sessionRandom.child('events').random()*10 + 5)
+    var prob = sessionRandom.child('events').random()*0.85
+    var monstaGen = sessionRandom.child()
+    return function (t, c) {
         var r2 = radius * radius
-        var prob = Math.random()*0.85
         var mn = 1
         for (var y=-radius; y < radius; y++) {
             var ty = c.player.pos.y + y
@@ -339,8 +347,8 @@ var leverEvents = [
                     if ((tx > 0)&&(tx < row.length-1)) {
                         if ((x*x + y*y) < r2) {
                         
-                            if ((passable(row[tx])==1) && (Math.random() < prob)) {
-                                monsters.Monsta(aiState, 'Monsta ' + mn, tx, ty)
+                            if ((passable(row[tx])==1) && (monstaGen.random() < prob)) {
+                                monsters.spawners.Monsta(aiState, 'Monsta ' + mn, tx, ty)
                                 mn++
                             }
                         }
@@ -352,17 +360,54 @@ var leverEvents = [
         c.player.messages.push("A horde of monsters spawn around you!")
         
         return true
-    },
-    function (t, c) {
-        if (c.player.attrs.hp.pos < c.player.attrs.hp.max) {
-            c.player.messages.push("You feel restored!")
-            c.player.attrs.hp.pos = Math.min(c.player.attrs.hp.pos + 50, c.player.attrs.hp.max)
-        } else {
-            c.player.messages.push("Health station: No need to heal")
-            return false
-        }
     }
-]
+}
+
+function blinkEventConstructor() {
+    var pickGen = sessionRandom.child()
+    
+    return function (t, c) {
+        var freeTile = false
+        var x = c.player.pos.x
+        var y = c.player.pos.y
+        
+        while (!freeTile) {
+            x = pickGen.randomInt(level[0].length)
+            y = pickGen.randomInt(level.length)
+            
+            freeTile = passable(level[y][x], true) == 1
+        }
+        
+        c.player.pos.x = x
+        c.player.pos.y = y
+        t.character = null
+        level[y][x].character = c
+        c.player.messages.push("You get yanked to another place")
+        
+        return true
+    }
+}
+
+var leverEvents = [
+        poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "lava", {damage: gameDefs.lavaDamage}),
+        poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "acid", {damage: gameDefs.acidDamage}),
+        poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "plasma", {damage: gameDefs.plasmaDamage}),
+        poolSpawnEventConstructor(asciiMapping["~"], gameDefs.spawnPoolMaxRadius, "water"),
+        wallExplosionEventConstructor,
+        monsterSpawnEventConstructor,
+        function () {
+            return function (t, c) {
+                if (c.player.attrs.hp.pos < c.player.attrs.hp.max) {
+                    c.player.messages.push("You feel restored!")
+                    c.player.attrs.hp.pos = Math.min(c.player.attrs.hp.pos + 50, c.player.attrs.hp.max)
+                } else {
+                    c.player.messages.push("Health station: No need to heal")
+                    return false
+                }
+            }
+        },
+        blinkEventConstructor
+    ]
 
 /**
  * This functions decorates "fn" marking it as a valid function that can be invoked by the client
@@ -400,29 +445,29 @@ var handlers = { // These are the RPC handlers that the client can invoke
                                 if (deathType == "lava") {
                                     wss.broadcast(JSON.stringify({type: 'player_died', username: this.username, reason: 'lava'}))
                                     spawnGibs(this.pos.x, this.pos.y, this.pix,
-                                        Math.round(Math.random() * 2), 2, "#A84", "#862", this.gibs)
+                                        Math.round(sessionRandom.child('misc').random() * 2), 2, "#A84", "#862", this.gibs)
                                 } else if (deathType == "acid") {
                                     wss.broadcast(JSON.stringify({type: 'player_died', username: this.username, reason: 'acid'}))
                                     spawnGibs(this.pos.x, this.pos.y, this.pix,
-                                        Math.round(Math.random() * 2), 2, "#4A4", "#272", this.gibs)
+                                        Math.round(sessionRandom.child('misc').random() * 2), 2, "#4A4", "#272", this.gibs)
                                 } else if (deathType == "ammo-9mm") {
                                     wss.broadcast(JSON.stringify({type: 'player_died', username: this.username, reason: '9mm'}))
                                     spawnGibs(this.pos.x, this.pos.y, this.pix,
-                                        Math.round(Math.random() * 2), 2, "#A00", "#600", this.gibs)
+                                        Math.round(sessionRandom.child('misc').random() * 2), 2, "#A00", "#600", this.gibs)
                                 } else if (deathType == "ammo-12ga.") {
                                     wss.broadcast(JSON.stringify({type: 'player_died', username: this.username, reason: '12ga'}))
                                     spawnGibs(this.pos.x, this.pos.y, this.pix,
-                                        Math.round(Math.random() * 6), 2, "#A00", "#600", this.gibs)
+                                        Math.round(sessionRandom.child('misc').random() * 6), 2, "#A00", "#600", this.gibs)
                                 } else {
                                     wss.broadcast(JSON.stringify({type: 'player_died', username: this.username, reason: deathType}))
                                     console.log('Unhandled player death type: ' + deathType)
                                     spawnGibs(this.pos.x, this.pos.y, this.pix,
-                                        Math.round(Math.random() * 6), Math.ceil(-this.attrs.hp.pos/5), "#A00", "#600", this.gibs)
+                                        Math.round(sessionRandom.child('misc').random() * 6), Math.ceil(-this.attrs.hp.pos/5), "#A00", "#600", this.gibs)
                                 }
                             } else {
                                 wss.broadcast(JSON.stringify({type: 'player_died', username: this.username}))
                                 spawnGibs(this.pos.x, this.pos.y, this.pix,
-                                    Math.round(Math.random() * 4), 3, "#A00", "#600", this.gibs)
+                                    Math.round(sessionRandom.child('misc').random() * 4), 3, "#A00", "#600", this.gibs)
                             }
                         } else if (amnt > 0) {
                             this.damaged = true
@@ -432,7 +477,8 @@ var handlers = { // These are the RPC handlers that the client can invoke
                     strength: {pos: 0, max: 100},
                     precision: {pos: 0, max: 100},
                     speed: {pos: 0, max: 100},
-                    wait: 0
+                    wait: 0,
+                    kind: "organic"
                 },
                 weapon: null,
                 inventory: [],
@@ -673,9 +719,9 @@ function initObjects() {
     }
 
     usableTiles[asciiMapping['↑']] = function(t, c) {
+        c.player.messages.push("You pull down the lever")
         if (t.linkedEvent(t, c)) {
             t.tile = asciiMapping['↓']
-            c.player.messages.push("You pull down the lever")
             soundManager.addSound(c.player.pos.x, c.player.pos.y, 15, "switch", 0)
         }
     }
@@ -694,8 +740,8 @@ var enemyTypes = []
 function spawnRandomEnemy() {
     if (!enemyTally) {
         enemyTally = {}
-        for (x in monsters) {
-            if (monsters.hasOwnProperty(x)) {
+        for (x in monsters.spawners) {
+            if (monsters.spawners.hasOwnProperty(x)) {
                 enemyTally[x] = 0
                 enemyTypes.push(x)
             }
@@ -703,13 +749,14 @@ function spawnRandomEnemy() {
     }
     
     var spawned = false
+    var monsterGen = sessionRandom.child('level').child('monsters')
     while (!spawned) {
-        var tx = Math.floor(Math.random()*(level[0].length - 2) + 1)
-        var ty = Math.floor(Math.random()*(level.length - 2) + 1)
+        var tx = Math.floor(monsterGen.random()*(level[0].length - 2) + 1)
+        var ty = Math.floor(monsterGen.random()*(level.length - 2) + 1)
         if (passable(level[ty][tx])) {
-            var type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)]
+            var type = enemyTypes[Math.floor(monsterGen.random() * enemyTypes.length)]
             
-            monsters[type](aiState, type + ' Nº' + enemyTally[type], tx, ty)
+            monsters.spawners[type](aiState, type + ' Nº' + enemyTally[type], tx, ty)
             spawned = true
             enemyTally[type]++
         }
@@ -750,6 +797,8 @@ function applyPlayerClassBonusesAndPenalties(player) {
         player.attrs.speed.pos = 50
         player.attrs.speed.max = 200
         player.attrs.agile = true
+        defaultWeapon = "Katana"
+        defaultCharger = false
     } else if (player.player_class == 'melee') {
         player.attrs.armor.pos = 60
         player.attrs.armor.max = 200
@@ -860,23 +909,38 @@ function applyPlayerClassBonusesAndPenalties(player) {
 		player.weapon = weapon
 	} else {
 		var weapon = items.searchWeaponByName(defaultWeapon).clone()
-		var chargerOrig = items.searchAmmoType(defaultCharger)
-		weapon.assignCharger(chargerOrig.clone())
-		for (var i=0; i < spareChargerCount; i++) {
-			player.inventory.push(chargerOrig.clone())
-		}
+        
+        if (defaultCharger) {
+            var chargerOrig = items.searchAmmoType(defaultCharger)
+            weapon.assignCharger(chargerOrig.clone())
+            for (var i=0; i < spareChargerCount; i++) {
+                player.inventory.push(chargerOrig.clone())
+            }
+        }
 		player.weapon = weapon
 	}
 }
 
-function init() {
+function init(session) {
     var w = gameDefs.level.width
     var h = gameDefs.level.height
+    sessionRandom = new determinist.IdRandomizer(session /*|| "0ed385e0bf8dbba5"*/)
+    sessionRandom.reserve(['level-session', 'level', 'items', 'particles', 'weapons', 'ai', 'monsters', 'effects', 'player', 'util', 'misc'])
+    sessionRandom.child('level').reserve(['item-placement', 'river-placement', 'lever-placement', 'sprite-placement', 'start-placement', 'monsters', 'items'])
+    
+    console.log("Session: " + ("" + sessionRandom.id).yellow)
+    
     particleManager = particles.Singleton(w, h)
+    
     initObjects()
     
     weapons.registerPassableFn(passable)
     weapons.registerLevel(level)
+    weapons.registerGenerator(sessionRandom.child('weapons'))
+    util.registerGenerator(sessionRandom.child('util'))
+    effects.registerGenerator(sessionRandom.child('effects'))
+    items.registerGenerator(sessionRandom.child('level').child('items'))
+    monsters.registerGenerator(sessionRandom.child('level').child('monsters'))
     
     resetLevel()
     
@@ -898,10 +962,10 @@ function resetLevel() {
         level.push(row)
     }
 
-    var levelType = Math.floor(Math.random() * 3)
+    var levelType = sessionRandom.child('level-session').randomIntRange(3)
     if (levelType == 0) {
         levelTileset = "base"
-        generators.bspSquares(level, 
+        generators.bspSquares(sessionRandom.child('level'), level, 
             gameDefs.level.minRoomArea,
             gameDefs.level.randomAcceptRoom,
             asciiMapping['.'], asciiMapping['#'], asciiMapping['='],
@@ -909,7 +973,7 @@ function resetLevel() {
             gameDefs.level.roomConvertCaveProbability)
     } else if (levelType == 1) {
         levelTileset = "cave"
-        generators.caveLevel(level, 
+        generators.caveLevel(sessionRandom.child('level'), level, 
             gameDefs.level.minRoomArea,
             gameDefs.level.randomAcceptRoom,
             asciiMapping['.'], asciiMapping['#'], asciiMapping['='],
@@ -917,7 +981,7 @@ function resetLevel() {
             gameDefs.level.roomConvertCaveProbability)
     } else if (levelType == 2) {
         levelTileset = "lava"
-        generators.lavaLevel(level, 
+        generators.lavaLevel(sessionRandom.child('level'), level, 
             gameDefs.level.minRoomArea,
             gameDefs.level.randomAcceptRoom,
             asciiMapping['.'], asciiMapping['#'], asciiMapping['='],
@@ -928,39 +992,46 @@ function resetLevel() {
     console.log("Finished generating level")
     var riverTiles = [[asciiMapping['~'], 'water', null], [asciiMapping['≈'], 'acid', 1], [asciiMapping['≈'], 'lava', 5]]
     
-    var nRivers = Math.random() 
+    var levelGen = sessionRandom.child('level')
+    var riverGen = levelGen.child('river-placement')
+    var leverGen = levelGen.child('lever-placement')
+    var itemGen = levelGen.child('item-placement')
+    var spriteGen = levelGen.child('sprite-placement')
+    var startGen = levelGen.child('start-placement')
+    
+    var nRivers = riverGen.random() 
     nRivers = Math.floor(nRivers * nRivers * gameDefs.level.maxRivers)
     
     for (var i=0; i < nRivers; i++) {
-        var nRiverTile = Math.floor(Math.random() * riverTiles.length)
+        var nRiverTile = Math.floor(riverGen.random() * riverTiles.length)
         generators.river(level, 
-            (Math.random()<0.5)?'horizontal':'vertical', 
+            (riverGen.random()<0.5)?'horizontal':'vertical', 
             riverTiles[nRiverTile][0], 
             riverTiles[nRiverTile][1], 
             asciiMapping['|'], 'wood', 
             riverTiles[nRiverTile][2])
     }
     
-    var numLevers = Math.random()*gameDefs.level.randomLevers + gameDefs.level.minLevers
+    var numLevers = leverGen.random()*gameDefs.level.randomLevers + gameDefs.level.minLevers
     for (var n=0; n < numLevers; n++) {
-        var x0 = Math.floor(Math.random() * (level[0].length - 2) + 1)
-        var y0 = Math.floor(Math.random() * (level.length - 2) + 1)
+        var x0 = Math.floor(leverGen.random() * (level[0].length - 2) + 1)
+        var y0 = Math.floor(leverGen.random() * (level.length - 2) + 1)
         
         var t = level[y0][x0]
         if (passable(t)) {
             t.tile = asciiMapping['↑']
-            t.linkedEvent = leverEvents[Math.floor(Math.random() * leverEvents.length)]
+            t.linkedEvent = leverEvents[Math.floor(leverGen.random() * leverEvents.length)]()
         }
     }
     
-    var numItems = Math.random()*gameDefs.level.randomNumberItems*currentLevel + gameDefs.level.minNumberItems
+    var numItems = itemGen.random()*gameDefs.level.randomNumberItems*currentLevel + gameDefs.level.minNumberItems
     while (numItems > 0) {
-        var x0 = Math.floor(Math.random() * level[0].length)
-        var y0 = Math.floor(Math.random() * level.length)
+        var x0 = Math.floor(itemGen.random() * level[0].length)
+        var y0 = Math.floor(itemGen.random() * level.length)
         
         var t = level[y0][x0]
         if (passable(t)) {
-            t.item = items[Math.floor(Math.random() * items.length)].clone()
+            t.item = items[Math.floor(itemGen.random() * items.length)].clone()
             if (t.item.type == 'weapon') {
                 t.item.findChargerAndAssign(items)
             }
@@ -973,23 +1044,23 @@ function resetLevel() {
     for (x in sprites) { if (!(x in Object.prototype)) { availableSprites.push(sprites[x]) } }
     
     for (var n=0; n < numSprites; n++) {
-        var i = Math.floor(Math.random() * availableSprites.length)
+        var i = Math.floor(spriteGen.random() * availableSprites.length)
         var spr = availableSprites[i]
         
-        var x = Math.floor(Math.random() * (level[0].length-10) + 5)
-        var y = Math.floor(Math.random() * (level.length-10) + 5)
+        var x = Math.floor(spriteGen.random() * (level[0].length-10) + 5)
+        var y = Math.floor(spriteGen.random() * (level.length-10) + 5)
         
         spr.drawIfFree(level, x, y)
     }
     
-    startXPos = Math.floor((Math.random() * 0.25 + 0.15) * w)
-    startYPos = Math.floor((Math.random() * 0.2 + 0.2) * h )
+    startXPos = Math.floor((startGen.random() * 0.25 + 0.15) * w)
+    startYPos = Math.floor((startGen.random() * 0.2 + 0.2) * h )
     
-    if (Math.random() < 0.5) {
+    if (startGen.random() < 0.5) {
         startXPos = w - startXPos
     }
     
-    if (Math.random() < 0.5) {
+    if (startGen.random() < 0.5) {
         startYPos = h - startYPos
     }
     
@@ -997,8 +1068,8 @@ function resetLevel() {
         sprites["deployship"].draw(level, startXPos - 2, startYPos - 5)
         sprites["baseentry"].draw(level, w - (startXPos - 2), h - (startYPos - 5))
     } else {
-        startXPos = Math.floor(Math.random() * (w - 8) + 4)
-        startYPos = Math.floor(Math.random() * (h - 8) + 4)
+        startXPos = Math.floor(startGen.random() * (w - 8) + 4)
+        startYPos = Math.floor(startGen.random() * (h - 8) + 4)
     }
     
     if (aiState) {
@@ -1014,7 +1085,8 @@ function resetLevel() {
             spawnGibs: spawnGibs,
             usableTiles: usableTiles,
             grab: grab,
-            soundManager: soundManager
+            soundManager: soundManager,
+            generator: sessionRandom.child('player')
         })
     }
     
@@ -1081,8 +1153,8 @@ function inflictMeleeDamage(org, chr) {
     if (chr.attrs.hp.pos > 0) {
         if ((typeof(org.weapon) != "undefined") &&
             (typeof(org.weapon.melee) != "undefined") &&
-            (org.weapon.melee)) {
-            org.weapon.doMelee(chr)
+            (org.weapon.melee && org.weapon.doMelee)) {
+            org.weapon.doMelee(chr.pos.x, chr.pos.y, org)
         } else {
             var c_armor
             var c_strength
@@ -1134,7 +1206,12 @@ function inflictMeleeDamage(org, chr) {
                 chr.attrs.hp.onchange.call(chr, "melee", dmg, org)
             }
             
-            soundManager.addSound(chr.pos.x, chr.pos.y, 10, "hit", 0)
+            console.log(org.weapon)
+            if (org.weapon && org.weapon.melee) {
+                soundManager.addSound(chr.pos.x, chr.pos.y, 10, org.weapon.sndOnFire, 0)
+            } else {
+                soundManager.addSound(chr.pos.x, chr.pos.y, 10, "hit", 0)
+            }
         }
     }
 }
@@ -1144,19 +1221,19 @@ function spawnGibs(x, y, pix, n, nmin, colorLight, colorDark, gibs, options) {
         options = {}
     }
     
-    var ndebris = Math.round(Math.random() * n) + nmin
+    var ndebris = Math.round(sessionRandom.child('misc').random() * n) + nmin
     var spread = options.spread || 2
     var spread2 = spread / 2
     
     for (var i=0; i < n; i++) {
-        var dx = Math.round(Math.random()*spread-spread2)
-        var dy = Math.round(Math.random()*spread-spread2)
+        var dx = Math.round(sessionRandom.child('misc').random()*spread-spread2)
+        var dy = Math.round(sessionRandom.child('misc').random()*spread-spread2)
         
         var tx = x+dx
         var ty = y+dy
         
         var gibType = "gib"
-        var gibPix = gibs[Math.floor(Math.random()*gibs.length)]
+        var gibPix = gibs[Math.floor(sessionRandom.child('misc').random()*gibs.length)]
         if (typeof(gibPix.gibType) != "undefined") {
             gibType = gibPix.gibType
             gibPix = gibPix.pix
@@ -1166,7 +1243,7 @@ function spawnGibs(x, y, pix, n, nmin, colorLight, colorDark, gibs, options) {
             (tx >= 0) && (tx < level[ty].length)) {
             level[ty][tx].debris = {
                 pix: gibPix, 
-                color: (Math.random() < 0.5)?colorLight:colorDark,
+                color: (sessionRandom.child('misc').random() < 0.5)?colorLight:colorDark,
                 type: gibType
             }
         }
@@ -1267,7 +1344,8 @@ function _processTurnIfAvailable_priv_() {
                 grab: grab,
                 inflictMeleeDamage: inflictMeleeDamage,
                 usableTiles: usableTiles,
-                activable: activable
+                activable: activable,
+                generator: sessionRandom.child('player')
             })
             somethingHappened |= aiState.process()
         }
@@ -1488,6 +1566,39 @@ function sendScopeToClient(ws) {
 		tfov *= gameDefs.crouchFovMult
 		tfov_sq = tfov * tfov
 	}
+    
+    if (ws.player.player_class == 'sniper') {
+        var suPowFovMult = Math.max(0, Math.min(100, ws.player.attrs.suPow)/60.0) + 1.0
+        
+        tfov *= suPowFovMult
+        tfov_sq = tfov*tfov
+    } else if (ws.player.player_class == 'spy') {
+        var suPowFovMult = Math.max(0, Math.min(100, ws.player.attrs.suPow)/80.0) + 1.0
+        
+        tfov *= suPowFovMult
+        tfov_sq = tfov*tfov
+    }
+    
+    tfov = Math.round(tfov)
+    tfov_sq = Math.round(tfov_sq)
+
+    var clairvoyanceDistSq = 0
+    
+    if (ws.player.player_class == 'psychic') {
+        clairvoyanceDistSq = Math.max(0, Math.min(100, ws.player.attrs.suPow))/0.5
+    }
+
+    var organicSense = 0
+    if (ws.player.player_class == 'psychic') {
+        organicSense = tfov_sq + Math.max(0, Math.min(100, ws.player.attrs.suPow))/0.2
+        tfov = Math.ceil(Math.sqrt(organicSense))
+    }
+    
+    var roboticSense = 0
+    if (ws.player.player_class == 'engy') {
+        roboticSense = tfov_sq + Math.max(0, Math.min(100, ws.player.attrs.suPow))/0.2
+        tfov = Math.ceil(Math.sqrt(roboticSense))
+    }
 	
     var msg = {type: 'pos', pos: {x: ws.player.pos.x - tfov, y: Math.max(0, ws.player.pos.y - tfov)}}
     var scope = []
@@ -1507,11 +1618,17 @@ function sendScopeToClient(ws) {
             dx = dx * dx
             dy = dy * dy
             
-            if ((dx + dy) <= tfov_sq) {
-                // TODO: Verify there's no obstruction first
-                if (traceable(x, y, ws.player.pos.x, ws.player.pos.y)) {
-                    row[x - (ws.player.pos.x - tfov)] = tidyTile(level[y][x])
+            var dd = dx + dy
+            var tile = level[y][x]
+            
+            if (dd <= tfov_sq) {
+                if ((dd <= clairvoyanceDistSq) || traceable(x, y, ws.player.pos.x, ws.player.pos.y)) {
+                    row[x - (ws.player.pos.x - tfov)] = tidyTile(tile)
                 }
+            } else if ((dd <= organicSense) && (typeof(tile.character) !== "undefined") && (tile.character != null) && (tile.character.attrs.kind == "organic")) {
+                row[x - (ws.player.pos.x - tfov)] = tidyTile(tile)
+            } else if ((dd <= roboticSense) && (typeof(tile.character) !== "undefined") && (tile.character != null) && (tile.character.attrs.kind == "robotic")) {
+                row[x - (ws.player.pos.x - tfov)] = tidyTile(tile)
             }
         }
         
@@ -1859,7 +1976,7 @@ wss.on('connection', function(ws) {
         if (typeof(this.player) != "undefined") {
             level[this.player.pos.y][this.player.pos.x].character = null
             spawnGibs(this.player.pos.x, this.player.pos.y, this.player.pix,
-                        Math.round(Math.random() * 4), 3, "#069", "#036", this.player.gibs)
+                        Math.round(sessionRandom.child('misc').random() * 4), 3, "#069", "#036", this.player.gibs)
             wss.broadcast(JSON.stringify({type: 'player_left', username: this.player.username}))
         }
         

@@ -45,8 +45,14 @@
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var items = require('./items.js')
 
+var generator
+
+function registerGenerator(gen) {
+    generator = gen
+}
+
 function Monsta(aiState, name, tx, ty) {
-    var hp = Math.floor(Math.random() * 25 + 5)
+    var hp = Math.floor(generator.random() * 25 + 5)
     var ai = aiState.instantiate(
         tx, ty, name, asciiMapping['m'], '#f60', 
         {
@@ -54,28 +60,29 @@ function Monsta(aiState, name, tx, ty) {
             strength: {pos: 10},
             armor: {pos: 10},
             speed: {pos: 30},
-            precision: {pos: 10}
+            precision: {pos: 10},
+            kind: "organic"
         },
         {},
         [])
         
     var weapons = ["9mm Pistol", "xM3 Shotgun", "Flamethrower", "xM50 Rifle", "H80 RPG Launcher"]
-    var weap = items.searchWeaponByName(weapons[Math.floor(Math.random() * weapons.length)]).clone()
+    var weap = items.searchWeaponByName(weapons[Math.floor(generator.random() * weapons.length)]).clone()
     var chargerOrig = weap.findChargerAndAssign(items)
     weap.assignCharger(chargerOrig.clone())
     
-    var numChrgrs = Math.floor(Math.pow(Math.random(), 2) * 6) + 2
+    var numChrgrs = Math.floor(Math.pow(generator.random(), 2) * 6) + 2
     
     for (var i=0; i < numChrgrs; i++) {
         ai.inventory.push(chargerOrig.clone())
     }
     ai.weapon = weap
     
-    if (Math.random() < 0.2) {
+    if (generator.random() < 0.2) {
         ai.inventory.push(items.itemByName("+10 Health"))
     }
     
-    if (Math.random() < 0.1) {
+    if (generator.random() < 0.1) {
         ai.inventory.push(items.itemByName("+50 Health"))
     }
         
@@ -83,27 +90,29 @@ function Monsta(aiState, name, tx, ty) {
 }
 
 function Drone(aiState, name, tx, ty) {
-    var hp = Math.floor(Math.random() * 5) + 1
+    var hp = Math.floor(generator.random() * 5) + 1
     var ai = aiState.instantiate(tx, ty, name, asciiMapping['d'], '#ff0', 
         {
             hp: {pos: hp, max: hp},
-            strength: {pos: Math.floor(Math.random() * 10)},
-            armor: {pos: Math.floor(Math.random() * 10)},
-            knockbackFactor: 3
+            strength: {pos: Math.floor(generator.random() * 10)},
+            armor: {pos: Math.floor(generator.random() * 10)},
+            knockbackFactor: 3,
+            kind: "robotic"
         },
         {},
         [])
 }
 
 function Tracer(aiState, name, tx, ty) {
-    var hp = Math.floor(Math.random() * 10) + 5
+    var hp = Math.floor(generator.random() * 10) + 5
     var ai = aiState.instantiate(tx, ty, name, asciiMapping['t'], '#f38', 
         {
             hp: {pos: hp, max: hp},
             strength: {pos: 40},
             armor: {pos: 0},
             speed: {pos: 50},
-            knockbackFactor: 0.1
+            knockbackFactor: 0.1,
+            kind: "robotic"
         },
         {},
         [],
@@ -114,8 +123,8 @@ function Tracer(aiState, name, tx, ty) {
                 ret.x = this.tdir.x
                 ret.y = this.tdir.y
             } else {
-                this.ndir = Math.floor(Math.random() * 15) + 5
-                var nm = Math.floor(Math.random() * 8)
+                this.ndir = Math.floor(generator.random() * 15) + 5
+                var nm = Math.floor(generator.random() * 8)
                 var dx = [-1, 0, 1, -1, 1, -1, 0, 1][nm]
                 var dy = [-1, -1, -1, 0, 0, 1, 1, 1][nm]
                 this.tdir = {
@@ -133,7 +142,10 @@ function Tracer(aiState, name, tx, ty) {
 }
 
 module.exports = {
-    Monsta: Monsta,
-    Drone: Drone,
-    Tracer: Tracer
+    spawners: {
+        Monsta: Monsta,
+        Drone: Drone,
+        Tracer: Tracer
+    },
+    registerGenerator: registerGenerator
 }

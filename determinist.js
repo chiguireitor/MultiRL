@@ -49,21 +49,31 @@ var session
 function IdRandomizer(id) {
 	if (!id) {
 		id = session.randomId()
-	}
+	} if (Buffer.isBuffer(id)) {
+        id = id.toString('hex')
+    }
 	this.id = id
 	this.hash = new crypto.createHash(hashAlgo)
 	 
 	this.hash.update(id)
 	this.randBuffer = this.hash.digest()
+    
+    if (this.randBuffer.length != hashBytes) {
+        throw "Hash length different as expected " + this.randBuffer.length
+    }
+    
 	this.availableBytes = hashBytes
 	this.curOffset = 0
+    this.reserved = {}
 }
  
 IdRandomizer.prototype.getBytes = function(n) {
 	if (this.availableBytes < n) {
 		this.hash = new crypto.createHash(hashAlgo)
 		this.hash.update(this.randBuffer)
-		Buffer.concat([this.randBuffer.slice(this.curOffset), this.hash.digest()])
+
+		this.randBuffer = Buffer.concat([this.randBuffer.slice(this.curOffset), this.hash.digest()])
+        
 		this.availableBytes += hashBytes
 		this.curOffset = 0
 	}
@@ -74,18 +84,38 @@ IdRandomizer.prototype.getBytes = function(n) {
 	
 	return res
 }
+
+IdRandomizer.prototype.nextInt32 = function() {
+    return this.getBytes(4).readUInt32LE(0)
+}
  
 IdRandomizer.prototype.random = function() {
-	return (this.getBytes(4).readUInt32LE(0) * 1.0)/0xFFFFFFFF
+	return (this.nextInt32() * 1.0)/0xFFFFFFFF
 }
 
-IdRandomizer.prototype.randomInt = function() {
-	return this.getBytes(4).readUInt32LE(0)
+IdRandomizer.prototype.eventOccurs = function(treshold) {
+	return treshold > ((this.nextInt32() * 1.0)/0xFFFFFFFF)
+}
+
+IdRandomizer.prototype.randomInt = function(a, b) {
+    var udef_a = typeof(a) == "undefined"
+    var udef_b = typeof(b) == "undefined"
+    
+    if (udef_a && udef_b) {
+        return this.nextInt32()
+    } else {
+        return this.randomIntRange(a, b)
+    }
 }
 
 IdRandomizer.prototype.randomIntRange = function(a, b) {
+    if (typeof(b) == "undefined") {
+        b = a
+        a = 0
+    }
+    
 	var d = b-a
-	return (this.getBytes(4).readUInt32LE(0) % d) + a
+	return (this.nextInt32() % d) + a
 }
  
 IdRandomizer.prototype.randomId = function() {
@@ -101,7 +131,27 @@ IdRandomizer.prototype.clone = function() {
 	
 	return newIR
 }
- 
+
+IdRandomizer.prototype.child = function(name) {
+    if (!name) {
+        var newIR = new IdRandomizer(this.getBytes(8))
+        
+        return newIR
+    } else {
+        if (!(name in this.reserved)) {
+            this.reserved[name] = this.child()
+        }
+        
+        return this.reserved[name]
+    }
+}
+
+IdRandomizer.prototype.reserve = function(names) {
+    for (var i=0; i < names.length; i++) {
+        this.reserved[names[i]] = this.child()
+    }
+}
+
 function newSession(id) {
 	if (id) {
 		session = new IdRandomizer(id)

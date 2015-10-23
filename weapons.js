@@ -50,6 +50,7 @@ var effects = require('./effects.js')
 var util = require('./util.js')
 var passable
 var level
+var generator
 
 function rayhit(x0, y0, x1, y1) {
     var dx = x1 - x0
@@ -192,7 +193,7 @@ function rayhit(x0, y0, x1, y1) {
             if (pa != 1) {
 				if (pa == 2) {
 					var ch = tile.character
-					var rn = Math.random()
+					var rn = generator.random()
 					if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
 					    (ch.crouch && (rn < gameDefs.crouchToHit)))) {
 						continue
@@ -225,7 +226,7 @@ function rayhit(x0, y0, x1, y1) {
             if (pa != 1) {
 				if (pa == 2) {
 					var ch = tile.character
-					var rn = Math.random()
+					var rn = generator.random()
 					if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
 					    (ch.crouch && (rn < gameDefs.crouchToHit)))) {
 						continue
@@ -270,7 +271,7 @@ function rayhit(x0, y0, x1, y1) {
 					if (pa != 1) {
 						if (pa == 2) {
 							var ch = tile.character
-							var rn = Math.random()
+							var rn = generator.random()
 							if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
 								(ch.crouch && (rn < gameDefs.crouchToHit)))) {
 								continue
@@ -309,7 +310,7 @@ function rayhit(x0, y0, x1, y1) {
                     if (pa != 1) {
 						if (pa == 2) {
 							var ch = tile.character
-							var rn = Math.random()
+							var rn = generator.random()
 							if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
 								(ch.crouch && (rn < gameDefs.crouchToHit)))) {
 								continue
@@ -340,7 +341,7 @@ function rayhit(x0, y0, x1, y1) {
                 if (pa != 1) {
 					if (pa == 2) {
 						var ch = tile.character
-						var rn = Math.random()
+						var rn = generator.random()
 						if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
 							(ch.crouch && (rn < gameDefs.crouchToHit)))) {
 							continue
@@ -408,7 +409,7 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
         if (pa != 1) {
             if (pa == 2) {
                 var ch = tile.character
-                var rn = Math.random()
+                var rn = generator.random()
                 if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
                     (ch.crouch && (rn < gameDefs.crouchToHit)))) {
                     return
@@ -417,7 +418,7 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
             
             return {x: px, y: py}
         } else if ((pa == 1) && (typeof(tile.item) != "undefined") && (tile.item != null)) {
-            if (Math.random() < 0.8) {
+            if (generator.random() < 0.8) {
                 // TODO: Fix this, it should use information from the weapon if it can hit items or not
                 return {x: px, y: py}
             }
@@ -554,7 +555,7 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
     return {x: lx, y: ly}
 }
 
-function Ranged(options) {
+function Weapon(options) {
     this.name = options.name || 'No name'
 	this.id = options.id || '------'
     this.description = options.description || 'No description'
@@ -562,11 +563,11 @@ function Ranged(options) {
     this.cssClass = options.cssClass || 'low-level-item'
     this.color = options.color || 0xFFFFFF
     this.ammo = options.ammo || 0
-    this.ammoMax = options.ammoMax || 6
+    this.ammoMax = (options.ammoMax === undefined)?6:options.ammoMax
     this.ammoUse = options.ammoUse || 1
-    this.ammoType = options.ammoType || 'standard'
+    this.ammoType = (options.ammoType === undefined)?'standard':options.ammoType
     this.health = options.health || 5
-    this.chargerAmmoType = options.ammoType || 'standard'
+    this.chargerAmmoType = (options.ammoType === undefined)?'standard':options.ammoType
     this.minDamage = options.minDamage || 1
     this.maxDamage = options.maxDamage || 3
     this.criticalChance = options.criticalChance || 0.01
@@ -591,8 +592,13 @@ function Ranged(options) {
 	this.range = options.range || 5
     this.knockback = options.knockback || 0
     
-    this.ranged = true
-    this.melee = false
+    if (!('ranged' in options)) {
+        options.ranged = true
+    }
+    
+    this.ranged = options.ranged
+    this.melee = options.melee || false
+    this.meleeRange = options.meleeRange || 0
     this.identifyPercent = 0
     
     this.speedDecorators = []
@@ -618,8 +624,8 @@ function Ranged(options) {
 	}
 }
 
-Ranged.prototype.clone = function() {
-    return new Ranged({
+Weapon.prototype.clone = function() {
+    return new Weapon({
         name: this.name,
 		id: this.id,
         description: this.description,
@@ -654,11 +660,14 @@ Ranged.prototype.clone = function() {
 		volume: this.volume,
 		alternate: this.alternate,
 		range: this.range,
-        knockback: this.knockback
+        knockback: this.knockback,
+        ranged: this.ranged,
+        melee: this.melee,
+        meleeRange: this.meleeRange
     })
 }
 
-Ranged.prototype.rpcRepr = function(c) {
+Weapon.prototype.rpcRepr = function(c) {
     var dmgVals = {
         minDamage: this.minDamage,
         maxDamage: this.maxDamage,
@@ -712,7 +721,7 @@ Ranged.prototype.rpcRepr = function(c) {
 	return res
 }
 
-Ranged.prototype.fire = function(x, y, c, options) {
+Weapon.prototype.fire = function(x, y, c, options) {
     if (!((y >= 0) && (y < level.length)&&
         (x >= 0) && (x < level[y].length))) {
         return false
@@ -754,9 +763,13 @@ Ranged.prototype.fire = function(x, y, c, options) {
                 var d2 = dx*dx + dy*dy
                 
                 var precision = c.attrs.precision.pos
+                var rangeMultiplier = 1.0
                 
                 if (c.player_class == "sniper") {
                     precision = precision * 2 + 30
+                    
+                    precision *= Math.max(0, Math.min(100, c.attrs.suPow) / 35.0) + 1.0
+                    rangeMultiplier *= Math.max(0, Math.min(100, c.attrs.suPow) / 50.0) + 1.0
                 }
                 
                 decorators = this.precisionDecorators.concat(c.precisionDecorators || []).concat(weapon.ammoDecorators.precision || [])
@@ -816,8 +829,8 @@ Ranged.prototype.fire = function(x, y, c, options) {
                 var tries = 0
 				while ((!validTarget) && (tries < 10)) {
                     tries++ // Protect code from looping forever
-                    /*var ty = Math.floor(y + Math.random()*p - p/2)
-                    var tx = Math.floor(x + Math.random()*p - p/2)*/
+                    /*var ty = Math.floor(y + generator.random()*p - p/2)
+                    var tx = Math.floor(x + generator.random()*p - p/2)*/
                     
                     /*
                      * We're going to calculate a random position in the cone
@@ -839,14 +852,14 @@ Ranged.prototype.fire = function(x, y, c, options) {
                      */
                     
                     //console.log("dl: " + difl + " | p: " + p + " | ndx: " + ndifx + " | ndy: " + ndify )
-                    var tx = Math.round(x + ndify * p * (Math.random() - 0.5))
-                    var ty = Math.round(y - ndifx * p * (Math.random() - 0.5))
+                    var tx = Math.round(x + ndify * p * (generator.random() - 0.5))
+                    var ty = Math.round(y - ndifx * p * (generator.random() - 0.5))
                     
                     // The path tracer handles all the clipping now, so no need to protect for it
                     /*if (((ty >= 0) && (ty < level.length)&&
                         (tx >= 0) && (tx < level[ty].length))) {*/
                         
-                        var ntgt = rayhitThrough(c.pos.x, c.pos.y, tx, ty, this.range)
+                        var ntgt = rayhitThrough(c.pos.x, c.pos.y, tx, ty, Math.round(this.range * rangeMultiplier))
 						
                         if (ntgt && (!isNaN(ntgt.x)) && (!isNaN(ntgt.y))) {
                             tx = ntgt.x
@@ -882,8 +895,8 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                 dmgVals = decorators[i].call(c, dmgVals)
                             }
 
-                            var dmg = Math.round(Math.random()*(dmgVals.maxDamage - dmgVals.minDamage) + dmgVals.minDamage)
-                            var critical = Math.random() < dmgVals.criticalChance
+                            var dmg = Math.round(generator.random()*(dmgVals.maxDamage - dmgVals.minDamage) + dmgVals.minDamage)
+                            var critical = generator.random() < dmgVals.criticalChance
                             
                             if (critical) {
                                 dmg = dmg * dmgVals.criticalMultiplier
@@ -956,29 +969,6 @@ Ranged.prototype.fire = function(x, y, c, options) {
                                 }
                             } else if (typeof(tgt.tileHealth) != "undefined") {
                                 util.processTileHealth(tgt, dmg, level, tx, ty)
-                                
-                                /*if (tgt.tileHealth <= 0) {
-                                    delete tgt.tileHealth
-                                    tgt.tile = asciiMapping['.']
-
-                                    var explosion = new effects.Effect(tgt, {
-                                        affectsFriendly: true,
-                                        affectsEnemy: true,
-                                        isSticky: false,
-                                        isTargetArea: true,
-                                        isSourceArea: true,
-                                        targetRadius: tgt.damageRadius,
-                                        sourceRadius: 0,
-                                        sourceFn: effects.effectFunction.smoke,
-                                        targetFn: effects.effectFunction.explosion,
-                                        additional: {
-                                            explosionDamageRange: [Math.floor(tgt.damageExplode * 0.1), tgt.damageExplode]
-                                        }
-                                    })
-                                    
-                                    explosion.applyToSource(level, tx, ty)
-                                    explosion.applyToTarget(level, tx, ty)
-                                }*/
                             }
                             
                             particles.Singleton().spawnParticle(
@@ -1004,7 +994,187 @@ Ranged.prototype.fire = function(x, y, c, options) {
     return validTarget
 }
 
-Ranged.prototype.reload = function(c, alternate) {
+Weapon.prototype.doMelee = function(x, y, c, options) {
+    var speed = {
+        speed: c.attrs.speed.pos,
+        waitOnUse: this.waitOnUse,
+        waitSubstractSpeedDivider: this.waitSubstractSpeedDivider
+    }
+    
+    var pushPlayerMessage = function(msg) {
+        if (typeof(c.messages) != "undefined") {
+            c.messages.push(msg)
+        }
+    }
+    
+    var weapon = this
+    var decorators = this.speedDecorators.concat(c.speedDecorators || []).concat(weapon.ammoDecorators.speed || [])
+    for (var i=0; i < decorators.length; i++) {
+        speed = decorators[i].call(c, speed)
+    }
+    c.wait += Math.max(speed.waitOnUse - Math.floor(speed.speed / speed.waitSubstractSpeedDivider), 1)
+
+    var dx = c.pos.x - x
+    var dy = c.pos.y - y
+    var d2 = dx*dx + dy*dy
+
+    var precision = c.attrs.precision.pos
+
+    decorators = this.precisionDecorators.concat(c.precisionDecorators || []).concat(weapon.ammoDecorators.precision || [])
+    for (var i=0; i < decorators.length; i++) {
+        precision = decorators[i].call(c, precision)
+    }
+
+    precision = Math.min(precision, this.maxPrecision)
+
+    if (options && (options.precision)) {
+        precision *= options.precision
+    }
+    
+    var dmgVals = {
+        minDamage: this.minDamage,
+        maxDamage: this.maxDamage,
+        criticalChance: this.criticalChance,
+        criticalMultiplier: this.criticalMultiplier,
+        armorMultiplier: this.armorMultiplier,
+        knockback: this.knockback
+    }
+    decorators = this.damageDecorators.concat(c.damageDecorators || []).concat(weapon.ammoDecorators.damage || [])
+    
+    for (var i=0; i < decorators.length; i++) {
+        dmgVals = decorators[i].call(c, dmgVals)
+    }
+
+    var dmg = Math.round(generator.random()*(dmgVals.maxDamage - dmgVals.minDamage) + dmgVals.minDamage)
+    var critical = generator.random() < dmgVals.criticalChance
+    
+    if (critical) {
+        dmg = dmg * dmgVals.criticalMultiplier
+    }
+    
+    var currentEffects = []
+    if (weapon.effects) {
+        for (var ei=0; ei < weapon.effects.length; ei++) {
+            var eff = weapon.effects[ei].clone(c)
+            eff.applyToSource(level, c.pos.x, c.pos.y)
+            currentEffects.push(eff)
+        }
+    }
+    
+    for (var ei=0; ei < currentEffects.length; ei++) {
+        currentEffects[ei].applyToTarget(level, x, y)
+    }
+    
+    var tgt = level[y][x]
+    
+    if ((typeof(tgt.character) != "undefined") && (tgt.character != null)) {
+        if (typeof(tgt.character.armor) != "undefined") {
+            var armor = tgt.character.armor.pos * dmgVals.armorMultiplier
+            var negate = armor/20
+            negate = (negate <= 10)?negate:10
+            
+            tgt.character.armor.pos -= Math.abs(negate) // Negative "negation" makes more damage on more armor
+                
+            if (tgt.character.armor.pos < 0) {
+                tgt.character.armor.pos = 0
+            }
+            
+            dmg -= negate
+            if (dmg <= 0) {
+                dmg = 1 // Always do a little damage
+            }
+        }
+        tgt.character.attrs.hp.pos -= dmg
+        
+        if (dmgVals.knockback > 0) {
+            if (!tgt.character.knockback) {
+                tgt.character.knockback = {
+                    ox: c.pos.x,
+                    oy: c.pos.y,
+                    amount: dmgVals.knockback
+                }
+            } else {
+                if (tgt.character.knockback.amount < dmgVals.knockback) {
+                    tgt.character.knockback.ox = c.pos.x
+                    tgt.character.knockback.oy = c.pos.y
+                }
+                tgt.character.knockback.amount += dmgVals.knockback
+            }
+        }
+        
+        if (tgt.character.type == "player") {
+            pushPlayerMessage("You damage player " + tgt.character.username + " with " + dmg + " damage")
+        } else {
+            pushPlayerMessage("You damage the " + tgt.character.username +  " with " + dmg + " damage")
+        }
+        
+        for (var ei=0; ei < currentEffects.length; ei++) {
+            currentEffects[ei].addSticky(tgt.character)
+        }
+        
+        if (typeof(tgt.character.attrs.hp.onchange) != "undefined") {
+            tgt.character.attrs.hp.onchange.call(tgt.character, weapon.name, dmg, c)
+        }
+    } else if ((typeof(tgt.item) != "undefined") && (tgt.item != null)) {
+        if (typeof(tgt.item.health) == "undefined") {
+            tgt.item.health = 1
+        }
+        
+        tgt.item.health = tgt.item.health - dmg
+        
+        if (tgt.item.health <= 0) {
+            pushPlayerMessage("You destroy a " + (tgt.item.name || tgt.item.ammoType))
+            tgt.item = null
+        } else {
+            pushPlayerMessage("You hit a " + (tgt.item.name || tgt.item.ammoType) + " with " + dmg + " damage")
+        }
+    } else if (typeof(tgt.tileHealth) != "undefined") {
+        util.processTileHealth(tgt, dmg, level, tx, ty)
+    }
+    
+    var prt
+    var dfx, dfy
+    
+    switch (generator.randomInt(5)) {
+        case 0: {
+            prt = "\\"
+            dfx = -1
+            dfy = -1
+            break
+        }
+        case 1: {
+            prt = "/"
+            dfx = 1
+            dfy = -1
+            break
+        }
+        case 2: {
+            prt = "-"
+            dfx = generator.eventOccurs(0.5)?-1:1
+            dfy = 0
+            break
+        }
+        case 3: {
+            prt = "|"
+            dfx = 0
+            dfy = generator.eventOccurs(0.5)?-1:1
+            break
+        }
+        default: {
+            prt = "*"
+            dfx = 0
+            dfy = 0
+        }
+    }
+    
+    particles.Singleton().spawnParticle(
+        x + dfx, y + dfy, x - dfx, y - dfy, 1, prt, 
+        "blade",  
+        "instant", undefined, generator.randomInt(50, 150))
+    soundManager.addSound(c.pos.x, c.pos.y, 15, weapon.sndOnFire, 0)
+}
+
+Weapon.prototype.reload = function(c, alternate) {
 	var weapon = c.weapon
 	if (alternate) {
 		weapon = c.weapon.alternate
@@ -1020,7 +1190,7 @@ Ranged.prototype.reload = function(c, alternate) {
     soundManager.addSound(c.pos.x, c.pos.y, 5, this.sndOnReload, 0)
 }
 
-Ranged.prototype.reloadWithCharger = function(c, charger, alternate) {
+Weapon.prototype.reloadWithCharger = function(c, charger, alternate) {
     if (!c.weapon) {
         return
     }
@@ -1055,7 +1225,7 @@ Ranged.prototype.reloadWithCharger = function(c, charger, alternate) {
     }
 }
 
-Ranged.prototype.isChargerCompatible = function(item) {
+Weapon.prototype.isChargerCompatible = function(item) {
     if (item.type == "ammo") {
         if (item.ammoType.indexOf(this.ammoType) == 0) {
             return true
@@ -1065,7 +1235,7 @@ Ranged.prototype.isChargerCompatible = function(item) {
     return false
 }
 
-Ranged.prototype.findChargerAndAssign = function(defs) {
+Weapon.prototype.findChargerAndAssign = function(defs) {
     var possibleChargers = []
     for (var i=0; i < defs.length; i++) {
         var item = defs[i]
@@ -1081,7 +1251,7 @@ Ranged.prototype.findChargerAndAssign = function(defs) {
     }
     
     if (possibleChargers.length > 0) {
-        var charger = possibleChargers[Math.floor(Math.random() * possibleChargers.length)]
+        var charger = possibleChargers[Math.floor(generator.random() * possibleChargers.length)]
         
         this.assignCharger(charger)
         
@@ -1091,7 +1261,7 @@ Ranged.prototype.findChargerAndAssign = function(defs) {
     }
 }
 
-Ranged.prototype.assignCharger = function(charger) {
+Weapon.prototype.assignCharger = function(charger) {
 	if (charger.ammoType.indexOf(this.ammoType) >= 0) {
 		this.ammo = this.ammoMax
 		this.ammoEffects = charger.effects
@@ -1179,9 +1349,14 @@ function registerLevel(lv) {
     level = lv
 }
 
+function registerGenerator(gen) {
+    generator = gen
+}
+
 module.exports = {
-    Ranged: Ranged,
+    Weapon: Weapon,
     Charger: Charger,
     registerPassableFn: registerPassableFn,
-    registerLevel: registerLevel
+    registerLevel: registerLevel,
+    registerGenerator: registerGenerator
 }

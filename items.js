@@ -77,10 +77,11 @@ function camelCase(name) {
     }).join(' ')
 }
 
+var baseGenerator
 var currentRandomGen
 var generatorFunctions = {
     "random-pick": function(array, context) {
-        var val = array[currentRandomGen.randomIntRange(0, array.length)] //Math.floor(Math.random() * array.length)]
+        var val = array[currentRandomGen.randomIntRange(0, array.length)]
         
         if (typeof(val) == "object") {
             if (('score' in val) && ('aspect' in val)) {
@@ -125,7 +126,7 @@ var generatorFunctions = {
           .trim()
     },
     "random": function(params, context) {
-        var v = currentRandomGen.random()//Math.random()
+        var v = currentRandomGen.random()
         
         if ('aspects' in params) {
             var asps = params.aspects[Math.round(v * (params.aspects.length-1))]
@@ -140,7 +141,7 @@ var generatorFunctions = {
     },
 	// {fn: "random-null", "subaspect": "grenade launcher", "score": 50, "probability": 0.1, "val": {"ammoType": "M2 grenades", "ammoMax": 1, "volume": 5}, "precisionFactor": 0.4, "sndOnFire": "smg_grenade"},
 	"random-null": function(params, context) {
-		if (currentRandomGen.random() <= params.probability) { //Math.random() <= params.probability) {
+		if (currentRandomGen.random() <= params.probability) {
 			if ('aspect' in params) {
 				context.addAspect(params.aspect, params.score)
 			}
@@ -153,7 +154,7 @@ var generatorFunctions = {
 		}
 	},
     "random-int": function(range) {
-        return currentRandomGen.randomIntRange(range[0], range[1]) //Math.floor(Math.random() * (range[1] - range[0])) + range[1]
+        return currentRandomGen.randomIntRange(range[0], range[1])
     }
 }
 
@@ -258,7 +259,7 @@ function generate(spath, params, id) {
     var parent = ''
     var const_fn
 	
-	var rndGeni = new determinist.IdRandomizer(id)
+	var rndGeni = baseGenerator
     
     // Walk the tree and find the to-be-generated template
     while (!(nd && ('isleaf' in nd) && (nd.isleaf)) && path.length > 0) {
@@ -298,7 +299,7 @@ function generate(spath, params, id) {
     while ((iterations < 100) && !meetsParams) {
         iterations += 1
 		
-		var rndGen = rndGeni.clone()
+		var rndGen = rndGeni.child()
 		currentRandomGen = rndGen
 	
         // Now process and generate the item
@@ -341,7 +342,7 @@ function generate(spath, params, id) {
         
         if ('category' in nd) {
             cat = categories[nd.category]
-            cat = cat[rndGen.randomIntRange(0, cat.length)] //Math.floor(Math.random() * cat.length)]
+            cat = cat[rndGen.randomIntRange(0, cat.length)]
             
             if (typeof(cat) == 'object') {
                 for (x in cat.overrides) {
@@ -515,7 +516,7 @@ function generate(spath, params, id) {
 }
 items.generate = generate
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "9mm Pistol",
     description: "Standard issue 9mm pistol",
     ammo: 12,
@@ -528,7 +529,7 @@ items.push(new weapons.Ranged({
     sndOnFire: '9mmpistol'
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "xM3 Shotgun",
     description: "Standard issue shotgun",
     ammo: 6,
@@ -545,7 +546,7 @@ items.push(new weapons.Ranged({
     knockback: 0.85
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "9mm Light Machine Gun",
     description: "Marine's choice weapon",
     ammo: 30,
@@ -560,7 +561,7 @@ items.push(new weapons.Ranged({
     sndOnFire: '9mmpistol'
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "Flamethrower",
     description: "Anyone up for a barbecue?",
     ammo: 100,
@@ -576,7 +577,7 @@ items.push(new weapons.Ranged({
     sndOnFire: 'flamethrower'
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "xM50 Rifle",
     description: "Standard issue for snipers",
     ammo: 16,
@@ -584,14 +585,14 @@ items.push(new weapons.Ranged({
     ammoType: "7.62x54mm bullets",
     minDamage: 10,
     maxDamage: 35,
-    range: 30,
+    range: 40,
     precisionFactor: 0.0,
     cssClass: 'good-weapon',
     pix: asciiMapping['⌠'],
     sndOnFire: 'sniper'
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "H80 RPG Launcher",
     description: "Short range Rocket launcher",
     ammo: 1,
@@ -607,7 +608,7 @@ items.push(new weapons.Ranged({
     trail: {from: "DDDDDD", to: "222222", ttl: 500, num: 3, inherit: false, spread: [5, 5], delay: 100}
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "Laser Pistol",
     description: "One handed laser weapon",
     ammo: 24,
@@ -623,7 +624,7 @@ items.push(new weapons.Ranged({
     trail: {from: "DD0000", to: "220000", ttl: 100, num: 1, inherit: false, spread: [5, 5], delay: 100}
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "Laser Rifle",
     description: "Long range laser weapon",
     ammo: 12,
@@ -639,7 +640,7 @@ items.push(new weapons.Ranged({
     trail: {from: "DD0000", to: "220000", ttl: 100, num: 1, inherit: false, spread: [5, 5], delay: 100}
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "Heavy Laser",
     description: "Semi automatic laser weapon",
     ammo: 24,
@@ -657,7 +658,7 @@ items.push(new weapons.Ranged({
     trail: {from: "DD0000", to: "220000", ttl: 100, num: 1, inherit: false, spread: [5, 5], delay: 100}
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "Gatling Laser",
     description: "Gatling laser weapon",
     ammo: 48,
@@ -675,7 +676,7 @@ items.push(new weapons.Ranged({
     trail: {from: "DD0000", to: "220000", ttl: 100, num: 1, inherit: false, spread: [5, 5], delay: 100}
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "Plasma Pistol",
     description: "One handed plasma weapon",
     ammo: 24,
@@ -692,7 +693,7 @@ items.push(new weapons.Ranged({
     trail: {from: "DD00DD", to: "220022", ttl: 200, num: 2, inherit: false, spread: [9, 9], delay: 200}
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "Plasma Rifle",
     description: "Long range plasma weapon",
     ammo: 12,
@@ -709,7 +710,7 @@ items.push(new weapons.Ranged({
     trail: {from: "DD00DD", to: "220022", ttl: 200, num: 2, inherit: false, spread: [9, 9], delay: 200}
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "Plasma Launcher",
     description: "Semi automatic plasma weapon",
     ammo: 24,
@@ -728,7 +729,7 @@ items.push(new weapons.Ranged({
     trail: {from: "DD00DD", to: "220022", ttl: 200, num: 2, inherit: false, spread: [9, 9], delay: 200}
 }))
 
-items.push(new weapons.Ranged({
+items.push(new weapons.Weapon({
     name: "Gatling Plasma",
     description: "Gatling plasma weapon",
     ammo: 48,
@@ -745,6 +746,25 @@ items.push(new weapons.Ranged({
     pix: asciiMapping['('],
     sndOnFire: 'plasmaGatling',
     trail: {from: "DD00DD", to: "220022", ttl: 200, num: 2, inherit: false, spread: [9, 9], delay: 200}
+}))
+
+items.push(new weapons.Weapon({
+    name: "Katana",
+    description: "Standard Katana",
+    ammo: 0,
+    ammoMax: 0,
+    ammoUse: 0,
+    ammoType: "",
+    minDamage: 5,
+    maxDamage: 50,
+    range: 1,
+    precisionFactor: 0,
+    burstLength: 0,
+    cssClass: 'standard-weapon',
+    pix: asciiMapping['|'],
+    sndOnFire: 'sword',
+    ranged: false,
+    melee: true
 }))
 
 items.push(new weapons.Charger({
@@ -1099,5 +1119,9 @@ items.itemByName = function(name) {
 }
 
 items.generate = generate
+
+items.registerGenerator = function(gen) {
+    baseGenerator = gen
+}
 
 module.exports = items

@@ -69,7 +69,7 @@ var categories = {
 var templates = {
     "weapons": {
         "ranged": {
-            "_const_fn": weapons.Ranged,
+            "_const_fn": weapons.Weapon,
             "pistol": {
                 "isleaf": true,
                 "category": "small-firearms",

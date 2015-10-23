@@ -60,6 +60,7 @@ var AI = function(params) {
     this.usableTiles = params.usableTiles
     this.grab = params.grab
     this.soundManager = params.soundManager
+    this.generator = params.generator
     
     this.agents = []
     
@@ -100,7 +101,7 @@ var AI = function(params) {
             weapon: weapon,
             fov: gameDefs.enemyBaseFov,
             inventory: inventory,
-            wait: Math.random(10) - 5,
+            wait: this.generator.random(10) - 5,
             customDecision: customDecision,
             findInInventory: util.findInInventory,
             waitMultiplier: gameDefs.enemiesWaitMultiplier,
@@ -139,11 +140,14 @@ var AI = function(params) {
                             && (cell.character.type == "player") && (d2 <= d2char)
                             && (cell.character.attrs.hp.pos > 0)) {
                             
-                            var line_of_sight = this.traceable(x, y, tx, ty)
-                            
-                            if (line_of_sight && ((d2 < d2char) || (d2 == d2char) && (Math.random() < 0.5))) {
-                                character = cell.character
-                                d2char = d2
+                            if ((typeof(cell.character.cloaked) === "undefined") || 
+                                (d2 < cell.character.cloaked)){
+                                var line_of_sight = this.traceable(x, y, tx, ty)
+                                
+                                if (line_of_sight && ((d2 < d2char) || (d2 == d2char) && (this.generator.random() < 0.5))) {
+                                    character = cell.character
+                                    d2char = d2
+                                }
                             }
                         }
                     }
@@ -170,18 +174,18 @@ var AI = function(params) {
                 var gmul = (agent.attrs.hp.pos < -agent.attrs.hp.max)?2:1
                 var options = {spread: gmul*2}
                 
-                this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(Math.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs, options)
+                this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(this.generator.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs, options)
                 
                 /**/
                 var bloodSplats = "+-{};\"^%&()|º<>"
-                var cnt = Math.floor(Math.random() * 12) + 6
+                var cnt = Math.floor(this.generator.random() * 12) + 6
                 for (var sb=0; sb < cnt; sb++) {
                     particles.Singleton().spawnParticle(
                         agent.pos.x, agent.pos.y, 
-                        agent.pos.x + Math.round(Math.random() * 7 - 3.5),
-                        agent.pos.y + Math.round(Math.random() * 7 - 3.5), 1, bloodSplats[Math.floor(Math.random() * bloodSplats.length)], 
+                        agent.pos.x + Math.round(this.generator.random() * 7 - 3.5),
+                        agent.pos.y + Math.round(this.generator.random() * 7 - 3.5), 1, bloodSplats[Math.floor(this.generator.random() * bloodSplats.length)], 
                         "blood",  
-                        "instant", undefined, Math.round((Math.random() * 100) + 100), undefined)
+                        "instant", undefined, Math.round((this.generator.random() * 100) + 100), undefined)
                 }
                 
                 util.dropInventory(agent, this.level, this.passable)
@@ -204,9 +208,9 @@ var AI = function(params) {
                     if (character) {
                         if ((typeof(agent.weapon) != "undefined")
                             && (agent.weapon != null)
-                            && (Math.random() < 0.2)) {
+                            && (this.generator.random() < 0.2)) {
                             
-                            if (agent.weapon.ranged && agent.weapon.alternate && (Math.random() < 0.2)) {
+                            if (agent.weapon.ranged && agent.weapon.alternate && (this.generator.random() < 0.2)) {
                                 if (agent.weapon.alternate.ammo == 0) {
                                     agent.weapon.reload(agent, true)
                                 } else {
@@ -234,7 +238,7 @@ var AI = function(params) {
                             dy = 1
                         }
                     } else {
-                        var nm = Math.floor(Math.random() * 8)
+                        var nm = Math.floor(this.generator.random() * 8)
                         dx = [-1, 0, 1, -1, 1, -1, 0, 1][nm]
                         dy = [-1, -1, -1, 0, 0, 1, 1, 1][nm]
                     }
@@ -313,7 +317,7 @@ var AI = function(params) {
                 }
                 
                 var bloodSplats = "+-{};\"^%&()|º<>"
-                var cnt = Math.floor(Math.random() * 12) + 6
+                var cnt = Math.floor(this.generator.random() * 12) + 6
                 
                 if (agent.knockback && (agent.knockback.amount > 0)) {
                     cnt /= agent.knockback.amount
@@ -322,17 +326,17 @@ var AI = function(params) {
                 for (var sb=0; sb < cnt; sb++) {
                     particles.Singleton().spawnParticle(
                         agent.pos.x, agent.pos.y, 
-                        agent.pos.x + Math.round(Math.random() * 7 - 3),
-                        agent.pos.y + Math.round(Math.random() * 7 - 3), 1, bloodSplats[Math.floor(Math.random() * bloodSplats.length)], 
+                        agent.pos.x + Math.round(this.generator.random() * 7 - 3),
+                        agent.pos.y + Math.round(this.generator.random() * 7 - 3), 1, bloodSplats[Math.floor(this.generator.random() * bloodSplats.length)], 
                         "blood",  
-                        "instant", undefined, Math.round((Math.random() * 100) + 100), undefined)
+                        "instant", undefined, Math.round((this.generator.random() * 100) + 100), undefined)
                 }
                 
                 if (!(agent.knockback && (agent.knockback.amount > 0))) {
                     var gmul = (agent.attrs.hp.pos < -agent.attrs.hp.max)?2:1
                     var options = {spread: gmul*2}
                     
-                    this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(Math.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs, options)
+                    this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(this.generator.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs, options)
                     
                     util.dropInventory(agent, this.level, this.passable)
                     agent = undefined
@@ -355,9 +359,9 @@ var AI = function(params) {
                     if (character) {
                         if ((typeof(agent.weapon) != "undefined")
                             && (agent.weapon != null)
-                            && (Math.random() < 0.2)) {
+                            && (this.generator.random() < 0.2)) {
                             
-                            if (agent.weapon.ranged && agent.weapon.alternate && (Math.random() < 0.2)) {
+                            if (agent.weapon.ranged && agent.weapon.alternate && (this.generator.random() < 0.2)) {
                                 if (agent.weapon.alternate.ammo == 0) {
                                     //agent.weapon.reload(agent, true)
                                     cmd.reloadWeapon = true
@@ -403,7 +407,7 @@ var AI = function(params) {
                             dy = 1
                         }
                     } else {
-                        var nm = Math.floor(Math.random() * 8)
+                        var nm = Math.floor(this.generator.random() * 8)
                         dx = [-1, 0, 1, -1, 1, -1, 0, 1][nm]
                         dy = [-1, -1, -1, 0, 0, 1, 1, 1][nm]
                     }
@@ -441,7 +445,8 @@ var AI = function(params) {
                     grab: this.grab,
                     inflictMeleeDamage: this.meleeDamage,
                     usableTiles: this.usableTiles,
-                    activable: this.activable
+                    activable: this.activable,
+                    generator: this.generator
                 })
                 
                 agent.wait = cmd.wait

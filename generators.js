@@ -41,8 +41,50 @@
  * // End of license //
  *
  */
-function splitRandomSquare(sq) {
-    if (Math.random() < 0.5) {
+ 
+var fs = require('fs')
+var rs = require('./rex_sprite.js')
+
+var prebuiltRooms = {
+    "comfy": {
+        "autoDoorsOnBorder": true,
+        "probability": 1.0
+    }
+}
+ 
+fs.readdir('./static/rooms/', function (err, files) {
+        if (!err) {
+            for (var i=0; i < files.length; i++) {
+                (function (fn) {
+                    var name = fn
+                    var spl = fn.split('.')
+                    
+                    fs.readFile('./static/rooms/' + fn, function (errrf, data) {
+                        if (!errrf) {
+                            var nm = fn.split('.')[0]
+                            var obj
+                            
+                            if (nm in prebuiltRooms) {
+                                obj = prebuiltRooms[nm]
+                            } else {
+                                obj = {}
+                                prebuiltRooms[nm] = obj
+                            }
+                            
+                            obj.sprite = new rs.RexSprite(data)
+                        } else {
+                            console.log('Couldn\'t load sound: ' + name)
+                        }
+                    })
+                })(files[i])
+            }
+        } else {
+            console.log('Error reading Wav sound: ' + err)
+        }
+    })
+ 
+function splitRandomSquare(generator, sq) {
+    if (generator.random() < 0.5) {
         // Horizontal break
         return [{x: sq.x, y: sq.y, w: Math.ceil(sq.w/2) + 1, h: sq.h},
                 {x: sq.x + Math.ceil(sq.w/2), y: sq.y, w: sq.w - Math.ceil(sq.w/2), h: sq.h}]
@@ -53,7 +95,7 @@ function splitRandomSquare(sq) {
     }
 }
 
-function calcBspSquares(level, minarea, randomaccept) {
+function calcBspSquares(generator, level, minarea, randomaccept) {
     var sqs = [{x: 0, y: 0, w: level[0].length, h: level.length}]
     var mindim = Math.ceil(Math.sqrt(minarea))
     var ret = []
@@ -62,12 +104,12 @@ function calcBspSquares(level, minarea, randomaccept) {
         var cur = sqs.pop()
         
         if ((cur.w > mindim)&&(cur.h > mindim)) {
-            var res = splitRandomSquare(cur)
+            var res = splitRandomSquare(generator, cur)
             
             for (var j=0; j < res.length; j++) {
                 var rsq = res[j]
                 var area = rsq.w*rsq.h
-                if ((Math.random() < randomaccept)||((area <= minarea)&&(area > 0))) {
+                if ((generator.random() < randomaccept)||((area <= minarea)&&(area > 0))) {
                     ret.push(rsq)
                 } else if (area > 0) {
                     sqs.push(rsq)
@@ -98,13 +140,13 @@ function iterateOverSquare(level, sq, fn) {
     }
 }
 
-function generateCave(level, sq, floor, wall, options) {
+function generateCave(generator, level, sq, floor, wall, options) {
     if (!options) {
         options = {}
     }
     
     /*iterateOverSquare(level, sq, function(pix) {
-        if (Math.random() < (options.probability || 0.4)) {
+        if (generator.random() < (options.probability || 0.4)) {
             pix.tile = wall
         } else {
             pix.tile = floor
@@ -115,7 +157,7 @@ function generateCave(level, sq, floor, wall, options) {
         return new Array(sq.h)
     })
     iterateOverSquare(level, sq, function(pix, x, y, sx, sy) {
-        if (Math.random() < (options.probability || 0.4)) {
+        if (generator.random() < (options.probability || 0.4)) {
             rpSq[sy][sx] = wall
         } else {
            rpSq[sy][sx] = floor
@@ -169,7 +211,7 @@ function generateCave(level, sq, floor, wall, options) {
             
             if ((w00 + w01 + w02 + w10 + w11 + w12 + w20 + w21 + w22) >= (options.caveness || 5)) {
                 rpSq[sy][sx] = wall
-            } else if (Math.random() < 0.2) {
+            } else if (generator.random() < 0.2) {
                 rpSq[sy][sx] = floor
             }
         })
@@ -258,11 +300,11 @@ function drawSquareWalls(level, sq, wall, floor, cls) {
     }
 }
 
-function drawSquareDoors(level, sq, door, cntDoors) {
+function drawSquareDoors(generator, level, sq, door, cntDoors) {
     for (var j=0; j < cntDoors; j++) {
-        var x = Math.floor(Math.random() * (sq.w-2)) + 1
-        var y = Math.floor(Math.random() * (sq.h-2)) + 1
-        var orientation = Math.floor(Math.random() * 4)
+        var x = Math.floor(generator.random() * (sq.w-2)) + 1
+        var y = Math.floor(generator.random() * (sq.h-2)) + 1
+        var orientation = Math.floor(generator.random() * 4)
         
         switch (orientation) {
             case 0: {
@@ -317,38 +359,24 @@ function drawSquareDoors(level, sq, door, cntDoors) {
     }
 }
 
-function bspSquares(level, minarea, randomaccept, floor, wall, door, probabilityUsed, caveness) {
+function bspSquares(generator, level, minarea, randomaccept, floor, wall, door, probabilityUsed, caveness) {
     probabilityUsed = probabilityUsed || 1
-    var sqs = calcBspSquares(level, minarea, randomaccept)
+    var sqs = calcBspSquares(generator, level, minarea, randomaccept)
     caveness = caveness || 0
     
     for (var i=0; i < sqs.length; i++) {
         var sq = sqs[i]
         
-        if ((probabilityUsed >= 1) || (Math.random() < probabilityUsed)) {
+        if ((probabilityUsed >= 1) || (generator.random() < probabilityUsed)) {
             sq.used = true
         }
         
-        if (Math.random() < caveness) {
+        if (generator.random() < caveness) {
             sq.cave = true
         }
         
         // Put the walls
         if (sq.used && !sq.cave) {
-            /*for (var y=0; y < sq.h; y++) {
-                var row = level[sq.y + y]
-                
-                if ((y > 0)&&(y < sq.h-1)) {
-                } else {
-                    for (var x=1; x < sq.w; x++) {
-                        row[x + sq.x].tile = wall
-                    }
-                }
-                
-                row[sq.x].tile = wall
-                //console.log(sq.x + sq.w - 1)
-                row[sq.x + sq.w - 1].tile = wall
-            }*/
             drawSquareWalls(level, sq, wall)
         }
     }
@@ -358,80 +386,26 @@ function bspSquares(level, minarea, randomaccept, floor, wall, door, probability
         // Now put some doors
         if (sq.used) {
             if (sq.cave) {
-                generateCave(level, sqs[i], floor, wall)
+                generateCave(generator, level, sqs[i], floor, wall)
             } else {
-                var cntDoors = Math.round(Math.random() * 6) + 1
-                drawSquareDoors(level, sq, door, cntDoors)
-                /*for (var j=0; j < cntDoors; j++) {
-                    var x = Math.floor(Math.random() * (sq.w-2)) + 1
-                    var y = Math.floor(Math.random() * (sq.h-2)) + 1
-                    var orientation = Math.floor(Math.random() * 4)
-                    
-                    switch (orientation) {
-                        case 0: {
-                            if (sq.x > 0) {
-                                x = 0
-                            } else if ((sq.x + sq.w) < (level[0].length - 1)) {
-                                x = sq.w - 1
-                            } else {
-                                continue
-                            }
-                            break;
-                        }
-                        case 1: {
-                            if ((sq.x + sq.w) < (level[0].length - 1)) {
-                                x = sq.w - 1
-                            } else if (sq.x > 0) {
-                                x = 0
-                            } else {
-                                continue
-                            }
-                            break;
-                        }
-                        case 2: {
-                            if (sq.y > 0) {
-                                y = 0
-                            } else if ((sq.y + sq.h) < (level.length - 1)) {
-                                y = sq.h - 1
-                            } else {
-                                continue
-                            }
-                            break;
-                        }
-                        case 3: {
-                            if ((sq.y + sq.h) < (level.length - 1)) {
-                                y = sq.h - 1
-                            } else if (sq.y > 0) {
-                                y = 0
-                            } else {
-                                continue
-                            }
-                            break;
-                        }
-                    }
-                    
-                    try {
-                        level[sq.y + y][sq.x + x].tile = door
-                    } catch (e) {
-                        console.log("Exception on " + (sq.x + x) + "," + (sq.y + y))
-                        console.log(sq)
-                        throw e
-                    }
-                }*/
+                /*var cntDoors = Math.round(generator.random() * 6) + 1
+                drawSquareDoors(generator, level, sq, door, cntDoors)*/
+                
+                drawRoom(generator, level, sq, wall, floor, door)
             }
         }
     }
 }
 
-function riverH(level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage) {
+function riverH(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage) {
     var w = level[0].length
     var h = level.length
     
-    var rh = Math.floor(Math.random() * 6) + 3
-    var rc = Math.floor(Math.random() * h)
+    var rh = Math.floor(generator.random() * 6) + 3
+    var rc = Math.floor(generator.random() * h)
     var nbridge = 0
     var bridgeDrawn = false
-    var nyvar = Math.floor(Math.random() * 5) + 3
+    var nyvar = Math.floor(generator.random() * 5) + 3
     
     if ((typeof(riverDamage) == "undefined") || (riverDamage == null)) {
         riverDamage = false
@@ -439,8 +413,8 @@ function riverH(level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riv
     
     for (var x=0; x < w; x++) {
         
-        if ((Math.random()<0.05) && (!bridgeDrawn)) {
-            nbridge = Math.floor(Math.random() * 4) + 2
+        if ((generator.random()<0.05) && (!bridgeDrawn)) {
+            nbridge = Math.floor(generator.random() * 4) + 2
         }
         
         for (var y=0; y < rh; y++) {
@@ -468,8 +442,8 @@ function riverH(level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riv
         
         nbridge--
         if ((x % nyvar) == 0) {
-            rc += Math.round(Math.random() * 2 - 1)
-            rh += Math.round(Math.random() * 2 - 1)
+            rc += Math.round(generator.random() * 2 - 1)
+            rh += Math.round(generator.random() * 2 - 1)
             if (rh < 1) {
                 rh = 1
             }
@@ -477,15 +451,15 @@ function riverH(level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riv
     }
 }
 
-function riverV(level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage) {
+function riverV(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage) {
     var w = level[0].length
     var h = level.length
     
-    var rw = Math.floor(Math.random() * 6) + 3
-    var rc = Math.floor(Math.random() * w)
+    var rw = Math.floor(generator.random() * 6) + 3
+    var rc = Math.floor(generator.random() * w)
     var nbridge = 0
     var bridgeDrawn = false
-    var nxvar = Math.floor(Math.random() * 5) + 3
+    var nxvar = Math.floor(generator.random() * 5) + 3
     
     if ((typeof(riverDamage) == "undefined") || (riverDamage == null)) {
         riverDamage = false
@@ -493,8 +467,8 @@ function riverV(level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riv
     
     for (var y=0; y < h; y++) {
         
-        if ((Math.random()<0.05) && (!bridgeDrawn)) {
-            nbridge = Math.floor(Math.random() * 4) + 2
+        if ((generator.random()<0.05) && (!bridgeDrawn)) {
+            nbridge = Math.floor(generator.random() * 4) + 2
         }
         
         for (var x=0; x < rw; x++) {
@@ -522,8 +496,8 @@ function riverV(level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riv
         
         nbridge--
         if ((y % nxvar) == 0) {
-            rc += Math.round(Math.random() * 2 - 1)
-            rw += Math.round(Math.random() * 2 - 1)
+            rc += Math.round(generator.random() * 2 - 1)
+            rw += Math.round(generator.random() * 2 - 1)
             if (rw < 1) {
                 rw = 1
             }
@@ -531,11 +505,11 @@ function riverV(level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riv
     }
 }
 
-function river(level, orientation, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage) {
+function river(generator, level, orientation, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage) {
     if (orientation == "horizontal") {
-        riverH(level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage)
+        riverH(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage)
     } else if (orientation == "vertical") {
-        riverV(level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage)
+        riverV(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage)
     }
 }
 
@@ -576,7 +550,7 @@ function squareCollidesWithRooms(sq, rooms) {
     return collides
 }
 
-function expandAsPossibleStep(level, sq, floor, curCnt, maxCnt, rooms) {
+function expandAsPossibleStep(generator, level, sq, floor, curCnt, maxCnt, rooms) {
     var sq_xl = {x: sq.x - 1, y: sq.y, w: sq.w + 1, h: sq.h}
     var sq_xr = {x: sq.x, y: sq.y, w: sq.w + 1, h: sq.h}
     var sq_yt = {x: sq.x, y: sq.y - 1, w: sq.w, h: sq.h + 1}
@@ -642,7 +616,7 @@ function expandAsPossibleStep(level, sq, floor, curCnt, maxCnt, rooms) {
             }
         }]
     while (evalFns.length > 0) {
-        var p = Math.floor(Math.random() * evalFns.length)
+        var p = Math.floor(generator.random() * evalFns.length)
         evalFns[p]()
         evalFns.splice(p, 1)
     }
@@ -654,11 +628,11 @@ function equalSquare(sq0, sq1) {
     return (sq0.x == sq1.x) && (sq0.y == sq1.y) && (sq0.w == sq1.w) && (sq0.h == sq1.h)
 }
 
-function expandAsPossible(level, sq, floor, curCnt, maxDirt, rooms) {
+function expandAsPossible(generator, level, sq, floor, curCnt, maxDirt, rooms) {
     var mustTry = true
     
     while (mustTry) {
-        var res = expandAsPossibleStep(level, sq, floor, curCnt, maxDirt, rooms)
+        var res = expandAsPossibleStep(generator, level, sq, floor, curCnt, maxDirt, rooms)
         if ((res[1] < maxDirt) && (!equalSquare(sq, res[0]))) {
             curCnt = res[1]
             sq = res[0]
@@ -670,35 +644,33 @@ function expandAsPossible(level, sq, floor, curCnt, maxDirt, rooms) {
     return sq
 }
 
-function caveLevel(level, minarea, randomaccept, floor, wall, door, probabilityUsed, caveness) {
-    generateCave(level, {x: 0, y:0, w: level[0].length, h: level.length}, floor, wall, {
+function caveLevel(generator, level, minarea, randomaccept, floor, wall, door, probabilityUsed, caveness) {
+    generateCave(generator, level, {x: 0, y:0, w: level[0].length, h: level.length}, floor, wall, {
         iterations: 11
     })
     
     var rooms = []
     var lw = level[0].length
     var lh = level.length
-    var numRooms = Math.floor(Math.random() * 10)
+    var numRooms = Math.floor(generator.random() * 10)
     for (var i=0; i < numRooms; i++) {
         var tries = 0
         var numDirt = 0
         var maxDirt = 40
         
         while (tries < 50) {
-            var x = Math.floor(Math.random() * lw)
-            var y = Math.floor(Math.random() * lh)
+            var x = Math.floor(generator.random() * lw)
+            var y = Math.floor(generator.random() * lh)
             var w = 1
             var h = 1
             var sq = {x: x, y: y, w: w, h: h}
             
             var cnt = countDirt(level, sq, floor)
             if (cnt == 0) {
-                sq = expandAsPossible(level, sq, floor, cnt, maxDirt, rooms)
+                sq = expandAsPossible(generator, level, sq, floor, cnt, maxDirt, rooms)
                 
-                if ((((sq.w-2) * (sq.h - 2)) >= minarea) || (Math.random() < randomaccept)) {
-                    drawSquareWalls(level, sq, wall, floor)
-                    var cntDoors = Math.floor(Math.random() * 6)
-                    drawSquareDoors(level, sq, door, cntDoors)
+                if ((((sq.w-2) * (sq.h - 2)) >= minarea) || (generator.random() < randomaccept)) {
+                    drawRoom(generator, level, sq, wall, floor, door)
                     rooms.push(sq)
                     tries = 1000
                 }
@@ -709,14 +681,14 @@ function caveLevel(level, minarea, randomaccept, floor, wall, door, probabilityU
     }
 }
 
-function lavaLevel(level, minarea, randomaccept, floor, wall, door, lava, lavaDamage, probabilityUsed, caveness) {
-    generateCave(level, {x: 0, y:0, w: level[0].length, h: level.length}, floor, wall, {
+function lavaLevel(generator, level, minarea, randomaccept, floor, wall, door, lava, lavaDamage, probabilityUsed, caveness) {
+    generateCave(generator, level, {x: 0, y:0, w: level[0].length, h: level.length}, floor, wall, {
         noFloor: true,
         wallClass: "dirt",
         iterations: 12
     })
     
-    generateCave(level, {x: 0, y:0, w: level[0].length, h: level.length}, floor, lava, {
+    generateCave(generator, level, {x: 0, y:0, w: level[0].length, h: level.length}, floor, lava, {
         floorClass: "dirt",
         wallClass: "lava",
         wallDamage: lavaDamage,
@@ -726,15 +698,15 @@ function lavaLevel(level, minarea, randomaccept, floor, wall, door, lava, lavaDa
     var rooms = []
     var lw = level[0].length
     var lh = level.length
-    var numRooms = Math.floor(Math.random() * 10)
+    var numRooms = Math.floor(generator.random() * 10)
     for (var i=0; i < numRooms; i++) {
         var tries = 0
         var numDirt = 0
         var maxDirt = 40
         
         while (tries < 50) {
-            var x = Math.floor(Math.random() * lw)
-            var y = Math.floor(Math.random() * lh)
+            var x = Math.floor(generator.random() * lw)
+            var y = Math.floor(generator.random() * lh)
             var w = 1
             var h = 1
             var sq = {x: x, y: y, w: w, h: h}
@@ -742,12 +714,10 @@ function lavaLevel(level, minarea, randomaccept, floor, wall, door, lava, lavaDa
             if (!squareCollidesWithRooms(sq, rooms)) {
                 var cnt = countDirt(level, sq, floor)
                 if (cnt == 0) {
-                    sq = expandAsPossible(level, sq, floor, cnt, maxDirt, rooms)
+                    sq = expandAsPossible(generator, level, sq, floor, cnt, maxDirt, rooms)
                     
-                    if ((((sq.w-2) * (sq.h - 2)) >= minarea) || (Math.random() < randomaccept)) {
-                        drawSquareWalls(level, sq, wall, floor)
-                        var cntDoors = Math.floor(Math.random() * 6)
-                        drawSquareDoors(level, sq, door, cntDoors)
+                    if ((((sq.w-2) * (sq.h - 2)) >= minarea) || (generator.random() < randomaccept)) {
+                        drawRoom(generator, level, sq, wall, floor, door)
                         rooms.push(sq)
                         tries = 1000
                     }
@@ -756,6 +726,41 @@ function lavaLevel(level, minarea, randomaccept, floor, wall, door, lava, lavaDa
             
             tries += 1
         }
+    }
+}
+
+function findFittingRoom(generator, w, h) {
+    var possibleRooms = []
+    for (n in prebuiltRooms) {
+        if (prebuiltRooms.hasOwnProperty(n)) {
+            var room = prebuiltRooms[n]
+            var layer = room.sprite.layers[0]
+            
+            if ((layer.width == w) && (layer.height == h)) {
+                possibleRooms.push(room)
+            }
+        }
+    }
+    
+    if (possibleRooms.length > 0) {
+        return possibleRooms[generator.randomInt(possibleRooms.length)]
+    }
+}
+
+function drawRoom(generator, level, sq, wall, floor, door) {
+    var cntDoors = Math.floor(generator.random() * 6) + 1
+    
+    var room = findFittingRoom(generator, sq.w, sq.h)
+    
+    if (room) {
+        room.sprite.draw(level, sq.x, sq.y)
+        
+        if (room.autoDoorsOnBorder) {
+            drawSquareDoors(generator, level, sq, door, cntDoors)
+        }
+    } else {
+        drawSquareWalls(level, sq, wall, floor)
+        drawSquareDoors(generator, level, sq, door, cntDoors)
     }
 }
 

@@ -50,6 +50,8 @@ var PHASE_SOURCE = 0
 var PHASE_TARGET = 1
 var PHASE_STICKY = 2
 
+var generator
+
 function efc(character, cell) {
     return function(subject, phase, x, y, expd, origin) {
         if (typeof(subject.type) != "undefined") {
@@ -69,7 +71,11 @@ function efc(character, cell) {
 var effectFunction = {
     burn: efc(function(character, phase) {
         if ((typeof(this.additional.burnDamage) != "undefined") && (character.attrs.hp.pos > 0)) {
-            character.attrs.hp.pos -= this.additional.burnDamage
+            var dmg = this.additional.burnDamage
+            if (typeof(character.resistance) !== "undefined") {
+                dmg = Math.max(1, dmg - character.resistance)
+            }
+            character.attrs.hp.pos -= dmg
             
             if (typeof(character.attrs.hp.onchange) != "undefined") {
                 character.attrs.hp.onchange.call(character, "burn")
@@ -79,10 +85,10 @@ var effectFunction = {
         if (phase == PHASE_STICKY) {
             var manager = particles.Singleton()
             
-            if (Math.random() < 0.3) {
+            if (generator.random() < 0.3) {
                 manager.spawnParticle(
                     character.pos.x, character.pos.y,
-                    character.pos.x + Math.floor(Math.random() * 5 - 2), character.pos.y + Math.floor(Math.random() * 5 - 2),
+                    character.pos.x + Math.floor(generator.random() * 5 - 2), character.pos.y + Math.floor(generator.random() * 5 - 2),
                     4, "~", "fire", "instant", undefined, 0)
             }
         }
@@ -102,7 +108,7 @@ var effectFunction = {
             
             manager.spawnParticle(
                 character.pos.x, character.pos.y,
-                character.pos.x + Math.floor(Math.random() * 7 - 3), character.pos.y + Math.floor(Math.random() * 7 - 3),
+                character.pos.x + Math.floor(generator.random() * 7 - 3), character.pos.y + Math.floor(generator.random() * 7 - 3),
                 4, "~", "ice", "instant", undefined, 0)
         }
     }), // TODO: Freeze lava
@@ -110,7 +116,11 @@ var effectFunction = {
         if ((typeof(this.additional.acidDamage) != "undefined") && (character.attrs.hp.pos > 0)) {
             if (phase == PHASE_STICKY) {
                 if (character.attrs.armor.pos <= 0) {
-                    character.attrs.hp.pos -= this.additional.acidDamage
+                    var dmg = this.additional.acidDamage
+                    if (typeof(character.resistance) !== "undefined") {
+                        dmg = Math.max(1, dmg - character.resistance)
+                    }
+                    character.attrs.hp.pos -= dmg
                 } else {
                     character.attrs.armor.pos -= this.additional.acidDamage
                     if (character.attrs.armor.pos < 0) {
@@ -125,7 +135,7 @@ var effectFunction = {
                 for (var i=0; i < 3; i++) {
                     manager.spawnParticle(
                         character.pos.x, character.pos.y,
-                        character.pos.x + Math.floor(Math.random() * 4 - 2), character.pos.y + Math.floor(Math.random() * 4 - 2),
+                        character.pos.x + Math.floor(generator.random() * 4 - 2), character.pos.y + Math.floor(generator.random() * 4 - 2),
                         2, "~", "acid", "instant", undefined, 0)
                 }
             }
@@ -140,7 +150,7 @@ var effectFunction = {
             for (var i=0; i < 5; i++) {
                 manager.spawnParticle(
                     character.pos.x, character.pos.y,
-                    character.pos.x + Math.floor(Math.random() * 10 - 5), character.pos.y + Math.floor(Math.random() * 10 - 5),
+                    character.pos.x + Math.floor(generator.random() * 10 - 5), character.pos.y + Math.floor(generator.random() * 10 - 5),
                     2, "~", "acid", "instant", undefined, 0)
             }
         } else if (phase == PHASE_TARGET) {
@@ -148,7 +158,7 @@ var effectFunction = {
             for (var i=0; i < 15; i++) {
                 manager.spawnParticle(
                     character.pos.x, character.pos.y,
-                    character.pos.x + Math.floor(Math.random() * 10 - 5), character.pos.y + Math.floor(Math.random() * 10 - 5),
+                    character.pos.x + Math.floor(generator.random() * 10 - 5), character.pos.y + Math.floor(generator.random() * 10 - 5),
                     2, "~", "acid", "instant", undefined, 0)
             }
         }
@@ -158,7 +168,7 @@ var effectFunction = {
         for (var i=0; i < 2; i++) {
             manager.spawnParticle(
                 character.pos.x, character.pos.y,
-                character.pos.x + Math.floor(Math.random() * 10 - 5), character.pos.y + Math.floor(Math.random() * 10 - 5),
+                character.pos.x + Math.floor(generator.random() * 10 - 5), character.pos.y + Math.floor(generator.random() * 10 - 5),
                 2, "'", "smoke", "instant", undefined, 0)
         }
     }),
@@ -179,9 +189,9 @@ var effectFunction = {
             var manager = particles.Singleton()
             for (var i=0; i < numParts; i++) {
                 manager.spawnParticle(
-                    character.pos.x + Math.floor(Math.random() * radius - radius/2), character.pos.y + Math.floor(Math.random() * radius - radius/2),
+                    character.pos.x + Math.floor(generator.random() * radius - radius/2), character.pos.y + Math.floor(generator.random() * radius - radius/2),
                     character.pos.x, character.pos.y,
-                    2, "+", viewClass, "instant", undefined, Math.floor(Math.random() * 400))
+                    2, "+", viewClass, "instant", undefined, Math.floor(generator.random() * 400))
             }
         }
     }),
@@ -215,7 +225,11 @@ var effectFunction = {
     }),
     burnDrained: efc(function(character) {
         if (typeof(this.additional.drainedTotal) != "undefined") {
-            character.attrs.hp.pos -= this.additional.drainedTotal
+            var dmg = this.additional.drainedTotal
+            if (typeof(character.resistance) !== "undefined") {
+                dmg = Math.max(1, dmg - character.resistance)
+            }
+            character.attrs.hp.pos -= dmg
             
             if (typeof(character.attrs.hp.onchange) != "undefined") {
                 character.attrs.hp.onchange.call(character, "burn")
@@ -236,17 +250,22 @@ var effectFunction = {
         if (phase == PHASE_TARGET) {
             var manager = particles.Singleton()
             manager.spawnParticle(
-                x, y, x + Math.floor(Math.random() * 5 - 3), y + Math.floor(Math.random() * 5 - 3),
-                //x, y, x-10, y - 10,
-                1/* + Math.floor(Math.random() * 3)*/, "☼", "fire", "instant", undefined, 200 + Math.floor(Math.random() * 300),
+                x, y, x + Math.floor(generator.random() * 5 - 3), y + Math.floor(generator.random() * 5 - 3),
+                1, "☼", "fire", "instant", undefined, 200 + Math.floor(generator.random() * 300),
                 {from: "DDDD00", to: "AA0000", ttl: 200, num: 8, inherit: false, spread: [9, 9], delay: 0})
                 
             if ((typeof(cell.character) != "undefined") && (cell.character != null)) {
-                cell.character.attrs.hp.pos -= 
-                    this.additional.explosionDamageRange[0] +
+                var dmg = this.additional.explosionDamageRange[0] +
                     (this.additional.explosionDamageRange[1] - this.additional.explosionDamageRange[0]) * (1.0 - expd)
                     
-                var amnt = Math.random() * 4
+                if (typeof(cell.character.resistance) !== "undefined") {
+                    dmg = Math.max(1, dmg - cell.character.resistance)
+                }
+                    
+                cell.character.attrs.hp.pos -= dmg
+                    
+                    
+                var amnt = generator.random() * 4
                 if (!cell.character.knockback) {
                     cell.character.knockback = {
                         ox: origin.x,
@@ -285,9 +304,8 @@ var effectFunction = {
         if (phase == PHASE_TARGET) {
             var manager = particles.Singleton()
             manager.spawnParticle(
-                x, y, x + Math.floor(Math.random() * 5 - 3), y + Math.floor(Math.random() * 5 - 3),
-                //x, y, x-10, y - 10,
-                1 + Math.floor(Math.random() * 3), "☼", "plasma", "instant", undefined, 200 + Math.floor(Math.random() * 300))
+                x, y, x + Math.floor(generator.random() * 5 - 3), y + Math.floor(generator.random() * 5 - 3),
+                1, "☼", "plasma", "instant", undefined, 200 + Math.floor(generator.random() * 300))
                 
             if ((typeof(cell.character) != "undefined") && (cell.character != null)) {
                 cell.character.attrs.hp.pos -= 
@@ -385,7 +403,7 @@ Effect.prototype.addSticky = function(c) {
         }
         
         c.stickyFns.push({
-            ttl: Math.floor(this.stickyTtl + Math.random() * this.stickyTtlRandom),
+            ttl: Math.floor(this.stickyTtl + generator.random() * this.stickyTtlRandom),
             effect: this
         })
     }
@@ -413,8 +431,13 @@ function applyAllStickies(c) {
     }
 }
 
+function registerGenerator(gen) {
+    generator = gen
+}
+
 module.exports = {
     Effect: Effect,
     applyAllStickies: applyAllStickies,
-    effectFunction: effectFunction
+    effectFunction: effectFunction,
+    registerGenerator: registerGenerator
 }

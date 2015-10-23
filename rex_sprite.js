@@ -236,7 +236,7 @@ RexSprite.prototype.draw = function(level, x, y) {
                             if (logicLayer) {
                                 var logicBrick = logicLayer.raster[rasterIdx]
                                 if (logicBrick.asciiCode == 61) { // 61 == =
-                                    // ?
+                                    delete levelPixel.forcePassable // we don't want to force it, use the common tile passability
                                 } else if (logicBrick.asciiCode == 247) { // 247 == ≈
                                     levelPixel.damage = logicBrick.fg.r // Red channel determines the damage dealt
                                 } else if (logicBrick.asciiCode == 233) { // 233 == Θ

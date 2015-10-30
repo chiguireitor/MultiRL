@@ -2,45 +2,96 @@
 //console.log(items.generate('weapons/ranged/rifle', {score: 1000})) //, '1a236fb243b59037'))
 //console.log(items.generate('ammo/9mm bullets', {score: 1000}))
 
-/*var determinist = require('./determinist.js')
+var fsm = require('./FSM.js')
 
-console.log(determinist.getSessionId())
+/*var e = new fsm.FSM()
 
-var fr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+e.newState('start')
+e.newState('camina')
+e.newState('caga')
 
-for (var j=0; j < 1000; j++) {
-	var cid = new determinist.IdRandomizer()
-	for (var i=0; i < 1000; i++) {
-		var n = cid.randomIntRange(0, 10)
-		fr[n] = fr[n] + 1
-	}
-}
-console.log(fr)*/
+e.newVariable('desespero', 0)
+e.newVariable('desesperoMax', 10)
+e.newVariable('nombre', 'pillo')
 
-/*var determinist = require('./determinist.js')
-var a = new determinist.IdRandomizer()
-
-for (var j=0; j < 10; j++) {
-    var r = [0, 0, 0]
-    
-    for (var i=0; i < 100; i++) {
-        var m = a.randomInt(3)
-        r[m] = r[m]+1
+e.linkStates('start', 'camina', function(vars) {
+    if (vars.desespero > vars.desesperoMax) {
+        return 1
+    } else {
+        vars.desespero++
+        return 0
     }
+})
 
-    console.log(r)
+e.linkStates('camina', 'caga', function(vars) {
+    if (vars.desespero > 0) {
+        vars.desespero--
+        return 0
+    } else {
+        return 1
+    }
+})
+
+e.linkStates('caga', 'start', function(vars) {
+    return 1
+})
+
+e.enterState('camina', function(state, vars) {
+    console.log('Empezando a caminar ' + vars.nombre)
+})
+
+e.exitState('camina', function(state, vars) {
+    console.log('Golpe tuyero ' + vars.nombre)
+})
+
+e.enterState('caga', function(state, vars) {
+    console.log('Echando una cagadilla ' + vars.nombre)
+})
+
+e.exitState('caga', function(state, vars) {
+    console.log('No hay papel tuale!! ' + vars.nombre)
+})
+
+e.enterState('start', function(state, vars) {
+    console.log('Calmado ' + vars.nombre)
+})
+
+e.exitState('start', function(state, vars) {
+    console.log('Ya no aguanto ' + vars.nombre)
+})
+
+var agentes = [e.cloneVars({nombre: 'bicho'}), e.cloneVars({nombre: 'memo', desesperoMax: 45})]
+
+for (var i=0; i < 100; i++) {
+    for (var j=0; j < agentes.length; j++) {
+        e.process(agentes[j])
+    }
 }*/
 
-/*var crypto = require('crypto')
-var hash = new crypto.createHash('sha512')
-hash.update('1234')
-var dg = hash.digest()
-console.log(dg)
 
-hash = new crypto.createHash('sha512')
-hash.update(dg)
-dg = hash.digest()
-console.log(dg)*/
 
-var a = new Buffer([1,2,3])
-console.log(typeof(a))
+var st = fsm.loadStateMachine('./test.fzm', {}, 
+function() {
+    st.newVariable('energy', 10)
+    var idleProc = function() {
+        st.newVariable('t', st.getVariable('t') + 1)
+    }
+    
+    var spendProc = function() {
+        st.newVariable('t', st.getVariable('t') - 1)
+    }
+    
+    st.setStateProcFn('corre', spendProc)
+    st.setStateProcFn('start', idleProc)
+    
+    st.enterState('respira', function(state, vars) {
+        console.log('Breathing!')
+        st.newVariable('energy', st.getVariable('energy') + 1)
+    })
+    
+    for (var i=0; i < 100; i++) {
+        st.process()
+        
+        console.log(st.getVariable('t'))
+    }
+})

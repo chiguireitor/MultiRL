@@ -702,7 +702,10 @@ function initObjects() {
     activableTiles[asciiMapping['=']] = function(t, c) {
         t.tile = asciiMapping['_']
         soundManager.addSound(c.player.pos.x, c.player.pos.y, 15, "open_door", 0)
-        c.player.messages.push("You open the door")
+        
+        if (typeof(c.player.messages) !== "undefined") {
+            c.player.messages.push("You open the door")
+        }
     }
 
     activableTiles[asciiMapping['≈']] = function(t, c) {
@@ -719,7 +722,10 @@ function initObjects() {
     }
 
     usableTiles[asciiMapping['↑']] = function(t, c) {
-        c.player.messages.push("You pull down the lever")
+        if (typeof(c.player.messages) !== "undefined") {
+            c.player.messages.push("You pull down the lever")
+        }
+        
         if (t.linkedEvent(t, c)) {
             t.tile = asciiMapping['↓']
             soundManager.addSound(c.player.pos.x, c.player.pos.y, 15, "switch", 0)
@@ -963,7 +969,11 @@ function resetLevel() {
     }
 
     var levelType = sessionRandom.child('level-session').randomIntRange(3)
-    if (levelType == 0) {
+    if (levelType == -1) {
+        levelTileset = "base"
+        generators.testLevel(sessionRandom.child('level'), level,
+            asciiMapping['.'], asciiMapping['#'], asciiMapping['='])
+    } else if (levelType == 0) {
         levelTileset = "base"
         generators.bspSquares(sessionRandom.child('level'), level, 
             gameDefs.level.minRoomArea,

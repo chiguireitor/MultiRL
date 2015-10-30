@@ -367,8 +367,10 @@ function rayhit(x0, y0, x1, y1) {
     return {x: lx, y: ly}
 }*/
 
-function rayhitThrough(x0, y0, x1, y1, energy) {
+function rayhitThrough(x0, y0, x1, y1, energy, pierceProbability) {
     var initialEnergy = energy
+    var result = []
+    
 	if (!energy) {
 		energy = 1000
 	}
@@ -416,7 +418,7 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
                 }
             }
             
-            return {x: px, y: py}
+            return {x: px, y: py, pa: pa}
         } else if ((pa == 1) && (typeof(tile.item) != "undefined") && (tile.item != null)) {
             if (generator.random() < 0.8) {
                 // TODO: Fix this, it should use information from the weapon if it can hit items or not
@@ -426,7 +428,7 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
     }
     
     if ((dx == 0) && (dy == 0)) {
-        return {x: x1, y: y1}
+        result.push({x: x1, y: y1})
     } else if (dy == 0) {
         // Horizontal line, easiest
         path = 1
@@ -443,7 +445,11 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
 			var tile = row[Math.floor(x)]
 			var ret = evaluateTile(tile, x, y0)
             if (typeof(ret) == "object") {
-                return ret
+                result.push(ret)
+                    
+                if ((ret.pa != 2) || !generator.eventOccurs(pierceProbability)) {
+                    break
+                }
             }
             
             x += ix
@@ -464,7 +470,11 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
 			var tile = level[Math.floor(y)][Math.floor(x0)]
 			var ret = evaluateTile(tile, x0, y)
             if (typeof(ret) == "object") {
-                return ret
+                result.push(ret)
+                    
+                if ((ret.pa != 2) || !generator.eventOccurs(pierceProbability)) {
+                    break
+                }
             }
             y += iy
 			energy--
@@ -496,7 +506,11 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
 					var tile = level[Math.floor(y)][Math.floor(x)]
 					var ret = evaluateTile(tile, x, y)
                     if (typeof(ret) == "object") {
-                        return ret
+                        result.push(ret)
+                    
+                        if ((ret.pa != 2) || !generator.eventOccurs(pierceProbability)) {
+                            break
+                        }
                     }
                 }
                 
@@ -521,7 +535,11 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
 					var tile = level[Math.floor(y)][Math.floor(x)]
 					var ret = evaluateTile(tile, x, y)
                     if (typeof(ret) == "object") {
-                        return ret
+                        result.push(ret)
+                    
+                        if ((ret.pa != 2) || !generator.eventOccurs(pierceProbability)) {
+                            break
+                        }
                     }
                 }
                 
@@ -539,7 +557,11 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
                 
                 var ret = evaluateTile(tile, x, y)
                 if (typeof(ret) == "object") {
-                    return ret
+                    result.push(ret)
+                    
+                    if ((ret.pa != 2) || !generator.eventOccurs(pierceProbability)) {
+                        break
+                    }
                 }
                 
                 x += ix
@@ -552,7 +574,8 @@ function rayhitThrough(x0, y0, x1, y1, energy) {
     if (isNaN(lx) || isNaN(ly)) {
         console.log("NaN on failover tracing " + lx + " " + ly + "; Path: " + path + "; NRG: " + initialEnergy)
     }
-    return {x: lx, y: ly}
+    
+    return result //{x: lx, y: ly}
 }
 
 function Weapon(options) {
@@ -572,7 +595,7 @@ function Weapon(options) {
     this.maxDamage = options.maxDamage || 3
     this.criticalChance = options.criticalChance || 0.01
     this.criticalMultiplier = options.criticalMultiplier || 2
-    this.waitOnUse = options.waitOnUse || 5
+    this.waitOnUse = options.waitOnUse || 10
     this.waitSubstractSpeedDivider = options.waitSubstractSpeedDivider || 25.0
     this.ammoUse = options.ammoUse || 1
     this.pix = options.pix || '?'
@@ -741,8 +764,15 @@ Weapon.prototype.fire = function(x, y, c, options) {
         }
     }
 
-    while ((burst < Math.min(weapon.burstLength, weapon.ammo))&&(weapon.ammo >= 0)) {
-        if ((weapon.ammo - weapon.ammoUse) >= 0) {
+    if ((c.player_class == "marine") && (weapon.ammo <= 0)) {
+        if (generator.eventOccurs(Math.min(c.attrs.suPow, 100)/100.0)) {
+            // Try to reload the weapon
+            weapon.reload(c, options.useAlternate)
+        }
+    }
+    
+    while ((burst < Math.min(weapon.burstLength, weapon.ammo))&&(weapon.ammo > 0)) {
+        if ((weapon.ammo - (weapon.ammoUse - burst)) >= 0) {
             firedSomething = true
             weapon.ammo -= weapon.ammoUse
             
@@ -756,6 +786,11 @@ Weapon.prototype.fire = function(x, y, c, options) {
                 for (var i=0; i < decorators.length; i++) {
                     speed = decorators[i].call(c, speed)
                 }
+                
+                if (c.player_class == "marine") {
+                    speed.waitOnUse = Math.round(speed.waitOnUse - Math.min(c.attrs.suPow, 100)/10.0)
+                }
+                
                 c.wait += Math.max(speed.waitOnUse - Math.floor(speed.speed / speed.waitSubstractSpeedDivider), 1)
                 
                 var dx = c.pos.x - x
@@ -859,128 +894,143 @@ Weapon.prototype.fire = function(x, y, c, options) {
                     /*if (((ty >= 0) && (ty < level.length)&&
                         (tx >= 0) && (tx < level[ty].length))) {*/
                         
-                        var ntgt = rayhitThrough(c.pos.x, c.pos.y, tx, ty, Math.round(this.range * rangeMultiplier))
-						
-                        if (ntgt && (!isNaN(ntgt.x)) && (!isNaN(ntgt.y))) {
-                            tx = ntgt.x
-                            ty = ntgt.y
-                            
-                            if (tx < 0) {
-                                tx = 0
-                            } else if (tx >= level[0].length) {
-                                tx = level[0].length - 1
-                            }
-                            
-                            if (ty < 0) {
-                                ty = 0
-                            } else if (ty >= level.length) {
-                                ty = level.length - 1
-                            }
-                            
-                            validTarget = true
-                            
-                            var tgt = level[ty][tx]
-                            
-                            var dmgVals = {
-                                minDamage: this.minDamage,
-                                maxDamage: this.maxDamage,
-                                criticalChance: this.criticalChance,
-                                criticalMultiplier: this.criticalMultiplier,
-                                armorMultiplier: this.armorMultiplier,
-                                knockback: this.knockback
-                            }
-                            decorators = this.damageDecorators.concat(c.damageDecorators || []).concat(weapon.ammoDecorators.damage || [])
-                            
-                            for (var i=0; i < decorators.length; i++) {
-                                dmgVals = decorators[i].call(c, dmgVals)
-                            }
+                        var pierceProbability = 0
+                        if (c.player_class == "heavy") {
+                            pierceProbability = Math.min(c.attrs.suPow, 100)/100.0
+                        }
+                        var ntgtList = rayhitThrough(c.pos.x, c.pos.y, tx, ty, Math.round(this.range * rangeMultiplier), pierceProbability)
 
-                            var dmg = Math.round(generator.random()*(dmgVals.maxDamage - dmgVals.minDamage) + dmgVals.minDamage)
-                            var critical = generator.random() < dmgVals.criticalChance
+                        for (var ti=0; ti < ntgtList.length; ti++) {
+                            var ntgt = ntgtList[ti]
                             
-                            if (critical) {
-                                dmg = dmg * dmgVals.criticalMultiplier
-                            }
-                            
-                            for (var ei=0; ei < currentEffects.length; ei++) {
-                                currentEffects[ei].applyToTarget(level, tx, ty)
-                            }
-
-                            if ((typeof(tgt.character) != "undefined") && (tgt.character != null)) {
-                                if (typeof(tgt.character.armor) != "undefined") {
-                                    var armor = tgt.character.armor.pos * dmgVals.armorMultiplier
-                                    var negate = armor/20
-                                    negate = (negate <= 10)?negate:10
-                                    
-                                    tgt.character.armor.pos -= Math.abs(negate) // Negative "negation" makes more damage on more armor
-                                        
-                                    if (tgt.character.armor.pos < 0) {
-                                        tgt.character.armor.pos = 0
-                                    }
-                                    
-                                    dmg -= negate
-                                    if (dmg <= 0) {
-                                        dmg = 1 // Always do a little damage
-                                    }
-                                }
-                                tgt.character.attrs.hp.pos -= dmg
+                            if (ntgt && (!isNaN(ntgt.x)) && (!isNaN(ntgt.y))) {
+                                tx = ntgt.x
+                                ty = ntgt.y
                                 
-                                if (dmgVals.knockback > 0) {
-                                    if (!tgt.character.knockback) {
-                                        tgt.character.knockback = {
-                                            ox: c.pos.x,
-                                            oy: c.pos.y,
-                                            amount: dmgVals.knockback
-                                        }
-                                    } else {
-                                        if (tgt.character.knockback.amount < dmgVals.knockback) {
-                                            tgt.character.knockback.ox = c.pos.x
-                                            tgt.character.knockback.oy = c.pos.y
-                                        }
-                                        tgt.character.knockback.amount += dmgVals.knockback
-                                    }
+                                if (tx < 0) {
+                                    tx = 0
+                                } else if (tx >= level[0].length) {
+                                    tx = level[0].length - 1
                                 }
                                 
-                                if (tgt.character.type == "player") {
-                                    pushPlayerMessage("You damage player " + tgt.character.username + " with " + dmg + " damage")
-                                } else {
-                                    pushPlayerMessage("You damage the " + tgt.character.username +  " with " + dmg + " damage")
+                                if (ty < 0) {
+                                    ty = 0
+                                } else if (ty >= level.length) {
+                                    ty = level.length - 1
+                                }
+                                
+                                validTarget = true
+                                
+                                var tgt = level[ty][tx]
+                                
+                                var dmgVals = {
+                                    minDamage: this.minDamage,
+                                    maxDamage: this.maxDamage,
+                                    criticalChance: this.criticalChance,
+                                    criticalMultiplier: this.criticalMultiplier,
+                                    armorMultiplier: this.armorMultiplier,
+                                    knockback: this.knockback
+                                }
+                                decorators = this.damageDecorators.concat(c.damageDecorators || []).concat(weapon.ammoDecorators.damage || [])
+                                
+                                for (var i=0; i < decorators.length; i++) {
+                                    dmgVals = decorators[i].call(c, dmgVals)
+                                }
+
+                                var dmg = Math.round(generator.random()*(dmgVals.maxDamage - dmgVals.minDamage) + dmgVals.minDamage)
+                                var critical = generator.random() < dmgVals.criticalChance
+                                
+                                if (critical) {
+                                    dmg = dmg * dmgVals.criticalMultiplier
                                 }
                                 
                                 for (var ei=0; ei < currentEffects.length; ei++) {
-                                    currentEffects[ei].addSticky(tgt.character)
+                                    currentEffects[ei].applyToTarget(level, tx, ty)
+                                }
+
+                                if ((typeof(tgt.character) != "undefined") && (tgt.character != null)) {
+                                    if (typeof(tgt.character.armor) != "undefined") {
+                                        var armor = tgt.character.armor.pos * dmgVals.armorMultiplier
+                                        var negate = armor/20
+                                        negate = (negate <= 10)?negate:10
+                                        
+                                        tgt.character.armor.pos -= Math.abs(negate) // Negative "negation" makes more damage on more armor
+                                            
+                                        if (tgt.character.armor.pos < 0) {
+                                            tgt.character.armor.pos = 0
+                                        }
+                                        
+                                        dmg -= negate
+                                        if (dmg <= 0) {
+                                            dmg = 1 // Always do a little damage
+                                        }
+                                    }
+                                    tgt.character.attrs.hp.pos -= dmg
+                                    
+                                    if (dmgVals.knockback > 0) {
+                                        if (!tgt.character.knockback) {
+                                            tgt.character.knockback = {
+                                                ox: c.pos.x,
+                                                oy: c.pos.y,
+                                                amount: dmgVals.knockback
+                                            }
+                                        } else {
+                                            if (tgt.character.knockback.amount < dmgVals.knockback) {
+                                                tgt.character.knockback.ox = c.pos.x
+                                                tgt.character.knockback.oy = c.pos.y
+                                            }
+                                            tgt.character.knockback.amount += dmgVals.knockback
+                                        }
+                                    }
+                                    
+                                    if (tgt.character.type == "player") {
+                                        pushPlayerMessage("You damage player " + tgt.character.username + " with " + dmg + " damage")
+                                    } else {
+                                        pushPlayerMessage("You damage the " + tgt.character.username +  " with " + dmg + " damage")
+                                    }
+                                    
+                                    for (var ei=0; ei < currentEffects.length; ei++) {
+                                        currentEffects[ei].addSticky(tgt.character)
+                                    }
+                                    
+                                    if (typeof(tgt.character.attrs.hp.onchange) != "undefined") {
+                                        tgt.character.attrs.hp.onchange.call(tgt.character, "ammo-" + weapon.ammoType, dmg, c)
+                                    }
+                                } else if ((typeof(tgt.item) != "undefined") && (tgt.item != null)) {
+                                    if (typeof(tgt.item.health) == "undefined") {
+                                        tgt.item.health = 1
+                                    }
+                                    
+                                    tgt.item.health = tgt.item.health - dmg
+                                    
+                                    if (tgt.item.health <= 0) {
+                                        pushPlayerMessage("You destroy a " + (tgt.item.name || tgt.item.ammoType))
+                                        tgt.item = null
+                                    } else {
+                                        pushPlayerMessage("You hit a " + (tgt.item.name || tgt.item.ammoType) + " with " + dmg + " damage")
+                                    }
+                                } else if (typeof(tgt.tileHealth) != "undefined") {
+                                    util.processTileHealth(tgt, dmg, level, tx, ty)
                                 }
                                 
-                                if (typeof(tgt.character.attrs.hp.onchange) != "undefined") {
-                                    tgt.character.attrs.hp.onchange.call(tgt.character, "ammo-" + weapon.ammoType, dmg, c)
-                                }
-                            } else if ((typeof(tgt.item) != "undefined") && (tgt.item != null)) {
-                                if (typeof(tgt.item.health) == "undefined") {
-                                    tgt.item.health = 1
-                                }
-                                
-                                tgt.item.health = tgt.item.health - dmg
-                                
-                                if (tgt.item.health <= 0) {
-                                    pushPlayerMessage("You destroy a " + (tgt.item.name || tgt.item.ammoType))
-                                    tgt.item = null
-                                } else {
-                                    pushPlayerMessage("You hit a " + (tgt.item.name || tgt.item.ammoType) + " with " + dmg + " damage")
-                                }
-                            } else if (typeof(tgt.tileHealth) != "undefined") {
-                                util.processTileHealth(tgt, dmg, level, tx, ty)
+                                particles.Singleton().spawnParticle(
+                                    c.pos.x, c.pos.y, tx, ty, 1, "•", 
+                                    "particle-ammo-" + weapon.ammoType.replace(/ /g, '-'),  
+                                    "instant", undefined, burst * weapon.repeatDelay, weapon.trail)
+                                soundManager.addSound(c.pos.x, c.pos.y, 15, weapon.sndOnFire, burst * weapon.repeatDelay)
+                            } else {
+                                console.log("Couldn't trace a target")
+                                break
                             }
-                            
-                            particles.Singleton().spawnParticle(
-                                c.pos.x, c.pos.y, tx, ty, 1, "•", 
-                                "particle-ammo-" + weapon.ammoType.replace(/ /g, '-'),  
-                                "instant", undefined, burst * weapon.repeatDelay, weapon.trail)
-                            soundManager.addSound(c.pos.x, c.pos.y, 15, weapon.sndOnFire, burst * weapon.repeatDelay)
-                        } else {
-                            console.log("Couldn't trace a target")
-                            break
                         }
                     //}
+                }
+            }
+        } else {
+            if (c.player_class == "marine") {
+                if (generator.eventOccurs(Math.min(c.attrs.suPow, 100)/100.0)) {
+                    // Try to reload the weapon
+                    weapon.reload(c, options.useAlternate)
                 }
             }
         }
@@ -1201,7 +1251,13 @@ Weapon.prototype.reloadWithCharger = function(c, charger, alternate) {
 			weapon = c.weapon.alternate
 		}
 		
-        var needAmmo = weapon.ammoMax - weapon.ammo
+        var wMax = weapon.ammoMax
+        
+        if (c.player_class == "heavy") {
+            wMax = Math.round((1.0 + Math.min(c.attrs.suPow, 100) / 200.0) * wMax)
+        }
+        
+        var needAmmo = wMax - weapon.ammo
         weapon.ammo += Math.min(charger.amount, needAmmo)
         weapon.chargerAmmoType = charger.ammoType
         weapon.ammoDecorators = charger.decorators || {}

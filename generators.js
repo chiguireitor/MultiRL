@@ -764,9 +764,14 @@ function drawRoom(generator, level, sq, wall, floor, door) {
     }
 }
 
+function testLevel(generator, level, floor, wall, door) {
+    drawRoom(generator, level, {x: 0, y: 0, w: level[0].length, h: level.length}, wall, floor, door)
+}
+
 module.exports = {
     bspSquares: bspSquares,
     caveLevel: caveLevel,
     lavaLevel: lavaLevel,
-    river: river
+    river: river,
+    testLevel: testLevel
 }

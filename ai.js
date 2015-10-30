@@ -48,6 +48,8 @@ var asciiMapping = require('./templates/ascii_mapping.js') // Code shared betwee
 var effects = require('./effects.js')
 var util = require('./util.js')
 var gameDefs = require('./conf/gamedefs.js')
+var fsm = require('./fsm.js')
+var comms = require('./comms.js')
 
 var AI = function(params) {
     this.level = params.level
@@ -64,8 +66,14 @@ var AI = function(params) {
     
     this.agents = []
     
+    this.factions = {}
+    
     this.purge = function() {
         this.agents = []
+    }
+    
+    this.newFaction = function(name) {
+        this.factions[name] = {}
     }
     
     this.instantiate = function(x, y, name, pix, color, attrs, weapon, inventory, customDecision) {
@@ -158,147 +166,6 @@ var AI = function(params) {
         return character
     }
     
-    this.process_old = function() {
-        var somethingHappened = false
-        
-        var i = 0
-        while (i < this.agents.length) {
-            var agent = this.agents[i]
-            
-            util.processKnockback(agent, this.level, this.passable)
-            
-            if (agent.attrs.hp.pos <= 0) {
-                this.level[agent.pos.y][agent.pos.x].character = null
-                this.agents.splice(i, 1)
-                
-                var gmul = (agent.attrs.hp.pos < -agent.attrs.hp.max)?2:1
-                var options = {spread: gmul*2}
-                
-                this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(this.generator.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs, options)
-                
-                /**/
-                var bloodSplats = "+-{};\"^%&()|º<>"
-                var cnt = Math.floor(this.generator.random() * 12) + 6
-                for (var sb=0; sb < cnt; sb++) {
-                    particles.Singleton().spawnParticle(
-                        agent.pos.x, agent.pos.y, 
-                        agent.pos.x + Math.round(this.generator.random() * 7 - 3.5),
-                        agent.pos.y + Math.round(this.generator.random() * 7 - 3.5), 1, bloodSplats[Math.floor(this.generator.random() * bloodSplats.length)], 
-                        "blood",  
-                        "instant", undefined, Math.round((this.generator.random() * 100) + 100), undefined)
-                }
-                
-                util.dropInventory(agent, this.level, this.passable)
-                
-                i--
-            } else if (agent.wait > 0) {
-                agent.wait--
-            } else if (agent) {
-                // Process the agent state and take a decision accordingly
-                var tx, ty
-                if (agent.customDecision) {
-                    var ret = agent.customDecision.call(agent, this.level, this)
-                    tx = agent.pos.x + ret.x
-                    ty = agent.pos.y + ret.y
-                } else {
-                    var character = this.findNearestPlayer(agent.pos.x, agent.pos.y, agent.fov)
-                    var dx = 0
-                    var dy = 0
-                    
-                    if (character) {
-                        if ((typeof(agent.weapon) != "undefined")
-                            && (agent.weapon != null)
-                            && (this.generator.random() < 0.2)) {
-                            
-                            if (agent.weapon.ranged && agent.weapon.alternate && (this.generator.random() < 0.2)) {
-                                if (agent.weapon.alternate.ammo == 0) {
-                                    agent.weapon.reload(agent, true)
-                                } else {
-                                    agent.weapon.fire(character.pos.x, character.pos.y, agent, {useAlternate: true})
-                                }
-                            } else if (agent.weapon.ranged) {
-                                if (agent.weapon.ammo == 0) {
-                                    agent.weapon.reload(agent)
-                                } else {
-                                    agent.weapon.fire(character.pos.x, character.pos.y, agent)
-                                }
-                            }
-                            
-                        }
-                    
-                        if (character.pos.x < agent.pos.x) {
-                            dx = -1
-                        } else if (character.pos.x > agent.pos.x) {
-                            dx = 1
-                        }
-                        
-                        if (character.pos.y < agent.pos.y) {
-                            dy = -1
-                        } else if (character.pos.y > agent.pos.y) {
-                            dy = 1
-                        }
-                    } else {
-                        var nm = Math.floor(this.generator.random() * 8)
-                        dx = [-1, 0, 1, -1, 1, -1, 0, 1][nm]
-                        dy = [-1, -1, -1, 0, 0, 1, 1, 1][nm]
-                    }
-                    
-                    tx = agent.pos.x + dx
-                    ty = agent.pos.y + dy
-                }
-                    
-                if ((tx >= 0) && (tx < this.level[0].length) && (ty >= 0) && (ty < this.level.length)) {
-                    var tile = this.level[ty][tx]
-                    
-                    // Won't walk purposefully over a damaging tile
-                    if ((!tile.damage) || (tile.damage <= 0)) {
-                        var p = this.passable(tile)
-                        if (p == 1) {
-                            agent.wait += 10 - Math.floor(agent.attrs.speed.pos/10)
-                            
-                            this.level[agent.pos.y][agent.pos.x].character = null
-                            agent.pos.x = tx
-                            agent.pos.y = ty
-                            var t = this.level[ty][tx]
-                            t.character = agent
-                            if (this.activable(t)) {
-                                this.activableTiles[t.tile](t, agent)
-                            }
-                            somethingHappened = true
-                        } else if (p == 2) {
-                            if (((agent.pos.x != tx) && (agent.pos.y != ty))) {
-                                agent.wait += 20
-                                this.meleeDamage(agent, this.level[ty][tx].character)
-                                somethingHappened = true
-                            }
-                        }
-                    }
-                }
-                
-                var ctl = this.level[agent.pos.y][agent.pos.x]
-                /*if (ctl.tile in activableTiles) {
-                    activableTiles[ctl.tile](ctl, ws)
-                }*/
-                
-                if (ctl.damage) {
-                    // Walking over damaging tile
-                    if (agent.attrs.hp.pos > 0) {
-                        agent.attrs.hp.pos -= ctl.damage
-                        
-                        if (typeof(agent.attrs.hp.onchange) != "undefined") {
-                            agent.attrs.hp.onchange.call(agent, "floor-hazard", ctl.damage)
-                        }
-                    }                                
-                }
-                
-            }
-            effects.applyAllStickies(agent)
-            i++
-        }
-        
-        return somethingHappened
-    }
-    
     this.process = function() {
         var somethingHappened = false
         
@@ -349,8 +216,15 @@ var AI = function(params) {
                 var tx, ty
                 if (agent.customDecision) {
                     var ret = agent.customDecision.call(agent, this.level, this)
-                    tx = agent.pos.x + ret.x
-                    ty = agent.pos.y + ret.y
+                    
+                    for (p in ret) {
+                        if (ret.hasOwnProperty(p)) {
+                            cmd[p] = ret[p]
+                        }
+                    }
+                    
+                    /*tx = agent.pos.x + ret.x
+                    ty = agent.pos.y + ret.y*/
                 } else {
                     var character = this.findNearestPlayer(agent.pos.x, agent.pos.y, agent.fov)
                     var dx = 0
@@ -427,8 +301,6 @@ var AI = function(params) {
                             somethingHappened = true
                         } else if (p == 2) {
                             if (((agent.pos.x != tx) && (agent.pos.y != ty))) {
-                                /*agent.wait += 20
-                                this.meleeDamage(agent, this.level[ty][tx].character)*/
                                 cmd.dst = {x: tx, y: ty}
                                 somethingHappened = true
                             }

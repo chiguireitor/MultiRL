@@ -109,7 +109,7 @@ var AI = function(params) {
             weapon: weapon,
             fov: gameDefs.enemyBaseFov,
             inventory: inventory,
-            wait: this.generator.random(10) - 5,
+            wait: this.generator.randomInt(0, 10),
             customDecision: customDecision,
             findInInventory: util.findInInventory,
             waitMultiplier: gameDefs.enemiesWaitMultiplier,
@@ -172,45 +172,47 @@ var AI = function(params) {
         var i = 0
         while (i < this.agents.length) {
             var agent = this.agents[i]
-            var cmd = {player: agent, wait: agent.wait}
+            var cmd = {player: agent, wait: 0}
             
-            if (agent.attrs.hp.pos <= 0) {
-                this.level[agent.pos.y][agent.pos.x].character = null
-                
-                if (!(agent.knockback && (agent.knockback.amount > 0))) {
-                    this.agents.splice(i, 1)
-                } else {
-                    somethingHappened = true
-                }
-                
-                var bloodSplats = "+-{};\"^%&()|º<>"
-                var cnt = Math.floor(this.generator.random() * 12) + 6
-                
-                if (agent.knockback && (agent.knockback.amount > 0)) {
-                    cnt /= agent.knockback.amount
-                }
-                
-                for (var sb=0; sb < cnt; sb++) {
-                    particles.Singleton().spawnParticle(
-                        agent.pos.x, agent.pos.y, 
-                        agent.pos.x + Math.round(this.generator.random() * 7 - 3),
-                        agent.pos.y + Math.round(this.generator.random() * 7 - 3), 1, bloodSplats[Math.floor(this.generator.random() * bloodSplats.length)], 
-                        "blood",  
-                        "instant", undefined, Math.round((this.generator.random() * 100) + 100), undefined)
-                }
-                
-                if (!(agent.knockback && (agent.knockback.amount > 0))) {
-                    var gmul = (agent.attrs.hp.pos < -agent.attrs.hp.max)?2:1
-                    var options = {spread: gmul*2}
+            if (agent) {
+                if (agent.attrs.hp.pos <= 0) {
+                    this.level[agent.pos.y][agent.pos.x].character = null
                     
-                    this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(this.generator.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs, options)
+                    if (!(agent.knockback && (agent.knockback.amount > 0))) {
+                        this.agents.splice(i, 1)
+                    } else {
+                        somethingHappened = true
+                    }
                     
-                    util.dropInventory(agent, this.level, this.passable)
-                    agent = undefined
-                    i--
+                    var bloodSplats = "+-{};\"^%&()|º<>"
+                    var cnt = Math.floor(this.generator.random() * 12) + 6
+                    
+                    if (agent.knockback && (agent.knockback.amount > 0)) {
+                        cnt /= agent.knockback.amount
+                    }
+                    
+                    for (var sb=0; sb < cnt; sb++) {
+                        particles.Singleton().spawnParticle(
+                            agent.pos.x, agent.pos.y, 
+                            agent.pos.x + Math.round(this.generator.random() * 7 - 3),
+                            agent.pos.y + Math.round(this.generator.random() * 7 - 3), 1, bloodSplats[Math.floor(this.generator.random() * bloodSplats.length)], 
+                            "blood",  
+                            "instant", undefined, Math.round((this.generator.random() * 100) + 100), undefined)
+                    }
+                    
+                    if (!(agent.knockback && (agent.knockback.amount > 0))) {
+                        var gmul = (agent.attrs.hp.pos < -agent.attrs.hp.max)?2:1
+                        var options = {spread: gmul*2}
+                        
+                        this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(this.generator.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs, options)
+                        
+                        util.dropInventory(agent, this.level, this.passable)
+                        agent = undefined
+                        i--
+                    }
                 }
             }
-
+            
             if (agent) {
                 // Process the agent state and take a decision accordingly
                 var tx, ty
@@ -218,7 +220,9 @@ var AI = function(params) {
                     var ret = agent.customDecision.call(agent, this.level, this)
                     
                     for (p in ret) {
-                        if (ret.hasOwnProperty(p)) {
+                        if (p == 'wait') {
+                            cmd.wait += ret.wait
+                        } else if (ret.hasOwnProperty(p)) {
                             cmd[p] = ret[p]
                         }
                     }
@@ -308,6 +312,9 @@ var AI = function(params) {
                     }
                 }
                 
+                /*agent.wait += cmd.wait
+                cmd.wait = agent.wait*/
+                
                 somethingHappened |= util.processSemiturn({
                     agent: cmd,
                     level: this.level,
@@ -321,13 +328,142 @@ var AI = function(params) {
                     generator: this.generator
                 })
                 
-                agent.wait = cmd.wait
+                agent.wait += cmd.wait
+                
+                /*if (!isNaN(cmd.wait) && (cmd.wait != 0)) {
+                    agent.wait = cmd.wait
+                }*/
+                
+                /*if (isNaN(agent.wait)) {
+                    agent.wait = cmd.wait
+                } else if (!isNaN(cmd.wait)){
+                    agent.wait = Math.max(agent.wait + (cmd.wait - agent.wait), 0)
+                }*/
             }
 
             i++
         }
         
         return somethingHappened
+    }
+    
+    this.traverse = function(agent, level, scores) {
+        var zone = []
+        var MAXVAL = 10000000
+        var preferredSpot
+        if ('preferredSpot' in scores) {
+            preferredSpot = scores.preferredSpot
+        }
+        
+        // O(n^3) + O(n^2) algorithm, yuck!
+        for (var i = -agent.fov; i < agent.fov; i++) {
+            var y = agent.pos.y + i
+            var levelRow
+            
+            var row = new Array(agent.fov*2)
+            if ((y >= 0)&&(y < level.length)) {
+                levelRow = level[y]
+                
+                for (var j = -agent.fov; j < agent.fov; j++) {
+                    var x = agent.pos.x + j
+                    var rowIdx = j + agent.fov
+                    
+                    if ((x >= 0)&&(x < levelRow.length)) {
+                        var tile = levelRow[x]
+                        var p = this.passable(tile)
+                        
+                        if ((y == 0)&&(x == 0)) {
+                            row[rowIdx] = MAXVAL
+                        } else if ((typeof(preferredSpot) != "undefined") && (preferredSpot.x == x) && (preferredSpot.y == y)) {
+                            row[rowIdx] = -10
+                        } else if (p == 1) {
+                            if (tile.damage) {
+                                if (tile.damage <= agent.attrs.hp.pos) {
+                                    row[rowIdx] = tile.damage * 10
+                                } else {
+                                    row[rowIdx] = MAXVAL
+                                }
+                            } else if (p == 2) {
+                                if ((typeof(tile.character) != "undefined") && (tile.character != null)) {
+                                    if (tile.character.attrs.faction != agent.attrs.faction) {
+                                        if ('enemy' in scores) {
+                                            row[rowIdx] = scores.enemy
+                                        } else {
+                                            row[rowIdx] = -5
+                                        }
+                                    } else {
+                                        row[rowIdx] = MAXVAL
+                                    }
+                                }
+                            } else if (p == 0) {
+                                row[rowIdx] = MAXVAL
+                            } else if ((typeof(tile.item) != "undefined") && (tile.item != null)) {
+                                if ('item' in scores) {
+                                    row[rowIdx] = scores.item
+                                } else {
+                                    row[rowIdx] = -2
+                                }
+                            }
+                        }
+                    } else {
+                        row[rowIdx] = MAXVAL
+                    }
+                }
+            } else {
+                for (var j = -agent.fov; j < agent.fov; j++) {
+                    row[j + agent.fov] = MAXVAL
+                }
+            }
+            zone.push(row)
+        }
+        
+        var f2 = agent.fov * 2 - 1
+        var hasUndefineds = true
+        
+        while (hasUndefineds) {
+            hasUndefineds = false
+            for (var i=1; i < f2; i++) {
+                var prevRow = zone[i-1]
+                var row = zone[i]
+                var nextRow = zone[i+1]
+                
+                for (var j=1; j < f2; j++) {
+                    var tile = row[j]
+                    
+                    if ((tile != null) && (typeof(tile) == "undefined")) {
+                        var prevMin = Math.min(prevRow[j], prevRow[j+1], prevRow[j-1])
+                        var locMin = Math.min(row[j+1], row[j-1])
+                        var nextMin = Math.min(nextRow[j], nextRow[j+1], nextRow[j-1])
+                        
+                        var v = Math.min(prevMin, nextMin, locMin)
+                        
+                        if (!isNaN(v)) {
+                            row[j] = v - util.sign(v)
+                        } else {
+                            hasUndefineds = true
+                        }
+                    }
+                }
+            }
+        }
+        
+        var decs = []
+        
+        decs.push({dx: -1, dy: -1, q: zone[agent.fov-1][agent.fov-1]})
+        decs.push({dx: 0, dy: -1, q: zone[agent.fov-1][agent.fov]})
+        decs.push({dx: 1, dy: -1, q: zone[agent.fov-1][agent.fov+1]})
+        
+        decs.push({dx: -1, dy: 0, q: zone[agent.fov][agent.fov-1]})
+        decs.push({dx: 0, dy: 0, q: zone[agent.fov][agent.fov]})
+        decs.push({dx: 1, dy: 0, q: zone[agent.fov][agent.fov+1]})
+        
+        decs.push({dx: -1, dy: 1, q: zone[agent.fov+1][agent.fov-1]})
+        decs.push({dx: 0, dy: 1, q: zone[agent.fov+1][agent.fov]})
+        decs.push({dx: 1, dy: 1, q: zone[agent.fov+1][agent.fov+1]})
+        
+        decs.sort(function(a,b){ return a.q - b.q})
+        
+        return decs[0]
     }
 }
 

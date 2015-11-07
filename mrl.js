@@ -61,6 +61,7 @@ var generators = require('./generators.js')
 var monsters = require('./monsters.js')
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var effects = require('./effects.js')
+var comms = require('./comms.js')
 var soundManager = require('./soundman.js').getManager()
 var determinist = require('./determinist.js')
 
@@ -478,7 +479,8 @@ var handlers = { // These are the RPC handlers that the client can invoke
                     precision: {pos: 0, max: 100},
                     speed: {pos: 0, max: 100},
                     wait: 0,
-                    kind: "organic"
+                    kind: "organic",
+                    faction: "players"
                 },
                 weapon: null,
                 inventory: [],
@@ -500,6 +502,7 @@ var handlers = { // These are the RPC handlers that the client can invoke
         return {
             type: 'init',
             pos: ws.player.pos,
+            canCheat: gameDefs.allowCheating,
             levelTileset: levelTileset,
             dim: {w: level[0].length, h: level.length},
             player_list: wss.clients.map(function(x) { if (x.player) { return {username: x.player.username}} } )
@@ -677,6 +680,23 @@ var handlers = { // These are the RPC handlers that the client can invoke
             } else if (obj.fn == 'supow') {
                 ws.player.attrs.suPow = 100
                 ws.player.attrs.suPowWait = 0
+            } else if (obj.fn == 'god') {
+                ws.player.attrs.hp.pos = 100000
+                ws.player.attrs.suPow = 100
+                ws.player.attrs.suPowWait = -10000
+                ws.player.fov = ws.player.fov * 20
+                ws.player.fov_sq = ws.player.fov * ws.player.fov
+                ws.player.attrs.clairvoyanceRadius = 30
+                ws.player.weapon.ammo = 100000
+            } else if (obj.fn == 'showfsm') {
+                var tile = level[obj.data.y][obj.data.x]
+                if (tile.character && tile.character.fsmVars) {
+                    ws.sendPako(JSON.stringify({
+                        type: "fsm_vars",
+                        pos: {x: obj.data.x, y: obj.data.y},
+                        vars: tile.character.fsmVars
+                    }))
+                }
             }
         }
     }),
@@ -968,7 +988,7 @@ function resetLevel() {
         level.push(row)
     }
 
-    var levelType = sessionRandom.child('level-session').randomIntRange(3)
+    var levelType = -1 //sessionRandom.child('level-session').randomIntRange(3)
     if (levelType == -1) {
         levelTileset = "base"
         generators.testLevel(sessionRandom.child('level'), level,
@@ -1009,60 +1029,6 @@ function resetLevel() {
     var spriteGen = levelGen.child('sprite-placement')
     var startGen = levelGen.child('start-placement')
     
-    var nRivers = riverGen.random() 
-    nRivers = Math.floor(nRivers * nRivers * gameDefs.level.maxRivers)
-    
-    for (var i=0; i < nRivers; i++) {
-        var nRiverTile = Math.floor(riverGen.random() * riverTiles.length)
-        generators.river(level, 
-            (riverGen.random()<0.5)?'horizontal':'vertical', 
-            riverTiles[nRiverTile][0], 
-            riverTiles[nRiverTile][1], 
-            asciiMapping['|'], 'wood', 
-            riverTiles[nRiverTile][2])
-    }
-    
-    var numLevers = leverGen.random()*gameDefs.level.randomLevers + gameDefs.level.minLevers
-    for (var n=0; n < numLevers; n++) {
-        var x0 = Math.floor(leverGen.random() * (level[0].length - 2) + 1)
-        var y0 = Math.floor(leverGen.random() * (level.length - 2) + 1)
-        
-        var t = level[y0][x0]
-        if (passable(t)) {
-            t.tile = asciiMapping['↑']
-            t.linkedEvent = leverEvents[Math.floor(leverGen.random() * leverEvents.length)]()
-        }
-    }
-    
-    var numItems = itemGen.random()*gameDefs.level.randomNumberItems*currentLevel + gameDefs.level.minNumberItems
-    while (numItems > 0) {
-        var x0 = Math.floor(itemGen.random() * level[0].length)
-        var y0 = Math.floor(itemGen.random() * level.length)
-        
-        var t = level[y0][x0]
-        if (passable(t)) {
-            t.item = items[Math.floor(itemGen.random() * items.length)].clone()
-            if (t.item.type == 'weapon') {
-                t.item.findChargerAndAssign(items)
-            }
-            numItems--
-        }
-    }
-    
-    var numSprites = gameDefs.level.numSpritesToTryFit
-    var availableSprites = []
-    for (x in sprites) { if (!(x in Object.prototype)) { availableSprites.push(sprites[x]) } }
-    
-    for (var n=0; n < numSprites; n++) {
-        var i = Math.floor(spriteGen.random() * availableSprites.length)
-        var spr = availableSprites[i]
-        
-        var x = Math.floor(spriteGen.random() * (level[0].length-10) + 5)
-        var y = Math.floor(spriteGen.random() * (level.length-10) + 5)
-        
-        spr.drawIfFree(level, x, y)
-    }
-    
     startXPos = Math.floor((startGen.random() * 0.25 + 0.15) * w)
     startYPos = Math.floor((startGen.random() * 0.2 + 0.2) * h )
     
@@ -1074,12 +1040,68 @@ function resetLevel() {
         startYPos = h - startYPos
     }
     
-    if (currentLevel == 0) {
-        sprites["deployship"].draw(level, startXPos - 2, startYPos - 5)
-        sprites["baseentry"].draw(level, w - (startXPos - 2), h - (startYPos - 5))
-    } else {
-        startXPos = Math.floor(startGen.random() * (w - 8) + 4)
-        startYPos = Math.floor(startGen.random() * (h - 8) + 4)
+    if (levelType >= 0) {
+        var nRivers = riverGen.random() 
+        nRivers = Math.floor(nRivers * nRivers * gameDefs.level.maxRivers)
+        
+        for (var i=0; i < nRivers; i++) {
+            var nRiverTile = Math.floor(riverGen.random() * riverTiles.length)
+            generators.river(level, 
+                (riverGen.random()<0.5)?'horizontal':'vertical', 
+                riverTiles[nRiverTile][0], 
+                riverTiles[nRiverTile][1], 
+                asciiMapping['|'], 'wood', 
+                riverTiles[nRiverTile][2])
+        }
+        
+        var numLevers = leverGen.random()*gameDefs.level.randomLevers + gameDefs.level.minLevers
+        for (var n=0; n < numLevers; n++) {
+            var x0 = Math.floor(leverGen.random() * (level[0].length - 2) + 1)
+            var y0 = Math.floor(leverGen.random() * (level.length - 2) + 1)
+            
+            var t = level[y0][x0]
+            if (passable(t)) {
+                t.tile = asciiMapping['↑']
+                t.linkedEvent = leverEvents[Math.floor(leverGen.random() * leverEvents.length)]()
+            }
+        }
+        
+        var numItems = itemGen.random()*gameDefs.level.randomNumberItems*currentLevel + gameDefs.level.minNumberItems
+        while (numItems > 0) {
+            var x0 = Math.floor(itemGen.random() * level[0].length)
+            var y0 = Math.floor(itemGen.random() * level.length)
+            
+            var t = level[y0][x0]
+            if (passable(t)) {
+                t.item = items[Math.floor(itemGen.random() * items.length)].clone()
+                if (t.item.type == 'weapon') {
+                    t.item.findChargerAndAssign(items)
+                }
+                numItems--
+            }
+        }
+        
+        var numSprites = gameDefs.level.numSpritesToTryFit
+        var availableSprites = []
+        for (x in sprites) { if (!(x in Object.prototype)) { availableSprites.push(sprites[x]) } }
+        
+        for (var n=0; n < numSprites; n++) {
+            var i = Math.floor(spriteGen.random() * availableSprites.length)
+            var spr = availableSprites[i]
+            
+            var x = Math.floor(spriteGen.random() * (level[0].length-10) + 5)
+            var y = Math.floor(spriteGen.random() * (level.length-10) + 5)
+            
+            spr.drawIfFree(level, x, y)
+        }
+        
+        if (currentLevel == 0) {
+            sprites["deployship"].draw(level, startXPos - 2, startYPos - 5)
+            sprites["baseentry"].draw(level, w - (startXPos - 2), h - (startYPos - 5))
+        } else {
+            startXPos = Math.floor(startGen.random() * (w - 8) + 4)
+            startYPos = Math.floor(startGen.random() * (h - 8) + 4)
+        }
     }
     
     if (aiState) {
@@ -1278,7 +1300,7 @@ function processTurnIfAvailable() {
 		for (var i in wss.clients) {
             var ws = wss.clients[i]
 			
-			if ((typeof(ws.wait) == 'undefined') || (ws.wait <= 0)) {
+			if ((typeof(ws.player) == 'undefined') || (typeof(ws.player.wait) == 'undefined') || (ws.player.wait <= 0)) {
 				keepProcessing = false
 				break
 			}
@@ -1314,7 +1336,7 @@ function _processTurnIfAvailable_priv_() {
 			
             if (isWaiting || (cli.turn != nextTurnId) && (!cli.standingOrder)) {
 				if (isWaiting) {
-					cli.wait--
+					cli.player.wait--
 				}
 				
 				for (var i in wss.clients) {
@@ -1357,8 +1379,8 @@ function _processTurnIfAvailable_priv_() {
                 activable: activable,
                 generator: sessionRandom.child('player')
             })
-            somethingHappened |= aiState.process()
         }
+        somethingHappened |= aiState.process()
         nturns++
     }
     
@@ -1376,6 +1398,7 @@ function _processTurnIfAvailable_priv_() {
     }
 
     soundManager.endTurn(nextTurnId)
+    comms.tick()
     particleManager.processTurn()
     var nd = Date.now()
     nextTurnId++
@@ -1394,7 +1417,11 @@ function checkLevelRestart() {
     
     for (var i=0; i < wss.clients.length; i++) {
         var c = wss.clients[i]
-        everyoneReady &= c.player.readyForNextLevel
+        if (typeof(c.player) != "undefined") {
+            everyoneReady &= c.player.readyForNextLevel
+        } else {
+            everyoneReady = false
+        }
     }
     
     if (everyoneReady) {
@@ -1596,6 +1623,8 @@ function sendScopeToClient(ws) {
     
     if (ws.player.player_class == 'psychic') {
         clairvoyanceDistSq = Math.max(0, Math.min(100, ws.player.attrs.suPow))/0.5
+    } else if (ws.player.attrs.clairvoyanceRadius) {
+        clairvoyanceDistSq = ws.player.attrs.clairvoyanceRadius * ws.player.attrs.clairvoyanceRadius
     }
 
     var organicSense = 0

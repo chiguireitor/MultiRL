@@ -91,7 +91,6 @@ function MessageQueue(name) {
 }
 
 MessageQueue.prototype.transmit = function(x, y, msg) {
-    msg.msgNum = this.msgNum++
     for (var i=0; i < interferences.length; i++) {
         var intf = interferences[i]
         
@@ -106,9 +105,11 @@ MessageQueue.prototype.transmit = function(x, y, msg) {
         }
     }
     
-    this.pendingMsgNums[msg.msgNum] = true
-    this.queue.push({x: x, y: y, msg: msg})
-    return msg.msgNum
+    var pkt = {x: x, y: y, msg: msg, msgNum: this.msgNum++}
+    this.pendingMsgNums[pkt.msgNum] = true
+    this.queue.push(pkt)
+    
+    return pkt.msgNum
 }
 
 MessageQueue.prototype.peek = function() {
@@ -123,6 +124,7 @@ MessageQueue.prototype.tick = function() {
         delete this.pendingMsgNums[this.lastTransmittedMsg]
         this.queue.splice(0, 1)
     }
+    //console.log(this.name, '->', this.lastTransmittedMsg)
 }
 
 MessageQueue.prototype.pktOk = function(num) {

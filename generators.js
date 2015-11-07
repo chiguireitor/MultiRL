@@ -766,6 +766,10 @@ function drawRoom(generator, level, sq, wall, floor, door) {
 
 function testLevel(generator, level, floor, wall, door) {
     drawRoom(generator, level, {x: 0, y: 0, w: level[0].length, h: level.length}, wall, floor, door)
+    
+    drawRoom(generator, level, {x: 10, y: 10, w: 20, h: 1}, wall, floor, door)
+    
+    drawRoom(generator, level, {x: 30, y: 30, w: 1, h: 20}, wall, floor, door)
 }
 
 module.exports = {

@@ -294,11 +294,15 @@ function processSemiturn(params) {
     var activable = params.activable
     var generator = params.generator
     
+    if ((typeof(cli) == "undefined") || (typeof(cli.player) == "undefined")) {
+        return false
+    }
+    
     processKnockback(cli.player, level, passable)
     var somethingHappened = false
 
-    if (cli.wait > 0) {
-        cli.wait--
+    if (cli.player.wait > 0) {
+        cli.player.wait--
         cli.couldMove = false
     } else {
         if (typeof(cli.player.resistance) !== "undefined") {
@@ -348,11 +352,11 @@ function processSemiturn(params) {
                 var canJumpTrample = false
                 
                 if ((typeof(cli.player.prone) != "undefined") && cli.player.prone) {
-                    cli.wait = gameDefs.turnsForStep * 3 * waitMultiplier
+                    cli.player.wait = gameDefs.turnsForStep * 3 * waitMultiplier
                 } else if ((typeof(cli.player.crouch) != "undefined") && cli.player.crouch) {
-                    cli.wait = gameDefs.turnsForStep * 2 * waitMultiplier
+                    cli.player.wait = gameDefs.turnsForStep * 2 * waitMultiplier
                 } else {
-                    cli.wait = gameDefs.turnsForStep * waitMultiplier
+                    cli.player.wait = gameDefs.turnsForStep * waitMultiplier
                     canJumpTrample = true
                 }
                 
@@ -362,7 +366,7 @@ function processSemiturn(params) {
                     cli.special_movement = false
                     
                     if (!cli.player.attrs.agile) {
-                        cli.wait *= 2
+                        cli.player.wait *= 2
                     }
                     
                     if (cli.player.player_class == 'swords') {

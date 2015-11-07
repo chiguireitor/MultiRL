@@ -179,6 +179,10 @@ FSM.prototype.process = function(tmpVars) {
     var addCondition = function(cond, name) {
         var i = 0
         
+        if (isNaN(cond.condition)) {
+            return
+        }
+        
         while (i < exitConditions.length) {
             if (exitConditions[i].condition < cond.condition) {
                 break
@@ -246,10 +250,6 @@ function evaluate(evalExpr, vars) {
             return lft & rgt
         } else if (evalExpr.operator === '^') {
             return lft ^ rgt
-        } else if (evalExpr.operator === '||') {
-            return lft || rgt
-        } else if (evalExpr.operator === '&&') {
-            return lft && rgt
         } else if (evalExpr.operator === '===') {
             return lft === rgt
         } else if (evalExpr.operator === '!==') {
@@ -260,6 +260,15 @@ function evaluate(evalExpr, vars) {
             return lft << rgt
         } else if (evalExpr.operator === '>>>') {
             return lft >>> rgt
+        }
+    } else if (evalExpr.type === 'LogicalExpression') {
+        var lft = evaluate(evalExpr.left, vars)
+        var rgt = evaluate(evalExpr.right, vars)
+        
+        if (evalExpr.operator === '||') {
+            return lft || rgt
+        } else if (evalExpr.operator === '&&') {
+            return lft && rgt
         }
     } else if (evalExpr.type === 'UnaryExpression') {
         var argument = evaluate(evalExpr.argument, vars)
@@ -375,6 +384,7 @@ function loadStateMachine(filename, params, cback) {
                                             }
                                         }
                                     }
+                                    
                                     return evaluate(evalExpr, tmpVars) * w
                                 }
                         })(x.attributes[0].equation[0].value[0]._.trim(), weight)

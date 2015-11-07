@@ -51,7 +51,7 @@ module.exports = {
     plasmaDamage: 15,
     lavaDamage: 5,
     acidDamage: 1,
-    allowCheating: false,
+    allowCheating: true,
     spawnPoolMaxRadius: 8,
 	proneToHit: 0.2,
 	crouchToHit: 0.6,
@@ -61,7 +61,7 @@ module.exports = {
 	crouchPrecisionFact: 1.14,
     enemiesWaitMultiplier: 1,
     playerBaseFov: 15, // WARNING: too high a value can hog all the server bandwidth
-    enemyBaseFov: 18, // Enemies should spot the player before they spot the enemies
+    enemyBaseFov: 14,
     suPowWaitMax: 5, // How much turns can the player wait with the super power fully charged without draining completely
     suPowGainMultiplier: 3, // How much super power factor from the enemy points does the player gain
     suPowDecayAfterWait: 2, // How much absolute super power gets decreased by turn after the wait timer hits its max
@@ -70,7 +70,7 @@ module.exports = {
     maxInventoryItems: 15,
     jamOnUnloadProbability: 0.02, // This must be a rare event, it is REALLY frustrating
     level: {
-        width: 128, // Minimum width is 64
+        width: 64, // Minimum width is 64
         height: 64, // Minimum height is 64
         minRoomArea: 36, // Minimum squared area of a room to be accepted
         randomAcceptRoom: 0.05, // Random probability of accepting a non-conforming room
@@ -82,6 +82,6 @@ module.exports = {
         minNumberItems: 35,
         randomNumberItems: 35, // This gets multiplied by the level number
         numSpritesToTryFit: 50, // How much sprites the level generator will try to fit
-        numEnemies: 50, // Number of enemies to keep alive at all times
+        numEnemies: 4, // Number of enemies to keep alive at all times
     }
 }

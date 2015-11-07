@@ -469,6 +469,7 @@ Tweet
 var player = {
     isAlive: false
 }
+var canCheat = false
 var colorMap = {
     "lava": {"color": "FF8800", "cycle": "882200", "backgroundColor": [64, 0, 0], "msscale": 4000, "luma": [5120, 5120, 5120]},
     "plasma": {"color": "FF00FF", "cycle": "880088", "backgroundColor": [64, 0, 64], "msscale": 1000, "luma": [5120, 5120, 5120]},
@@ -495,6 +496,7 @@ var colorMap = {
     "standard-weapon": {"color": "28DE9E", "cycle": "15BD82", "msscale": 1000},
     "dangerous-weapon": {"color": "D86000", "cycle": "804000", "msscale": 1000},
     "player-shadow": {"color": "0000AA", "cycle": "000044", "msscale": 1000},
+    "sound-radio": {"color": "00FF88", "cycle": "0088FF", "msscale": 1000},
     
     "health-powerup": {"color": "FF6688"},
     "armor-powerup": {"color": "FFFF66"},
@@ -985,11 +987,15 @@ function superPower(alternate) {
         })
 }
 
-function cheat(fn) {
-    send({
+function cheat(fn, data) {
+    var msg = {
         type: 'cheat',
         fn: fn
-        })
+    }
+    if (data) {
+        msg.data = data
+    }
+    send(msg)
 }
 
 function reload(alternate) {
@@ -1263,6 +1269,11 @@ function clickCell(x, y) {
                                 if (!player.prone) {
                                     actions.push({"text": "Prone", "pos": {x: x, y: y}})
                                 }
+                                
+                                if (canCheat) {
+                                    actions.push({"text": "God mode", "bg": {true: [64, 64, 192], false: [0, 0, 192]}})
+                                }
+                                
                             } else {
                                 if (meleeDistance) {
                                     actions.push({"text": "Attack (melee)", "pos": {x: x, y: y}})
@@ -1278,6 +1289,10 @@ function clickCell(x, y) {
                                 
                                 if (currentWeapon.ranged && currentWeapon.alternate) {
                                     actions.push({"text": "Attack (ranged, alternate)", "pos": {x: x, y: y}})
+                                }
+                                
+                                if (canCheat) {
+                                    actions.push({"text": "Inspect FSM", "pos": {x: x, y: y}, "bg": {true: [64, 64, 192], false: [0, 0, 192]}})
                                 }
                             }
                         }
@@ -1892,6 +1907,12 @@ var mouseActions = {
     "Inspect": function() { // Inventory action
         inspect(inventoryIndex)
     },
+    "God mode": function() {
+        cheat('god')
+    },
+    "Inspect FSM": function(x, y, data) {
+        cheat('showfsm', {x: x, y: y})
+    }
 }
 
 
@@ -2439,6 +2460,7 @@ var handlers = {
         console.log(obj)
         player.pos = obj.pos
         levelTileset = obj.levelTileset
+        canCheat = obj.canCheat
         
         for (var y=0; y < obj.dim.h; y++) {
             var row = Array.apply(null, new Array(obj.dim.w+1)).map(function(){return {particles: []}})
@@ -2587,6 +2609,9 @@ var handlers = {
             level.pop()
         }
     },
+    fsm_vars: function(obj) {
+        console.log(obj)
+    }
 }
 
 var wsPortPart = ":8080"
@@ -3272,6 +3297,11 @@ $(document).ready(function () {
     
     createjs.Sound.registerSound("./sounds/sword.wav", "sword")
     createjs.Sound.registerSound("./sounds/hammer.wav", "hammer")
+    
+    createjs.Sound.registerSound("./sounds/radio001.wav", "radio001")
+    createjs.Sound.registerSound("./sounds/radio002.wav", "radio002")
+    createjs.Sound.registerSound("./sounds/radio003.wav", "radio003")
+    createjs.Sound.registerSound("./sounds/radio004.wav", "radio004")
     
     createjs.Sound.on("fileload", function() {
         setupMusic()

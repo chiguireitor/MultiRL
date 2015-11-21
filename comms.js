@@ -86,15 +86,33 @@ function MessageQueue(name) {
     this.msgNum = 1
     this.lastTransmittedMsg = 0
     this.pendingMsgNums = {}
+    this.numTicks = 0
+    this.amntTicksPop = 1
+    this.callbacks = []
+    this.lastTxd = false
     
     channels[name] = this
 }
 
-MessageQueue.prototype.transmit = function(x, y, msg) {
+MessageQueue.prototype.transmit = function(agent, x, y, msg) {
+    // Check that there's not a duplicate message
+    /*for (var i=0; i < this.queue.length; i++) {
+        var opkg = this.queue[i]
+        
+        if (opkg.agent == agent) {
+            for (p in msg) {
+                if (msg.hasOwnProperty(p) && opkg.msg.hasOwnProperty(p)) {
+                    return false
+                }
+            }
+        }
+    }*/
+    
+    // Now check if the message is being txd on an intereference zone
     for (var i=0; i < interferences.length; i++) {
         var intf = interferences[i]
         
-        if (intf.name == this.name) {
+        if ((typeof(intf.name) === "undefined") || (intf.name == this.name)) {
             var dx = intf.x - x
             var dy = intf.y - y
             var d2 = dx * dx + dy * dy
@@ -104,34 +122,63 @@ MessageQueue.prototype.transmit = function(x, y, msg) {
             }
         }
     }
-    
-    var pkt = {x: x, y: y, msg: msg, msgNum: this.msgNum++}
+
+    // Everything seems ok, transmit the packet
+    var pkt = {x: x, y: y, msg: msg, msgNum: this.msgNum++/*, agent: agent*/}
     this.pendingMsgNums[pkt.msgNum] = true
     this.queue.push(pkt)
     
     return pkt.msgNum
 }
-
-MessageQueue.prototype.peek = function() {
-    if (this.queue.length > 0) {
-        return this.queue[0]
+    
+MessageQueue.prototype._priv_transmit = function(pkt) {
+    for (var i=0; i < this.callbacks.length; i++) {
+        var cb = this.callbacks[i]
+        cb.callback.call(cb.callbackContext, pkt)
     }
 }
 
+MessageQueue.prototype.peek = function() {
+    /*if (this.queue.length > 0) {
+        return this.queue[0]
+    }*/
+    return this.lastTxd
+}
+
 MessageQueue.prototype.tick = function() {
-    if (this.queue.length > 0) {
-        this.lastTransmittedMsg = this.queue[0].msgNum
-        delete this.pendingMsgNums[this.lastTransmittedMsg]
-        this.queue.splice(0, 1)
+    
+    /*for (agent in this.rateLimit) {
+        if (this.rateLimit.hasOwnProperty(agent)) {
+            this.rateLimit[agent]--
+            
+            if (this.rateLimit[agent] <= 0) {
+                delete this.rateLimit[agent]
+            }
+        }
+    }*/
+    
+    if (this.numTicks >= this.amntTicksPop) {
+        this.numTicks = 0
+        if (this.queue.length > 0) {
+            this.lastTransmittedMsg = this.queue[0].msgNum
+            delete this.pendingMsgNums[this.lastTransmittedMsg]
+            this.lastTxd = this.queue.shift()
+            this._priv_transmit(this.lastTxd)
+        }
+    } else {
+        this.numTicks++
     }
-    //console.log(this.name, '->', this.lastTransmittedMsg)
 }
 
 MessageQueue.prototype.pktOk = function(num) {
     return (num in this.pendingMsgNums) || (num == this.lastTransmittedMsg)
 }
 
-function createInterference(name, x, y, radius, ttl) {
+MessageQueue.prototype.registerCallback = function(callback) {
+    this.callbacks.push(callback)
+}
+
+function createInterference(x, y, radius, ttl, name) {
     interferences.push({
         name: name,
         x: x,
@@ -141,12 +188,17 @@ function createInterference(name, x, y, radius, ttl) {
     })
 }
 
-function findChannel(name, createIfNotFound) {
+function findChannel(name, createIfNotFound, callback) {
+    var ret
     if (name in channels) {
-        return channels[name]
+        ret = channels[name]
     } else if (createIfNotFound) {
-        return new MessageQueue(name)
+        ret = new MessageQueue(name)
     }
+    
+    ret.registerCallback(callback)
+    
+    return ret
 }
 
 function peekChannels(x, y) {
@@ -162,9 +214,9 @@ function peekChannels(x, y) {
                 var dx = pkt.x - x
                 var dy = pkt.y - y
                 var d2 = dx * dx + dy * dy
-                var msglen = JSON.stringify(pkt.msg)
+                var msglen = JSON.stringify(pkt.msg).length/4
                 
-                if (d2 <= msglen * msglen) {
+                if (d2 <= (msglen * msglen)) {
                     peekedChannels.push(channel.name)
                     break
                 }
@@ -175,12 +227,51 @@ function peekChannels(x, y) {
     return peekedChannels
 }
 
+MessageQueue.prototype.collectMessages = function(x, y, radius) {
+    var msgs = []
+    var r2 = radius * radius
+    
+    for (var i=0; i < this.queue.length; i++) {
+        var msg = this.queue[i]
+        var dx = msg.x - x
+        var dy = msg.y - y
+        
+        if ((dx * dx + dy * dy) <= r2) {
+            msgs.push(msg)
+        }
+    }
+    
+    return msgs
+}
+
 function tick() {
     for (x in channels) {
         if (channels.hasOwnProperty(x)) {
             channels[x].tick()
         }
     }
+    
+    var i = 0
+    while (i < interferences.length) {
+        interferences[i].ttl--
+        if (interferences[i].ttl <= 0) {
+            interferences.splice(i, 1)
+        } else {
+            i++
+        }
+    }
+}
+
+function collectAllMessages(x, y, radius) {
+    var msgs = []
+    for (n in channels) {
+        if (channels.hasOwnProperty(n)) {
+            var ms = channels[n].collectMessages(x, y, radius)
+            msgs = msgs.concat(ms)
+        }
+    }
+    
+    return msgs
 }
 
 module.exports = {
@@ -188,5 +279,6 @@ module.exports = {
     peekChannels: peekChannels,
     MessageQueue: MessageQueue,
     createInterference: createInterference,
-    tick: tick
+    tick: tick,
+    collectAllMessages: collectAllMessages
 }

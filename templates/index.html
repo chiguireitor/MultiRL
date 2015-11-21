@@ -25,6 +25,14 @@
     text-decoration: none;
     font-family: calibri, tahoma, helvetica, sans;
 }
+
+.fsm {
+    color: #0C0;
+    border: 1px solid #4A4;
+    background-color: #222;
+    width: 200px;
+    float: left;
+}
 </style>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -652,6 +660,8 @@ var descriptions = []
 var actionMenuShown = false
 var actionMenuCenter = [0, 0]
 var actionMenuActions
+
+var currentPkts = []
 
 function queueAnnouncements(msgs) {
     announcements = announcements.concat(msgs)
@@ -1911,7 +1921,8 @@ var mouseActions = {
         cheat('god')
     },
     "Inspect FSM": function(x, y, data) {
-        cheat('showfsm', {x: x, y: y})
+        var nonce = Math.round(Math.random() * 0x1FFFFFFF)
+        cheat('showfsm', {x: x, y: y, id: nonce})
     }
 }
 
@@ -2115,6 +2126,33 @@ function updateDisplayGameStarted() {
                 
                 drawAsciiText(desc.pos[0], desc.pos[1] + j, d.text, fg, bg, luma)
             }
+        }
+    }
+    
+    for (var i=0; i < currentPkts.length; i++) {
+        var pkt = currentPkts[i]
+        
+        var fg = [192,192,192]
+        var bg = [32,32,32]
+        var luma = [0,0,0]
+        
+        var dt = (Date.now() - pkt.initialTime)
+        var txt
+        var dx = 0
+        
+        if ((dt < 500) && (dt > 0)) {
+            var ln = Math.floor(dt/500.0*pkt.txt.length)
+            txt = pkt.txt.slice(0, ln)
+        } else if ((dt > 2500) && (dt < 3000)) {
+            var ln = Math.floor((1.0 - (3000 - dt)/500.0)*pkt.txt.length)
+            txt = pkt.txt.slice(ln)
+            dx = ln
+        } else if ((dt > 0) && (dt < 3000)) {
+            txt = pkt.txt
+        }
+        
+        if (txt) {
+            drawAsciiText(pkt.x + dx, pkt.y-1, txt, fg, bg, luma)
         }
     }
     
@@ -2383,7 +2421,50 @@ function updateLogs() {
         drawAsciiText(displaySizeX + 2, 42 + i, ann, [64, 200, 64], [0, 0, 0])
     }
 } 
-            
+
+function showPkts(pkts) {
+    currentPkts = currentPkts.concat(pkts.map(function(pkt) {
+        pkt.initialTime = Date.now() + Math.floor(Math.random() * 400)
+        var txt = "Unknown"
+        
+        if ('hostile_seen' in pkt.msg) {
+            txt = 'Hostile seen!'
+        } else if ('need_squad' in pkt.msg) {
+            txt = 'Searching squad'
+        } else if ('have_squad' in pkt.msg) {
+            txt = 'Join my squad ' + pkt.msg.have_squad.squad
+        } else if ('retreat' in pkt.msg) {
+            txt = 'Retreating'
+        } else if ('need_backup' in pkt.msg) {
+            txt = 'Backup!!!!'
+        } else if ('new_squad' in pkt.msg) {
+            txt = 'Formed squad ' + pkt.msg.new_squad.name
+        } else if ('exploring' in pkt.msg) {
+            txt = 'Team follow me'
+        } else if ('retreating' in pkt.msg) {
+            txt = 'Retreat!'
+        } else if ('joined_squad' in pkt.msg) {
+            txt = 'Joined ' + pkt.msg.joined_squad.squad
+        } else {
+            console.log(pkt)
+        }
+        
+        pkt.txt = txt
+        
+        return pkt
+    }))
+    
+    var i = 0
+    while (i < currentPkts.length) {
+        var pkt = currentPkts[i]
+        
+        if ((Date.now() - pkt.initialTime) >= 1000) {
+            currentPkts.splice(i, 1)
+        } else {
+            i++
+        }
+    }
+}
 
 function absolutePosToWindow(x, y) {
     /*if (x < minCoords.x) {
@@ -2454,6 +2535,7 @@ function initAsciiDisplay(id, w, h) {
     })
 }
 
+var mustUpdateFsms = false
 var handlers = {
     init: function(obj) {
         announceMsg("Initializing game")
@@ -2461,6 +2543,13 @@ var handlers = {
         player.pos = obj.pos
         levelTileset = obj.levelTileset
         canCheat = obj.canCheat
+        
+        if (canCheat) {
+            var s = document.createElement("script")
+            s.type = "text/javascript"
+            s.src = "https://code.jquery.com/ui/1.11.4/jquery-ui.min.js"
+            $(document.body).append(s)
+        }
         
         for (var y=0; y < obj.dim.h; y++) {
             var row = Array.apply(null, new Array(obj.dim.w+1)).map(function(){return {particles: []}})
@@ -2550,6 +2639,20 @@ var handlers = {
         if (("couldMove" in obj) && (obj.couldMove)) {
             tryMoveTowardsDestination() // If there's a standing command, move
         }
+        
+        if (obj.fsms) {
+            for (var i=0; i < obj.fsms.length; i++) {
+                console.log(obj.fsms[i])
+            }
+        }
+        
+        if (mustUpdateFsms) {
+            cheat('updatefsms')
+        }
+        
+        if (obj.pkts) {
+            showPkts(obj.pkts)
+        }
     },
     new_player: function(obj) {
         announceMsg("Player " + obj.username + " joined the game!")
@@ -2611,6 +2714,64 @@ var handlers = {
     },
     fsm_vars: function(obj) {
         console.log(obj)
+        mustUpdateFsms = true
+    },
+    fsms_updates: function(obj) {
+        for (x in obj.fsms) {
+            if (obj.fsms.hasOwnProperty(x)) {
+                updateFsm(obj.fsms[x], x)
+            }
+        }
+    }
+}
+
+var fsmDivs = {}
+function updateFsm(fsm, id) {
+    var dv, title
+    if (id in fsmDivs) {
+        dv = fsmDivs[id]
+        title = dv.find('h3')
+    } else {
+        dv = $("<div>")
+        dv.draggable()
+        dv.addClass('fsm')
+        title = $("<h3>")
+        dv.append(title)
+        
+        fsmDivs[id] = dv
+        
+        $(document.body).append(dv)
+    }
+    title.text(fsm.currentState.name)
+    
+    for (name in fsm.variables) {
+        if (fsm.variables.hasOwnProperty(name)) {
+            var value = fsm.variables[name]
+            
+            var sp = dv.find('#' + id + '_' + name), b, t
+            
+            if (sp.length == 0) {
+                sp = $("<div>")
+                sp[0].id = id + '_' + name
+                b = $("<b>")
+                sp.append(b)
+                t = $("<i>")
+                sp.append(t)
+            } else {
+                b = sp.find('b')
+                t = sp.find('i')
+            }
+
+            b.text(name + ":")
+            
+            if ((typeof(value) === "object") && ('x' in value) && ('y' in value)) {
+                t.text('(' + value.x + ', ' + value.y + ')')
+            } else {
+                t.text(value)
+            }
+            
+            dv.append(sp)
+        }
     }
 }
 
@@ -3294,6 +3455,8 @@ $(document).ready(function () {
     createjs.Sound.registerSound("./sounds/plasmaRifle.wav", "plasmaRifle")
     createjs.Sound.registerSound("./sounds/plasmaLauncher.wav", "plasmaLauncher")
     createjs.Sound.registerSound("./sounds/plasmaGatling.wav", "plasmaGatling")
+    
+    createjs.Sound.registerSound("./sounds/sniperRifle.wav", "sniperRifle")
     
     createjs.Sound.registerSound("./sounds/sword.wav", "sword")
     createjs.Sound.registerSound("./sounds/hammer.wav", "hammer")

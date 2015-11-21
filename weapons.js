@@ -777,22 +777,6 @@ Weapon.prototype.fire = function(x, y, c, options) {
             weapon.ammo -= weapon.ammoUse
             
             for (var bn=0; bn < weapon.fragmentation; bn++) {
-                var speed = {
-                    speed: c.attrs.speed.pos,
-                    waitOnUse: this.waitOnUse,
-                    waitSubstractSpeedDivider: this.waitSubstractSpeedDivider
-                }
-                var decorators = this.speedDecorators.concat(c.speedDecorators || []).concat(weapon.ammoDecorators.speed || [])
-                for (var i=0; i < decorators.length; i++) {
-                    speed = decorators[i].call(c, speed)
-                }
-                
-                if (c.player_class == "marine") {
-                    speed.waitOnUse = Math.round(speed.waitOnUse - Math.min(c.attrs.suPow, 100)/10.0)
-                }
-                
-                c.wait += Math.max(speed.waitOnUse - Math.floor(speed.speed / speed.waitSubstractSpeedDivider), 1)
-                
                 var dx = c.pos.x - x
                 var dy = c.pos.y - y
                 var d2 = dx*dx + dy*dy
@@ -1039,6 +1023,22 @@ Weapon.prototype.fire = function(x, y, c, options) {
     
     if (!firedSomething) { // Empty
         soundManager.addSound(c.pos.x, c.pos.y, 5, this.sndOnEmpty, 0)
+    } else {
+        var speed = {
+            speed: c.attrs.speed.pos,
+            waitOnUse: this.waitOnUse,
+            waitSubstractSpeedDivider: this.waitSubstractSpeedDivider
+        }
+        var decorators = this.speedDecorators.concat(c.speedDecorators || []).concat(weapon.ammoDecorators.speed || [])
+        for (var i=0; i < decorators.length; i++) {
+            speed = decorators[i].call(c, speed)
+        }
+        
+        if (c.player_class == "marine") {
+            speed.waitOnUse = Math.round(speed.waitOnUse - Math.min(c.attrs.suPow, 100)/10.0)
+        }
+        
+        c.wait += Math.max(speed.waitOnUse - Math.floor(speed.speed / speed.waitSubstractSpeedDivider), 1)
     }
     
     return validTarget

@@ -108,6 +108,10 @@ IdRandomizer.prototype.randomInt = function(a, b) {
     }
 }
 
+IdRandomizer.prototype.pickRandom = function(lst) {
+    return lst[this.randomInt(0, lst.length)]
+}
+
 IdRandomizer.prototype.randomIntRange = function(a, b) {
     if (typeof(b) == "undefined") {
         b = a

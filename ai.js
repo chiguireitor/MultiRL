@@ -72,11 +72,44 @@ var AI = function(params) {
         this.agents = []
     }
     
-    this.newFaction = function(name) {
-        this.factions[name] = {}
+    this.resetFactions = function() {
+        this.factions = {}
     }
     
-    this.instantiate = function(x, y, name, pix, color, attrs, weapon, inventory, customDecision) {
+    this.newFaction = function(name) {
+        if (!(name in this.factions)) {
+            this.factions[name] = {}
+        }
+    }
+    
+    this.factionAggro = function(own, other, aggroLvl) {
+        if (own in this.factions) {
+            var ownFactions = this.factions[own]
+            
+            if (other in ownFactions) {
+                ownFactions[other] += aggroLvl
+            } else {
+                ownFactions[other] = aggroLvl
+            }
+        } else {
+            this.factions[own] = {}
+            this.factions[own][other] = aggroLvl
+        }
+    }
+    
+    this.factionScore = function(own, other) {
+        if (own in this.factions) {
+            var ownFactions = this.factions[own]
+            
+            if (other in ownFactions) {
+                return ownFactions[other]
+            }
+        }
+        
+        return 0
+    }
+    
+    this.instantiate = function(x, y, name, pix, color, attrs, weapon, inventory, customDecision, faction) {
         if (!attrs.speed) {
             attrs.speed = {pos: 0}
         }
@@ -113,7 +146,8 @@ var AI = function(params) {
             customDecision: customDecision,
             findInInventory: util.findInInventory,
             waitMultiplier: gameDefs.enemiesWaitMultiplier,
-            removeFromInventory: util.removeFromInventory
+            removeFromInventory: util.removeFromInventory,
+            faction: faction
         }
         
         chr.pts = Math.ceil(attrs.hp.pos / 5)
@@ -124,9 +158,10 @@ var AI = function(params) {
         return chr
     }
     
-    this.findNearestPlayer = function(x, y, r) {
+    this.findNearestEnemy = function(x, y, r, usingFaction) {
         var r2 = r * r
         var character = undefined
+        var charFactionPoints = 0
         var d2char = r2 * 2
         
         for (var iy=-r; iy <= r; iy++) {
@@ -145,16 +180,22 @@ var AI = function(params) {
                         if ((d2 < r2) && (typeof(cell.character) != "undefined")
                             && (cell.character != null)
                             && (typeof(cell.character.type) != "undefined")
-                            && (cell.character.type == "player") && (d2 <= d2char)
+                            && (cell.character.attrs.faction != usingFaction) && (d2 <= d2char)
                             && (cell.character.attrs.hp.pos > 0)) {
                             
                             if ((typeof(cell.character.cloaked) === "undefined") || 
                                 (d2 < cell.character.cloaked)){
-                                var line_of_sight = this.traceable(x, y, tx, ty)
+                                    
+                                var fs = this.factionScore(usingFaction, cell.character.attrs.faction)
                                 
-                                if (line_of_sight && ((d2 < d2char) || (d2 == d2char) && (this.generator.random() < 0.5))) {
-                                    character = cell.character
-                                    d2char = d2
+                                if (fs > charFactionPoints) {
+                                    charFactionPoints = fs
+                                    var line_of_sight = this.traceable(x, y, tx, ty)
+                                    
+                                    if (line_of_sight && ((d2 < d2char) || (d2 == d2char) && (this.generator.random() < 0.5))) {
+                                        character = cell.character
+                                        d2char = d2
+                                    }
                                 }
                             }
                         }
@@ -213,7 +254,7 @@ var AI = function(params) {
                 }
             }
             
-            if (agent) {
+            if (agent && (agent.wait <= 0)) {
                 // Process the agent state and take a decision accordingly
                 var tx, ty
                 if (agent.customDecision) {
@@ -230,7 +271,7 @@ var AI = function(params) {
                     /*tx = agent.pos.x + ret.x
                     ty = agent.pos.y + ret.y*/
                 } else {
-                    var character = this.findNearestPlayer(agent.pos.x, agent.pos.y, agent.fov)
+                    var character = this.findNearestEnemy(agent.pos.x, agent.pos.y, agent.fov, agent.attrs.faction)
                     var dx = 0
                     var dy = 0
                     
@@ -315,19 +356,6 @@ var AI = function(params) {
                 /*agent.wait += cmd.wait
                 cmd.wait = agent.wait*/
                 
-                somethingHappened |= util.processSemiturn({
-                    agent: cmd,
-                    level: this.level,
-                    passable: this.passable,
-                    activableTiles: this.activableTiles,
-                    soundManager: this.soundManager,
-                    grab: this.grab,
-                    inflictMeleeDamage: this.meleeDamage,
-                    usableTiles: this.usableTiles,
-                    activable: this.activable,
-                    generator: this.generator
-                })
-                
                 agent.wait += cmd.wait
                 
                 /*if (!isNaN(cmd.wait) && (cmd.wait != 0)) {
@@ -340,6 +368,19 @@ var AI = function(params) {
                     agent.wait = Math.max(agent.wait + (cmd.wait - agent.wait), 0)
                 }*/
             }
+            
+            somethingHappened |= util.processSemiturn({
+                agent: cmd,
+                level: this.level,
+                passable: this.passable,
+                activableTiles: this.activableTiles,
+                soundManager: this.soundManager,
+                grab: this.grab,
+                inflictMeleeDamage: this.meleeDamage,
+                usableTiles: this.usableTiles,
+                activable: this.activable,
+                generator: this.generator
+            })
 
             i++
         }
@@ -347,123 +388,103 @@ var AI = function(params) {
         return somethingHappened
     }
     
-    this.traverse = function(agent, level, scores) {
-        var zone = []
-        var MAXVAL = 10000000
-        var preferredSpot
-        if ('preferredSpot' in scores) {
-            preferredSpot = scores.preferredSpot
+    var astarIteration = 1
+    this.traverse = function(agent, target, level, scores) {
+        var openSet = []
+        var pss = this.passable
+        astarIteration++
+        
+        var includeOnOpenSet = function(item) {
+            var i = 0
+            while (i < openSet.length) {
+                if (openSet[i].carriedCost > item.carriedCost) {
+                    var tail = openSet.splice(i)
+                    openSet = openSet.concat([item], tail)
+                    return
+                }
+                i++
+            }
+            
+            openSet = openSet.concat([item])
         }
         
-        // O(n^3) + O(n^2) algorithm, yuck!
-        for (var i = -agent.fov; i < agent.fov; i++) {
-            var y = agent.pos.y + i
-            var levelRow
-            
-            var row = new Array(agent.fov*2)
-            if ((y >= 0)&&(y < level.length)) {
-                levelRow = level[y]
-                
-                for (var j = -agent.fov; j < agent.fov; j++) {
-                    var x = agent.pos.x + j
-                    var rowIdx = j + agent.fov
-                    
-                    if ((x >= 0)&&(x < levelRow.length)) {
-                        var tile = levelRow[x]
-                        var p = this.passable(tile)
-                        
-                        if ((y == 0)&&(x == 0)) {
-                            row[rowIdx] = MAXVAL
-                        } else if ((typeof(preferredSpot) != "undefined") && (preferredSpot.x == x) && (preferredSpot.y == y)) {
-                            row[rowIdx] = -10
-                        } else if (p == 1) {
-                            if (tile.damage) {
-                                if (tile.damage <= agent.attrs.hp.pos) {
-                                    row[rowIdx] = tile.damage * 10
-                                } else {
-                                    row[rowIdx] = MAXVAL
-                                }
-                            } else if (p == 2) {
-                                if ((typeof(tile.character) != "undefined") && (tile.character != null)) {
-                                    if (tile.character.attrs.faction != agent.attrs.faction) {
-                                        if ('enemy' in scores) {
-                                            row[rowIdx] = scores.enemy
+        var expand = function(elem, level) {
+            for (var dy=-1; dy <= 1; dy++) {
+                var ny = elem.y + dy
+                if ((ny >= 0) && (ny < level.length)) {
+                    var row = level[ny]
+                    for (var dx=-1; dx <= 1; dx++) {
+                        var nx = elem.x + dx
+                        if (!((dx == 0) && (dy == 0)) && (nx >= 0) && (nx < row.length)) {
+                            var tile = row[nx]
+                            
+                            if (!('astarIteration' in tile) || (tile.astarIteration < astarIteration)) {
+                                tile.astarIteration = astarIteration
+                                var p = pss(tile)
+                                
+                                // TODO: Change heuristic for ambush mechanics
+                                var difX = nx - target.x
+                                var difY = ny - target.y
+                                var euclideanCost = Math.sqrt(difX * difX + difY * difY)
+                                
+                                var newCost = elem.carriedCost + euclideanCost
+                                var discard = false
+                                
+                                if (p == 1) {
+                                    if (tile.damage) {
+                                        if (tile.damage <= agent.attrs.hp.pos) {
+                                            newCost += tile.damage * 10
                                         } else {
-                                            row[rowIdx] = -5
+                                            discard = true
                                         }
-                                    } else {
-                                        row[rowIdx] = MAXVAL
+                                    }
+                                } else if (p == 2) {
+                                    if ((typeof(tile.character) != "undefined") && (tile.character != null)) {
+                                        if ((tile.character.attrs) && (tile.character.attrs.faction != agent.attrs.faction)) {
+                                            if ((typeof(scores) !== "undefined") && ('enemy' in scores)) {
+                                                newCost += scores.enemy(tile.character)
+                                            } else {
+                                                discard = true
+                                            }
+                                        } else {
+                                            discard = true
+                                        }
+                                    }
+                                } else if (p == 0) {
+                                    discard = true
+                                } else if ((typeof(tile.item) != "undefined") && (tile.item != null)) {
+                                    if ((typeof(scores) !== "undefined") && ('item' in scores)) {
+                                        newCost += scores.item(tile.item)
                                     }
                                 }
-                            } else if (p == 0) {
-                                row[rowIdx] = MAXVAL
-                            } else if ((typeof(tile.item) != "undefined") && (tile.item != null)) {
-                                if ('item' in scores) {
-                                    row[rowIdx] = scores.item
-                                } else {
-                                    row[rowIdx] = -2
+                                
+                                if (!discard) {
+                                    includeOnOpenSet({x: nx, y: ny, carriedCost: newCost, history: elem.history.concat([elem])})
                                 }
                             }
                         }
-                    } else {
-                        row[rowIdx] = MAXVAL
                     }
                 }
+            }
+        }
+        
+        var path
+        expand({x: agent.pos.x, y: agent.pos.y, carriedCost: 0, history: []}, level)
+        while (openSet.length > 0) {
+            var nextElement = openSet.shift()
+            
+            if ((nextElement.x == target.x) && (nextElement.y == target.y)) {
+                path = nextElement.history.concat([nextElement])
+                break
             } else {
-                for (var j = -agent.fov; j < agent.fov; j++) {
-                    row[j + agent.fov] = MAXVAL
-                }
-            }
-            zone.push(row)
-        }
-        
-        var f2 = agent.fov * 2 - 1
-        var hasUndefineds = true
-        
-        while (hasUndefineds) {
-            hasUndefineds = false
-            for (var i=1; i < f2; i++) {
-                var prevRow = zone[i-1]
-                var row = zone[i]
-                var nextRow = zone[i+1]
-                
-                for (var j=1; j < f2; j++) {
-                    var tile = row[j]
-                    
-                    if ((tile != null) && (typeof(tile) == "undefined")) {
-                        var prevMin = Math.min(prevRow[j], prevRow[j+1], prevRow[j-1])
-                        var locMin = Math.min(row[j+1], row[j-1])
-                        var nextMin = Math.min(nextRow[j], nextRow[j+1], nextRow[j-1])
-                        
-                        var v = Math.min(prevMin, nextMin, locMin)
-                        
-                        if (!isNaN(v)) {
-                            row[j] = v - util.sign(v)
-                        } else {
-                            hasUndefineds = true
-                        }
-                    }
-                }
+                expand(nextElement, level)
             }
         }
         
-        var decs = []
-        
-        decs.push({dx: -1, dy: -1, q: zone[agent.fov-1][agent.fov-1]})
-        decs.push({dx: 0, dy: -1, q: zone[agent.fov-1][agent.fov]})
-        decs.push({dx: 1, dy: -1, q: zone[agent.fov-1][agent.fov+1]})
-        
-        decs.push({dx: -1, dy: 0, q: zone[agent.fov][agent.fov-1]})
-        decs.push({dx: 0, dy: 0, q: zone[agent.fov][agent.fov]})
-        decs.push({dx: 1, dy: 0, q: zone[agent.fov][agent.fov+1]})
-        
-        decs.push({dx: -1, dy: 1, q: zone[agent.fov+1][agent.fov-1]})
-        decs.push({dx: 0, dy: 1, q: zone[agent.fov+1][agent.fov]})
-        decs.push({dx: 1, dy: 1, q: zone[agent.fov+1][agent.fov+1]})
-        
-        decs.sort(function(a,b){ return a.q - b.q})
-        
-        return decs[0]
+        if (path) {
+            path.shift()
+            return path.map(function(e) { return {x: e.x, y: e.y} })
+        }
     }
 }
 

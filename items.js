@@ -589,7 +589,7 @@ items.push(new weapons.Weapon({
     precisionFactor: 0.0,
     cssClass: 'good-weapon',
     pix: asciiMapping['⌠'],
-    sndOnFire: 'sniper'
+    sndOnFire: 'sniperRifle'
 }))
 
 items.push(new weapons.Weapon({
@@ -857,8 +857,8 @@ items.push(new weapons.Charger({
         isSourceArea: true,
         targetRadius: 0,
         sourceRadius: 0,
-        stickyTtl: 30,
-        stickyTtlRandom: 30,
+        stickyTtl: 2,
+        stickyTtlRandom: 4,
         sourceFn: effects.effectFunction.acid,
         targetFn: effects.effectFunction.acid,
         stickyFn: effects.effectFunction.acid,
@@ -893,10 +893,10 @@ items.push(new weapons.Charger({
         isSticky: true,
         isTargetArea: true,
         isSourceArea: true,
-        targetRadius: 1,
+        targetRadius: 3,
         sourceRadius: 0,
-        stickyTtl: 30,
-        stickyTtlRandom: 10,
+        stickyTtl: 2,
+        stickyTtlRandom: 5,
         sourceFn: effects.effectFunction.smoke,
         targetFn: effects.effectFunction.burn,
         stickyFn: effects.effectFunction.burn,

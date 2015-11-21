@@ -47,6 +47,7 @@ var particles = require('./particles.js')
 var soundManager = require('./soundman.js').getManager()
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var effects = require('./effects.js')
+var comms = require('./comms.js')
 var generator
 
 function sign(n) {
@@ -77,9 +78,10 @@ function dropInventory(agent, level, passableFn, index) {
             if (typeof(probability) == "undefined") {
                 probability = -3
             }
-            var fitted = generator.random() < probability
+            var rnd = generator.random()
+            var fitted = rnd < probability
             
-            if (!fitted) {
+            if (fitted) {
                 var tryDeltas = deltasSquare(-1, -1, 1, 1)
                 
                 for (var n=0; n < tryDeltas.length; n++) {
@@ -317,6 +319,10 @@ function processSemiturn(params) {
             // The medic regenerates some HP each turn depending on the super power
             cli.player.attrs.hp.pos = Math.min(cli.player.attrs.hp.max, cli.player.attrs.hp.pos + Math.round(Math.max(0, Math.min(100, cli.player.attrs.suPow))/ 25.0))
             cli.player.resistance += Math.round(Math.max(0, Math.min(100, cli.player.attrs.suPow)) / 20.0)
+        } else if (cli.player.player_class == 'engy') {
+            // The engineer jams communications based on its supow charge
+            var radius = Math.round(Math.max(0, Math.min(100, cli.player.attrs.suPow))/ 5.0)
+            comms.createInterference(cli.player.pos.x, cli.player.pos.y, radius, 1)
         }
         
         cli.couldMove = true
@@ -524,6 +530,8 @@ function processSemiturn(params) {
                 
                 cli.standingOrder = false
                 cli.dst = null
+            } else {
+                cli.player.wait = gameDefs.turnsForStep
             }
         } else if ((typeof(cli.useTile) != "undefined") && (cli.useTile)) {
             cli.useTile = false
@@ -612,7 +620,7 @@ function processSemiturn(params) {
             if (ctl.tile in activableTiles) {
                 activableTiles[ctl.tile](ctl, cli)
             } else if ((cli.player.idleCounter > gameDefs.spyIdleCounter) && (cli.player.player_class == 'spy')) {
-                ctl.character = null // TODO: Poor way to go stealth
+                //ctl.character = null // TODO: Poor way to go stealth
             }
         }
         
@@ -690,6 +698,14 @@ function registerGenerator(gen) {
     generator = gen
 }
 
+function fill0s(str, num) {
+    while (str.length < num) {
+        str = '0' + str
+    }
+    
+    return str
+}
+
 module.exports = {
     dropInventory: dropInventory,
     processKnockback: processKnockback,
@@ -699,5 +715,6 @@ module.exports = {
     watchableStat: watchableStat,
     processTileHealth: processTileHealth,
     sign: sign,
-    registerGenerator: registerGenerator
+    registerGenerator: registerGenerator,
+    fill0s: fill0s
 }

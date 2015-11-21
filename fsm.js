@@ -92,13 +92,14 @@ FSM.prototype.linkStates = function(origin, destination, func, params) {
                 "condition": func(this.variables, params),
                 "go": function () {
                     for (var i=0; i < this.currentState.onExitObservers.length; i++) {
-                        this.currentState.onExitObservers[i](this.currentState, this.variables, params)
+                        this.currentState.onExitObservers[i](this.currentState, dirState, this.variables, params)
                     }
                     
+                    var fromState = this.currentState
                     this.currentState = dirState
-                    
+
                     for (var i=0; i < this.currentState.onEnterObservers.length; i++) {
-                        this.currentState.onEnterObservers[i](this.currentState, this.variables, params)
+                        this.currentState.onEnterObservers[i](this.currentState, fromState, this.variables, params)
                     }
                 }
             }

@@ -332,7 +332,7 @@ function wallExplosionEventConstructor() {
 
 function monsterSpawnEventConstructor() {
     var radius = Math.round(sessionRandom.child('events').random()*10 + 5)
-    var prob = sessionRandom.child('events').random()*0.85
+    var prob = sessionRandom.child('events').random()*0.25 + 0.1
     var monstaGen = sessionRandom.child()
     return function (t, c) {
         var r2 = radius * radius
@@ -349,7 +349,7 @@ function monsterSpawnEventConstructor() {
                         if ((x*x + y*y) < r2) {
                         
                             if ((passable(row[tx])==1) && (monstaGen.random() < prob)) {
-                                monsters.spawners.Monsta(aiState, 'Monsta ' + mn, tx, ty)
+                                monsters.spawners.Monsta(aiState, 'Monsta ' + mn, tx, ty, 'Demons')
                                 mn++
                             }
                         }
@@ -358,7 +358,7 @@ function monsterSpawnEventConstructor() {
             }
         }
         
-        c.player.messages.push("A horde of monsters spawn around you!")
+        c.player.messages.push("A horde of demons spawn around you!")
         
         return true
     }
@@ -684,18 +684,46 @@ var handlers = { // These are the RPC handlers that the client can invoke
                 ws.player.attrs.hp.pos = 100000
                 ws.player.attrs.suPow = 100
                 ws.player.attrs.suPowWait = -10000
-                ws.player.fov = ws.player.fov * 20
+                ws.player.fov = 64
                 ws.player.fov_sq = ws.player.fov * ws.player.fov
-                ws.player.attrs.clairvoyanceRadius = 30
+                ws.player.attrs.clairvoyanceRadius = 100
                 ws.player.weapon.ammo = 100000
+                ws.player.override_commsSense = 60
             } else if (obj.fn == 'showfsm') {
                 var tile = level[obj.data.y][obj.data.x]
                 if (tile.character && tile.character.fsmVars) {
+                    if (typeof(ws.fsms) === "undefined") {
+                        ws.fsms = {}
+                    }
+                    ws.fsms[obj.data.id] = tile.character.fsmVars
                     ws.sendPako(JSON.stringify({
                         type: "fsm_vars",
                         pos: {x: obj.data.x, y: obj.data.y},
                         vars: tile.character.fsmVars
                     }))
+                }
+            } else if (obj.fn == 'updatefsms') {
+                if (ws.fsms) {
+                    var nobj = {
+                        type: "fsms_updates",
+                        fsms: ws.fsms
+                    }
+                    
+                    var cache = []
+                    var stnobj = JSON.stringify(nobj, function(key, value) {
+                        if (typeof value === 'object' && value !== null) {
+                            if (cache.indexOf(value) !== -1) {
+                                // Circular reference found, discard key
+                                return "[Circular]"
+                            }
+                            // Store value in our collection
+                            cache.push(value)
+                        }
+                        return value
+                    })
+                    cache = null
+                    
+                    ws.sendPako(stnobj)
                 }
             }
         }
@@ -761,10 +789,35 @@ function initObjects() {
     }
 }
 
-var enemyTally
+var enemyTally = false
 var enemyTypes = []
 function spawnRandomEnemy() {
     if (!enemyTally) {
+        aiState.newFaction('Lefty')
+        aiState.newFaction('Rigthy')
+        aiState.newFaction('Savages')
+        aiState.newFaction('Demons')
+        
+        aiState.factionAggro('Lefty', 'Righty', 20)
+        aiState.factionAggro('Lefty', 'Savages', 10)
+        aiState.factionAggro('Lefty', 'Demons', 30)
+        aiState.factionAggro('Lefty', 'players', 1)
+        
+        aiState.factionAggro('Righty', 'Lefty', 30)
+        aiState.factionAggro('Righty', 'Savages', 10)
+        aiState.factionAggro('Righty', 'Demons', 20)
+        aiState.factionAggro('Righty', 'players', 1)
+        
+        aiState.factionAggro('Savages', 'Lefty', 10)
+        aiState.factionAggro('Savages', 'Righty', 9)
+        aiState.factionAggro('Savages', 'Demons', 1)
+        aiState.factionAggro('Savages', 'players', 1)
+        
+        aiState.factionAggro('Demons', 'Lefty', 10)
+        aiState.factionAggro('Demons', 'Righty', 10)
+        aiState.factionAggro('Demons', 'Savages', 1)
+        aiState.factionAggro('Demons', 'players', 50)
+        
         enemyTally = {}
         for (x in monsters.spawners) {
             if (monsters.spawners.hasOwnProperty(x)) {
@@ -777,12 +830,23 @@ function spawnRandomEnemy() {
     var spawned = false
     var monsterGen = sessionRandom.child('level').child('monsters')
     while (!spawned) {
-        var tx = Math.floor(monsterGen.random()*(level[0].length - 2) + 1)
+        
+        var rndX = ((monsterGen.random() * 2 - 1) - 0.5) * 2
+        
+        rndX = 1 - (rndX * rndX)
+        
+        var tx = Math.floor(rndX*(level[0].length - 2) + 1)
         var ty = Math.floor(monsterGen.random()*(level.length - 2) + 1)
         if (passable(level[ty][tx])) {
             var type = enemyTypes[Math.floor(monsterGen.random() * enemyTypes.length)]
             
-            monsters.spawners[type](aiState, type + ' Nº' + enemyTally[type], tx, ty)
+            var left = tx <= level[0].length/2
+            
+            if (type == 'Marine') {
+                monsters.spawners[type](aiState, type + ' Nº' + enemyTally[type], tx, ty, left?"Lefty":"Righty", left?0.1:0.85, currentLevel)
+            } else {
+                monsters.spawners[type](aiState, type + ' Nº' + enemyTally[type], tx, ty, "Savages", 0.5, currentLevel)
+            }
             spawned = true
             enemyTally[type]++
         }
@@ -988,7 +1052,7 @@ function resetLevel() {
         level.push(row)
     }
 
-    var levelType = -1 //sessionRandom.child('level-session').randomIntRange(3)
+    var levelType = sessionRandom.child('level-session').randomIntRange(3)
     if (levelType == -1) {
         levelTileset = "base"
         generators.testLevel(sessionRandom.child('level'), level,
@@ -1101,6 +1165,35 @@ function resetLevel() {
         } else {
             startXPos = Math.floor(startGen.random() * (w - 8) + 4)
             startYPos = Math.floor(startGen.random() * (h - 8) + 4)
+            
+            for (var j=-5; j <= 5; j++) {
+                var py = startYPos + j
+                
+                if ((py >= 0) && (py < level.length)) {
+                    var row = level[py]
+                    for (var i=-5; i <= 5; i++) {
+                        var px = startXPos + i
+                        
+                        if ((px >= 0) && (px < row.length)) {
+                            if ((i*i + j*j) < 25) {
+                                var tile = row[px]
+                                
+                                tile.tile = asciiMapping['.']
+                                
+                                if ('damage' in tile) {
+                                    delete tile.damage
+                                }
+                                
+                                if ('cssClass' in tile) {
+                                    delete tile.cssClass
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            sprites["baseentry"].draw(level, w - (startXPos - 2), h - (startYPos - 5))
         }
     }
     
@@ -1648,6 +1741,19 @@ function sendScopeToClient(ws) {
         ws.dropInventory = -1
     }
     
+    var commsSense = 0
+    if (ws.player.player_class == 'tech') {
+        commsSense = Math.max(0, Math.min(100, ws.player.attrs.suPow))/5
+    }
+    
+    if (ws.player.override_commsSense) {
+        commsSense = ws.player.override_commsSense
+    }
+    
+    if (commsSense > 0) {
+        msg.pkts = comms.collectAllMessages(ws.player.pos.x, ws.player.pos.y, commsSense)
+    }
+    
     for (var y=Math.max(0, ws.player.pos.y - tfov); y <= Math.min(ws.player.pos.y + tfov, level.length-1); y++) {
         var row = Array.apply(null, new Array(tfov*2+1)).map(function(){return null})
         
@@ -2049,6 +2155,7 @@ function stopGameAndRestart() {
     currentLevel = 0
     
     level = []
+    enemyTally = false
     aiState = null
     lastTurnTime = 0
 }

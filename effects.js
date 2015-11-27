@@ -44,6 +44,7 @@
  
 var particles = require('./particles.js')
 var soundManager = require('./soundman.js').getManager()
+var lightmanager = require('./lightmanager.js')
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 
 var PHASE_SOURCE = 0
@@ -248,6 +249,10 @@ var effectFunction = {
         }
     }, function(cell, phase, x, y, expd, origin) {
         if (phase == PHASE_TARGET) {
+            lightmanager.newLightSource({x: x, y: y}, 8, [255, 255, 0], 1)
+            lightmanager.newLightSource({x: x+1, y: y}, 6, [255, 0, 0], 2)
+            lightmanager.newLightSource({x: x-1, y: y}, 6, [190, 128, 0], 3)
+            
             var manager = particles.Singleton()
             manager.spawnParticle(
                 x, y, x + Math.floor(generator.random() * 5 - 3), y + Math.floor(generator.random() * 5 - 3),
@@ -302,6 +307,7 @@ var effectFunction = {
         }
     }, function(cell, phase, x, y, expd) {
         if (phase == PHASE_TARGET) {
+            lightmanager.newLightSource({x: x, y: y}, 8, [255, 0, 255], 1)
             var manager = particles.Singleton()
             manager.spawnParticle(
                 x, y, x + Math.floor(generator.random() * 5 - 3), y + Math.floor(generator.random() * 5 - 3),

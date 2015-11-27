@@ -64,6 +64,7 @@ var effects = require('./effects.js')
 var comms = require('./comms.js')
 var soundManager = require('./soundman.js').getManager()
 var determinist = require('./determinist.js')
+var lightmanager = require('./lightmanager.js')
 
 var util = require('./util.js')
 
@@ -492,7 +493,8 @@ var handlers = { // These are the RPC handlers that the client can invoke
         ws.standingOrder = false
         ws.player.fov = gameDefs.playerBaseFov
         ws.player.fov_sq = ws.player.fov * ws.player.fov
-        
+
+        lightmanager.addPlayerPosition(ws.player.pos)
         applyPlayerClassBonusesAndPenalties(ws.player)
         
         wss.broadcast(JSON.stringify({type: 'new_player', username: obj.username, player_class: ws.player.player_class}))
@@ -1043,7 +1045,7 @@ function resetLevel() {
     
     while (level.length > 0) {
         level.pop()
-    }        
+    }
     
     for (var y=0; y < h; y++) {
         var row = Array.apply(null, new Array(w)).map(function(){return ((y==0)||(y==(h-1)))?{tile: asciiMapping['#']}:{tile: asciiMapping['.']}})
@@ -1052,11 +1054,21 @@ function resetLevel() {
         level.push(row)
     }
 
+    lightmanager.assignLevel(level)
+    
     var levelType = sessionRandom.child('level-session').randomIntRange(3)
     if (levelType == -1) {
         levelTileset = "base"
         generators.testLevel(sessionRandom.child('level'), level,
             asciiMapping['.'], asciiMapping['#'], asciiMapping['='])
+            
+        level.map(function(row){ row.map(function(tile){
+            if (typeof(tile.lightsource) !== "undefined") {
+                while (tile.lightsource.length > 0) {
+                    tile.lightsource.shift()
+                }
+            }
+        })})
     } else if (levelType == 0) {
         levelTileset = "base"
         generators.bspSquares(sessionRandom.child('level'), level, 
@@ -1084,7 +1096,10 @@ function resetLevel() {
             gameDefs.level.roomConvertCaveProbability)
     }
     console.log("Finished generating level")
-    var riverTiles = [[asciiMapping['~'], 'water', null], [asciiMapping['≈'], 'acid', 1], [asciiMapping['≈'], 'lava', 5]]
+    var riverTiles = [
+        [asciiMapping['~'], 'water', null, undefined],
+        [asciiMapping['≈'], 'acid', 1, {intensity: 2, color: [53, 168, 46]}],
+        [asciiMapping['≈'], 'lava', 5, {intensity: 3, color: [202, 96, 34]}]]
     
     var levelGen = sessionRandom.child('level')
     var riverGen = levelGen.child('river-placement')
@@ -1108,6 +1123,8 @@ function resetLevel() {
         var nRivers = riverGen.random() 
         nRivers = Math.floor(nRivers * nRivers * gameDefs.level.maxRivers)
         
+        console.log('Generating ' + nRivers + ' rivers')
+        
         for (var i=0; i < nRivers; i++) {
             var nRiverTile = Math.floor(riverGen.random() * riverTiles.length)
             generators.river(level, 
@@ -1115,7 +1132,8 @@ function resetLevel() {
                 riverTiles[nRiverTile][0], 
                 riverTiles[nRiverTile][1], 
                 asciiMapping['|'], 'wood', 
-                riverTiles[nRiverTile][2])
+                riverTiles[nRiverTile][2],
+                riverTiles[nRiverTile][3])
         }
         
         var numLevers = leverGen.random()*gameDefs.level.randomLevers + gameDefs.level.minLevers
@@ -1220,6 +1238,8 @@ function resetLevel() {
         spawnRandomEnemy()
         numEnemies--
     }
+    
+    lightmanager.calculateLighting(nextTurnId)
 }
 
 function sign(n) {
@@ -1385,7 +1405,7 @@ function spawnGibs(x, y, pix, n, nmin, colorLight, colorDark, gibs, options) {
 
 function processTurnIfAvailable() {
 	var keepProcessing = wss.clients.length > 0
-	
+    
 	while (keepProcessing) {
 		_processTurnIfAvailable_priv_()
 		
@@ -1476,6 +1496,8 @@ function _processTurnIfAvailable_priv_() {
         somethingHappened |= aiState.process()
         nturns++
     }
+    
+    lightmanager.calculateLighting(nextTurnId)
     
     // Send new info to clients
     for (var i in wss.clients) {
@@ -2119,6 +2141,7 @@ wss.on('connection', function(ws) {
     
     ws.on('close', function(code, message) {
         if (typeof(this.player) != "undefined") {
+            lightmanager.removePlayerPosition(this.player.pos)
             level[this.player.pos.y][this.player.pos.x].character = null
             spawnGibs(this.player.pos.x, this.player.pos.y, this.player.pix,
                         Math.round(sessionRandom.child('misc').random() * 4), 3, "#069", "#036", this.player.gibs)

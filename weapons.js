@@ -48,6 +48,7 @@ var gameDefs = require('./conf/gamedefs.js')
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
 var effects = require('./effects.js')
 var util = require('./util.js')
+var lightmanager = require('./lightmanager.js')
 var passable
 var level
 var generator
@@ -136,277 +137,9 @@ function rayhit(x0, y0, x1, y1) {
 /*
  * This function is the same as Rayhit except that it continues tracing after reaching the target
  */
-/*function rayhitThrough(x0, y0, x1, y1, energy) {
-    var initialEnergy = energy
-	if (!energy) {
-		energy = 1000
-	}
-	
-    if (x0 < 0) {
-        x0 = 0
-    } else if (x0 >= level[0].length) {
-        x0 = level[0].length - 1
-    }
-    
-    if (x1 < 0) {
-        x1 = 0
-    } else if (x1 >= level[0].length) {
-        x1 = level[0].length - 1
-    }
-    
-    if (y0 < 0) {
-        y0 = 0
-    } else if (y0 >= level.length) {
-        y0 = level.length - 1
-    }
-    
-    if (y1 < 0) {
-        y1 = 0
-    } else if (y1 >= level.length) {
-        y1 = level.length - 1
-    }
-
-    var dx = x1 - x0
-    var dy = y1 - y0
-    var lx, ly
-    var path = 0
-    
-    //throw "Not tracing paths correctly"
-    
-    if ((dx == 0) && (dy == 0)) {
-        return {x: x1, y: y1}
-    } else if (dy == 0) {
-        // Horizontal line, easiest
-        path = 1
-        var row = level[Math.floor(y0)]
-        var ix = (dx > 0)?1:-1
-        dx = Math.abs(dx)
-        
-        var x = x0 + ix
-        while ((x >= 0) && (x < row.length) && (energy > 0)) {
-            path = 1001
-            lx = x
-            ly = y0
-            
-			var tile = row[Math.floor(x)]
-			var pa = passable(tile)
-            if (pa != 1) {
-				if (pa == 2) {
-					var ch = tile.character
-					var rn = generator.random()
-					if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
-					    (ch.crouch && (rn < gameDefs.crouchToHit)))) {
-						continue
-					}
-				}
-                
-                if (isNaN(x) || isNaN(y0)) {
-                    console.log("NaN on horizontal tracing " + x + " " + y0)
-                }
-                
-                return {x: x, y: y0}
-            }
-            x += ix
-			energy--
-        }
-    } else if (dx == 0) {
-        // Vertical line, easy
-        path = 2
-        
-        var iy = (dy > 0)?1:-1
-        dy = Math.abs(dy)
-        
-        var y = y0 + iy
-        while ((y >= 0) && (y < level.length) && (energy > 0)) {
-            lx = x0
-            ly = y
-            
-			var tile = level[Math.floor(y)][Math.floor(x0)]
-			var pa = passable(tile)
-            if (pa != 1) {
-				if (pa == 2) {
-					var ch = tile.character
-					var rn = generator.random()
-					if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
-					    (ch.crouch && (rn < gameDefs.crouchToHit)))) {
-						continue
-					}
-				}
-				
-                if (isNaN(x0) || isNaN(y)) {
-                    console.log("NaN on vertical tracing " + x0 + " " + y)
-                }
-                
-                return {x: x0, y: y}
-            }
-            y += iy
-			energy--
-        }
-    } else {
-        // Run the algorithm
-        path = 3
-        
-        var ix = (dx > 0)?1:-1
-        var iy = (dy > 0)?1:-1
-        var error = 0
-        
-        if (Math.abs(dx) > Math.abs(dy)) {
-            var derror = Math.abs(dy/dx)
-            var y = y0
-            var x=x0+ix
-            
-            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
-                lx = x
-                ly = y
-                
-                error += derror
-                if (error > 0.5) {
-                    y += iy
-                    error -= 1.0
-                }
-                
-                if ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
-					var tile = level[Math.floor(y)][Math.floor(x)]
-					var pa = passable(tile)
-					if (pa != 1) {
-						if (pa == 2) {
-							var ch = tile.character
-							var rn = generator.random()
-							if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
-								(ch.crouch && (rn < gameDefs.crouchToHit)))) {
-								continue
-							}
-						}
-                        
-                        if (isNaN(x) || isNaN(y)) {
-                            console.log("NaN on slanted tracing " + x + " " + y)
-                        }
-                
-                        return {x: x, y: y}
-                    }
-                }
-                
-                x+=ix
-				energy--
-            }
-        } else if (Math.abs(dx) < Math.abs(dy)) {
-            var derror = Math.abs(dx/dy)
-            var x = x0
-            var y=y0+iy
-            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
-                error += derror
-                if (error > 0.5) {
-                    x += ix
-                    error -= 1.0
-                }
-                
-                lx = x
-                ly = y
-                
-                if ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
-					var tile = level[Math.floor(y)][Math.floor(x)]
-					var pa = passable(tile)
-					
-                    if (pa != 1) {
-						if (pa == 2) {
-							var ch = tile.character
-							var rn = generator.random()
-							if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
-								(ch.crouch && (rn < gameDefs.crouchToHit)))) {
-								continue
-							}
-						}
-						
-                        if (isNaN(x) || isNaN(y)) {
-                            console.log("NaN on slanted2 tracing " + x + " " + y)
-                        }
-                        
-                        return {x: x, y: y}
-                    }
-                }
-                
-                y+=iy
-				energy--
-            }
-        } else if (Math.abs(dx) == Math.abs(dy)) {
-            var x = x0+ix
-            var y = y0+iy
-            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
-				var tile = level[Math.floor(y)][Math.floor(x)]
-				var pa = passable(tile)
-				
-                lx = x
-                ly = y
-                
-                if (pa != 1) {
-					if (pa == 2) {
-						var ch = tile.character
-						var rn = generator.random()
-						if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
-							(ch.crouch && (rn < gameDefs.crouchToHit)))) {
-							continue
-						}
-					}
-					
-                    if (isNaN(x) || isNaN(y)) {
-                        console.log("NaN on diagonal tracing " + x0 + " " + y)
-                    }
-                    return {x: x, y: y}
-                }
-                
-                x += ix
-                y += iy
-				energy--
-            }
-        }
-    }
-    
-    if (isNaN(lx) || isNaN(ly)) {
-        console.log("NaN on failover tracing " + lx + " " + ly + "; Path: " + path + "; NRG: " + initialEnergy)
-    }
-    return {x: lx, y: ly}
-}*/
-
 function rayhitThrough(x0, y0, x1, y1, energy, pierceProbability) {
-    var initialEnergy = energy
-    var result = []
     
-	if (!energy) {
-		energy = 1000
-	}
-	
-    if (x0 < 0) {
-        x0 = 0
-    } else if (x0 >= level[0].length) {
-        x0 = level[0].length - 1
-    }
-    
-    if (x1 < 0) {
-        x1 = 0
-    } else if (x1 >= level[0].length) {
-        x1 = level[0].length - 1
-    }
-    
-    if (y0 < 0) {
-        y0 = 0
-    } else if (y0 >= level.length) {
-        y0 = level.length - 1
-    }
-    
-    if (y1 < 0) {
-        y1 = 0
-    } else if (y1 >= level.length) {
-        y1 = level.length - 1
-    }
-
-    var dx = x1 - x0
-    var dy = y1 - y0
-    var lx, ly
-    var path = 0
-    
-    //throw "Not tracing paths correctly"
-    
-    var evaluateTile = function(tile, px, py) {
+    return util.bresenhamsEvaluate(level, x0, y0, x1, y1, energy, function(tile, px, py) {
         var pa = passable(tile)
         if (pa != 1) {
             if (pa == 2) {
@@ -414,168 +147,20 @@ function rayhitThrough(x0, y0, x1, y1, energy, pierceProbability) {
                 var rn = generator.random()
                 if (ch && ((ch.prone && (rn < gameDefs.proneToHit)) ||
                     (ch.crouch && (rn < gameDefs.crouchToHit)))) {
-                    return
+                    return false
                 }
             }
             
             return {x: px, y: py, pa: pa}
         } else if ((pa == 1) && (typeof(tile.item) != "undefined") && (tile.item != null)) {
-            if (generator.random() < 0.8) {
+            if (generator.random() < 0.2) {
                 // TODO: Fix this, it should use information from the weapon if it can hit items or not
                 return {x: px, y: py}
             }
         }
-    }
-    
-    if ((dx == 0) && (dy == 0)) {
-        result.push({x: x1, y: y1})
-    } else if (dy == 0) {
-        // Horizontal line, easiest
-        path = 1
-        var row = level[Math.floor(y0)]
-        var ix = (dx > 0)?1:-1
-        dx = Math.abs(dx)
         
-        var x = x0 + ix
-        while ((x >= 0) && (x < row.length) && (energy > 0)) {
-            path = 1001
-            lx = x
-            ly = y0
-            
-			var tile = row[Math.floor(x)]
-			var ret = evaluateTile(tile, x, y0)
-            if (typeof(ret) == "object") {
-                result.push(ret)
-                    
-                if ((ret.pa != 2) || !generator.eventOccurs(pierceProbability)) {
-                    break
-                }
-            }
-            
-            x += ix
-			energy--
-        }
-    } else if (dx == 0) {
-        // Vertical line, easy
-        path = 2
-        
-        var iy = (dy > 0)?1:-1
-        dy = Math.abs(dy)
-        
-        var y = y0 + iy
-        while ((y >= 0) && (y < level.length) && (energy > 0)) {
-            lx = x0
-            ly = y
-            
-			var tile = level[Math.floor(y)][Math.floor(x0)]
-			var ret = evaluateTile(tile, x0, y)
-            if (typeof(ret) == "object") {
-                result.push(ret)
-                    
-                if ((ret.pa != 2) || !generator.eventOccurs(pierceProbability)) {
-                    break
-                }
-            }
-            y += iy
-			energy--
-        }
-    } else {
-        // Run the algorithm
-        path = 3
-        
-        var ix = (dx > 0)?1:-1
-        var iy = (dy > 0)?1:-1
-        var error = 0
-        
-        if (Math.abs(dx) > Math.abs(dy)) {
-            var derror = Math.abs(dy/dx)
-            var y = y0
-            var x=x0+ix
-            
-            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
-                lx = x
-                ly = y
-                
-                error += derror
-                if (error > 0.5) {
-                    y += iy
-                    error -= 1.0
-                }
-                
-                if ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
-					var tile = level[Math.floor(y)][Math.floor(x)]
-					var ret = evaluateTile(tile, x, y)
-                    if (typeof(ret) == "object") {
-                        result.push(ret)
-                    
-                        if ((ret.pa != 2) || !generator.eventOccurs(pierceProbability)) {
-                            break
-                        }
-                    }
-                }
-                
-                x+=ix
-				energy--
-            }
-        } else if (Math.abs(dx) < Math.abs(dy)) {
-            var derror = Math.abs(dx/dy)
-            var x = x0
-            var y=y0+iy
-            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
-                error += derror
-                if (error > 0.5) {
-                    x += ix
-                    error -= 1.0
-                }
-                
-                lx = x
-                ly = y
-                
-                if ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
-					var tile = level[Math.floor(y)][Math.floor(x)]
-					var ret = evaluateTile(tile, x, y)
-                    if (typeof(ret) == "object") {
-                        result.push(ret)
-                    
-                        if ((ret.pa != 2) || !generator.eventOccurs(pierceProbability)) {
-                            break
-                        }
-                    }
-                }
-                
-                y+=iy
-				energy--
-            }
-        } else if (Math.abs(dx) == Math.abs(dy)) {
-            var x = x0+ix
-            var y = y0+iy
-            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
-				var tile = level[Math.floor(y)][Math.floor(x)]
-				
-                lx = x
-                ly = y
-                
-                var ret = evaluateTile(tile, x, y)
-                if (typeof(ret) == "object") {
-                    result.push(ret)
-                    
-                    if ((ret.pa != 2) || !generator.eventOccurs(pierceProbability)) {
-                        break
-                    }
-                }
-                
-                x += ix
-                y += iy
-				energy--
-            }
-        }
-    }
-    
-    if (isNaN(lx) || isNaN(ly)) {
-        console.log("NaN on failover tracing " + lx + " " + ly + "; Path: " + path + "; NRG: " + initialEnergy)
-    }
-    
-    return result //{x: lx, y: ly}
+        return false
+    })
 }
 
 function Weapon(options) {
@@ -614,6 +199,7 @@ function Weapon(options) {
     this.identified = options.identified || (options.identifiedName == '')
 	this.range = options.range || 5
     this.knockback = options.knockback || 0
+    this.muzzleFlashColor = options.muzzleFlashColor || [255, 225, 190]
     
     if (!('ranged' in options)) {
         options.ranged = true
@@ -686,7 +272,8 @@ Weapon.prototype.clone = function() {
         knockback: this.knockback,
         ranged: this.ranged,
         melee: this.melee,
-        meleeRange: this.meleeRange
+        meleeRange: this.meleeRange,
+        muzzleFlashColor: this.muzzleFlashColor
     })
 }
 
@@ -1039,6 +626,11 @@ Weapon.prototype.fire = function(x, y, c, options) {
         }
         
         c.wait += Math.max(speed.waitOnUse - Math.floor(speed.speed / speed.waitSubstractSpeedDivider), 1)
+        
+        var ttl = 1
+        var x = c.pos.x, y = c.pos.y
+
+        lightmanager.newLightSource({x: c.pos.x, y: c.pos.y}, 25, this.muzzleFlashColor, ttl)
     }
     
     return validTarget

@@ -450,12 +450,20 @@ function hexToColor(h) {
     }
 }
 
-ASCIITerminal.prototype.setPixel = function(x, y, glyph, fgcol, bgcol, luma) {
+ASCIITerminal.prototype.setPixel = function(x, y, glyph, fgcol, bgcol, luma, modulate) {
     var p = x + y * this.texw //this.gl.texw // this.console.width
     
     if (!((p >= 0) && (p < this.console.numchars))) {
         //throw "Invalid position on ASCIITerminal: (" + x + ", " + y + ")"
         return
+    }
+    
+    var hadModulation = false
+    if (typeof(modulate) == "undefined") {
+        modulate = [0xFF, 0xFF, 0xFF]
+    } else {
+        modulate = modulate.color
+        hadModulation = true
     }
     
     if (this.gl) {
@@ -469,9 +477,12 @@ ASCIITerminal.prototype.setPixel = function(x, y, glyph, fgcol, bgcol, luma) {
         
         if (fgcol) {
             fgcol = hexToColor(fgcol)
-            this.gl.foreTextureData[p] = ((fgcol & 0x00FF0000) >> 16) & 0xFF
-            this.gl.foreTextureData[p + 1] = ((fgcol & 0x0000FF00) >> 8) & 0xFF
-            this.gl.foreTextureData[p + 2] = ((fgcol & 0x000000FF)) & 0xFF
+            
+            
+            
+            this.gl.foreTextureData[p] = ((((fgcol & 0x00FF0000) >> 16) & 0xFF) * modulate[0]) >> 8
+            this.gl.foreTextureData[p + 1] = ((((fgcol & 0x0000FF00) >> 8) & 0xFF) * modulate[1]) >> 8
+            this.gl.foreTextureData[p + 2] = ((((fgcol & 0x000000FF)) & 0xFF) * modulate[2]) >> 8
         } else if (glyph) {
             this.gl.foreTextureData[p] = 255
             this.gl.foreTextureData[p + 1] = 255
@@ -480,13 +491,19 @@ ASCIITerminal.prototype.setPixel = function(x, y, glyph, fgcol, bgcol, luma) {
 
         if (bgcol) {
             bgcol = hexToColor(bgcol)
-            this.gl.backTextureData[p] = (bgcol & 0x00FF0000) >> 16
-            this.gl.backTextureData[p + 1] = (bgcol & 0x0000FF00) >> 8
-            this.gl.backTextureData[p + 2] = (bgcol & 0x000000FF)
+            this.gl.backTextureData[p] = (((bgcol & 0x00FF0000) >> 16) * modulate[0]) >> 8
+            this.gl.backTextureData[p + 1] = (((bgcol & 0x0000FF00) >> 8) * modulate[1]) >> 8
+            this.gl.backTextureData[p + 2] = (((bgcol & 0x000000FF)) * modulate[2]) >> 8
         } else {
-            this.gl.backTextureData[p] = 0
-            this.gl.backTextureData[p + 1] = 0
-            this.gl.backTextureData[p + 2] = 0
+            if (hadModulation) {
+                this.gl.backTextureData[p] = modulate[0] >> 3
+                this.gl.backTextureData[p + 1] = modulate[1] >> 3
+                this.gl.backTextureData[p + 2] = modulate[2] >> 3
+            } else {
+                this.gl.backTextureData[p] = 0
+                this.gl.backTextureData[p + 1] = 0
+                this.gl.backTextureData[p + 2] = 0
+            }
         }
         
         if (luma) {

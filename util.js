@@ -412,6 +412,8 @@ function processSemiturn(params) {
                     if ((ny >= 0) && (ny < level.length) &&
                         (nx >= 0) && (nx < level[0].length)) {
                         var p = passable(level[cli.player.pos.y + dy][cli.player.pos.x + dx])
+                        cli.player.pos.orientation = {x: dx, y: dy}
+                        cli.player.pos.lastpos = {x: cli.player.pos.x, y: cli.player.pos.y}
                         if (p == 1) {
                             // Sum of both is best case, and it is passable, so go with it
                             cli.player.pos.x += dx
@@ -706,6 +708,184 @@ function fill0s(str, num) {
     return str
 }
 
+function bresenhamsEvaluate(level, x0, y0, x1, y1, energy, callback) {
+    // Callback should be of the form
+    //   function(tile, x, y)
+    // And return true if it should stop evaluating the line
+    var initialEnergy = energy
+    var result = []
+    
+	if (!energy) {
+		energy = 1000
+	}
+	
+    if (x0 < 0) {
+        x0 = 0
+    } else if (x0 >= level[0].length) {
+        x0 = level[0].length - 1
+    }
+    
+    if (x1 < 0) {
+        x1 = 0
+    } else if (x1 >= level[0].length) {
+        x1 = level[0].length - 1
+    }
+    
+    if (y0 < 0) {
+        y0 = 0
+    } else if (y0 >= level.length) {
+        y0 = level.length - 1
+    }
+    
+    if (y1 < 0) {
+        y1 = 0
+    } else if (y1 >= level.length) {
+        y1 = level.length - 1
+    }
+
+    var dx = x1 - x0
+    var dy = y1 - y0
+    var lx, ly
+    var path = 0
+    
+    if ((dx == 0) && (dy == 0)) {
+        result.push({x: x1, y: y1})
+    } else if (dy == 0) {
+        // Horizontal line, easiest
+        path = 1
+        var row = level[Math.floor(y0)]
+        var ix = (dx > 0)?1:-1
+        dx = Math.abs(dx)
+        
+        var x = x0 + ix
+        while ((x >= 0) && (x < row.length) && (energy > 0)) {
+            path = 1001
+            lx = x
+            ly = y0
+            
+			var tile = row[Math.floor(x)]
+            
+            var res = callback(tile, Math.floor(x), Math.floor(y0))
+            if (res) {
+                result.push(res)
+                break
+            }
+            
+            x += ix
+			energy--
+        }
+    } else if (dx == 0) {
+        // Vertical line, easy
+        path = 2
+        
+        var iy = (dy > 0)?1:-1
+        dy = Math.abs(dy)
+        
+        var y = y0 + iy
+        while ((y >= 0) && (y < level.length) && (energy > 0)) {
+            lx = x0
+            ly = y
+            
+			var tile = level[Math.floor(y)][Math.floor(x0)]
+			var res = callback(tile, Math.floor(x0), Math.floor(y))
+            if (res) {
+                result.push(res)
+                break
+            }
+            
+            y += iy
+			energy--
+        }
+    } else {
+        // Run the algorithm
+        path = 3
+        
+        var ix = (dx > 0)?1:-1
+        var iy = (dy > 0)?1:-1
+        var error = 0
+        
+        if (Math.abs(dx) > Math.abs(dy)) {
+            var derror = Math.abs(dy/dx)
+            var y = y0
+            var x=x0+ix
+            
+            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
+                lx = x
+                ly = y
+                
+                error += derror
+                if (error > 0.5) {
+                    y += iy
+                    error -= 1.0
+                }
+                
+                if ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
+					var tile = level[Math.floor(y)][Math.floor(x)]
+					var res = callback(tile, Math.floor(x), Math.floor(y))
+                    if (res) {
+                        result.push(res)
+                        break
+                    }
+                }
+                
+                x+=ix
+				energy--
+            }
+        } else if (Math.abs(dx) < Math.abs(dy)) {
+            var derror = Math.abs(dx/dy)
+            var x = x0
+            var y=y0+iy
+            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
+                error += derror
+                if (error > 0.5) {
+                    x += ix
+                    error -= 1.0
+                }
+                
+                lx = x
+                ly = y
+                
+                if ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
+					var tile = level[Math.floor(y)][Math.floor(x)]
+					var res = callback(tile, Math.floor(x), Math.floor(y))
+                    if (res) {
+                        result.push(res)
+                        break
+                    }
+                }
+                
+                y+=iy
+				energy--
+            }
+        } else if (Math.abs(dx) == Math.abs(dy)) {
+            var x = x0+ix
+            var y = y0+iy
+            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
+				var tile = level[Math.floor(y)][Math.floor(x)]
+				
+                lx = x
+                ly = y
+                
+                var res = callback(tile, Math.floor(x), Math.floor(y))
+                if (res) {
+                    result.push(res)
+                    break
+                }
+                
+                x += ix
+                y += iy
+				energy--
+            }
+        }
+    }
+    
+    if (isNaN(lx) || isNaN(ly)) {
+        console.log("NaN on failover tracing " + lx + " " + ly + "; Path: " + path + "; NRG: " + initialEnergy)
+    }
+    
+    return result
+}
+
 module.exports = {
     dropInventory: dropInventory,
     processKnockback: processKnockback,
@@ -716,5 +896,6 @@ module.exports = {
     processTileHealth: processTileHealth,
     sign: sign,
     registerGenerator: registerGenerator,
-    fill0s: fill0s
+    fill0s: fill0s,
+    bresenhamsEvaluate: bresenhamsEvaluate
 }

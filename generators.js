@@ -44,6 +44,7 @@
  
 var fs = require('fs')
 var rs = require('./rex_sprite.js')
+var lightmanager = require('./lightmanager.js')
 
 var prebuiltRooms = {
     "comfy": {
@@ -238,6 +239,8 @@ function generateCave(generator, level, sq, floor, wall, options) {
 }
 
 function drawSquareWalls(level, sq, wall, floor, cls) {
+    var defIntensity = 3
+    
     for (var y=0; y < sq.h; y++) {
         var row = level[sq.y + y]
         
@@ -252,6 +255,11 @@ function drawSquareWalls(level, sq, wall, floor, cls) {
                         delete tl.cssClass
                     }
                     
+                    if (((y % 8) == 2) && ((x % 8) == 2) && (y < sq.h-2) && (x < sq.w-1)) {
+                       //tl.lightsource = {intensity: defIntensity, color: [235, 235, 228]}
+                       lightmanager.newLightSource({x: x + sq.x, y: sq.y + y}, defIntensity, [235, 235, 228])
+                    }
+                    
                     if ("damage" in tl) {
                         delete tl.damage
                     }
@@ -262,6 +270,10 @@ function drawSquareWalls(level, sq, wall, floor, cls) {
                 var tl = row[x + sq.x]
                 
                 tl.tile = wall
+                if ((x % 8) == 1) {
+                    lightmanager.newLightSource({x: x + sq.x, y: sq.y + y}, defIntensity, [235, 235, 228])
+                    //tl.lightsource = {intensity: defIntensity, color: [235, 235, 228]}
+                }
                 if (cls) {
                     tl.cssClass = cls
                 } else if ("cssClass" in tl){
@@ -276,6 +288,12 @@ function drawSquareWalls(level, sq, wall, floor, cls) {
         
         var tl = row[sq.x]
         tl.tile = wall
+        
+        if ((y % 8) == 1) {
+            //tl.lightsource = {intensity: defIntensity, color: [235, 235, 228]}
+            lightmanager.newLightSource({x: x + sq.x, y: sq.y + y}, defIntensity, [235, 235, 228])
+        }
+        
         if (cls) {
             tl.cssClass = cls
         } else if ("cssClass" in tl){
@@ -288,6 +306,10 @@ function drawSquareWalls(level, sq, wall, floor, cls) {
 
         tl = row[sq.x + sq.w - 1]
         tl.tile = wall
+        if ((y % 8) == 1) {
+            //tl.lightsource = {intensity: defIntensity, color: [235, 235, 228]}
+            lightmanager.newLightSource({x: x + sq.x, y: sq.y + y}, defIntensity, [235, 235, 228])
+        }
         if (cls) {
             tl.cssClass = cls
         } else if ("cssClass" in tl){
@@ -397,7 +419,7 @@ function bspSquares(generator, level, minarea, randomaccept, floor, wall, door, 
     }
 }
 
-function riverH(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage) {
+function riverH(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage, light) {
     var w = level[0].length
     var h = level.length
     
@@ -431,6 +453,9 @@ function riverH(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCs
                 } else {
                     tile.tile = riverTile
                     tile.cssClass = riverCssClass
+                    if (light) {
+                        tile.light = light
+                    }
                     if (riverDamage) {
                         tile.damage = riverDamage
                     } else if ("damage" in tile) {
@@ -485,6 +510,9 @@ function riverV(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCs
                 } else {
                     tile.tile = riverTile
                     tile.cssClass = riverCssClass
+                    if (light) {
+                        tile.light = light
+                    }
                     if (riverDamage) {
                         tile.damage = riverDamage
                     } else if ("damage" in tile) {
@@ -505,11 +533,11 @@ function riverV(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCs
     }
 }
 
-function river(generator, level, orientation, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage) {
+function river(generator, level, orientation, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage, light) {
     if (orientation == "horizontal") {
-        riverH(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage)
+        riverH(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage, light)
     } else if (orientation == "vertical") {
-        riverV(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage)
+        riverV(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage, light)
     }
 }
 
@@ -727,6 +755,16 @@ function lavaLevel(generator, level, minarea, randomaccept, floor, wall, door, l
             tries += 1
         }
     }
+    
+    level.map(function(row, y) {
+        return row.map(function(tile, x) {
+            if (tile.tile == lava) {
+                lightmanager.newLightSource({x: x, y: y}, 2, [32, 0, 0])
+            }
+            
+            return tile
+        })
+    })
 }
 
 function findFittingRoom(generator, w, h) {

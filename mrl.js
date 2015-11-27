@@ -1557,7 +1557,8 @@ function nextLevel() {
         
         var dx = c.clientnum % 4
         var dy = Math.floor(c.clientnum / 4)
-        c.player.pos = {x: startXPos + dx, y: startYPos + dy}
+        c.player.pos.x = startXPos + dx
+        c.player.pos.y = startYPos + dy
         
         level[c.player.pos.y][c.player.pos.x].character = c.player
         

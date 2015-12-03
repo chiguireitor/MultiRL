@@ -51,7 +51,7 @@ module.exports = {
     plasmaDamage: 15,
     lavaDamage: 5,
     acidDamage: 1,
-    allowCheating: true,
+    allowCheating: false,
     spawnPoolMaxRadius: 8,
 	proneToHit: 0.2,
 	crouchToHit: 0.6,

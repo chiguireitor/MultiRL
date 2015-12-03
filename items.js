@@ -1073,6 +1073,16 @@ items.push(new aids.Instant({
         }
     })]
 }))
+
+items.push(new aids.Instant({
+    pix: asciiMapping['ß'],
+    name: 'Flashlight Battery',
+    cssClass: 'flight-battery',
+    onuse: function(c) {
+        c.attrs.battery = 100
+    },
+    lightsource: {intensity: 2, color: [64, 64, 196]}
+}))
     
 /*items.push(new aids.Instant({
     pix: asciiMapping['♂'],

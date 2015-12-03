@@ -50,6 +50,7 @@ function Instant(options) {
     this.onuse = options.onuse
     this.instant = true
     this.effects = options.effects || []
+    this.lightsource = options.lightsource
     this.sndOnUse = options.sndOnUse || 'pickup'
 }
 
@@ -59,7 +60,8 @@ Instant.prototype.clone = function() {
         name: this.name,
         onuse: this.onuse,
         effects: this.effects,
-        sndOnUse: this.sndOnUse
+        sndOnUse: this.sndOnUse,
+        lightsource: this.lightsource
     })
 }
 

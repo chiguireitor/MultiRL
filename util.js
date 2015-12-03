@@ -308,7 +308,7 @@ function processSemiturn(params) {
         cli.couldMove = false
     } else {
         if (typeof(cli.player.attrs.battery) !== "undefined") {
-            cli.player.attrs.battery = Math.max(0, cli.player.attrs.battery - 0.05)
+            cli.player.attrs.battery = Math.max(0, cli.player.attrs.battery - gameDefs.flashlightBatteryDecayRate)
         }
         
         if (typeof(cli.player.resistance) !== "undefined") {

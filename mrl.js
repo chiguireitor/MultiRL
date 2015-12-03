@@ -1212,7 +1212,30 @@ function resetLevel() {
                 }
             }
             
-            sprites["baseentry"].draw(level, w - (startXPos - 2), h - (startYPos - 5))
+            var exitX = w - (startXPos - 2)
+            var exitY = h - (startYPos - 5)
+            sprites["baseentry"].draw(level, exitX, exitY)
+            
+            if (itemGen.random() < gameDefs.batteryNearExitProbability) {
+                // Add a battery //
+                var itm = items.itemByName("Flashlight Battery").clone()
+                
+                var batteryPut = false
+                while (!batteryPut) {
+                    
+                    var bx = itemGen.randomInt(exitX-2, exitX + 10)
+                    var by = itemGen.randomInt(exitY-2, exitY + 10)
+                    
+                    if ((by >= 0) && (by < level.length) && (bx >= 0) && (bx < level[0].length)) {
+                        var t = level[y0][x0]
+                        
+                        if (passable(t)) {
+                            t.item = itm
+                            batteryPut = true
+                        }
+                    }
+                }
+            }
         }
     }
     

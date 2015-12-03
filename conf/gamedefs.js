@@ -68,6 +68,8 @@ module.exports = {
     dropProbability: 0.10, // Too high and the game gets VERY easy
     knockbackStaticDestroy: 3, // How much knockback should a agent have to destroy trough walls
     maxInventoryItems: 15,
+    flashlightBatteryDecayRate: 0.05,
+    batteryNearExitProbability: 0.3,
     jamOnUnloadProbability: 0.02, // This must be a rare event, it is REALLY frustrating
     level: {
         width: 128, // Minimum width is 64

@@ -436,6 +436,7 @@ var handlers = { // These are the RPC handlers that the client can invoke
                 attrs: {
                     suPow: 100,
                     suPowWait: 0,
+                    battery: 100,
                     hp: {pos: 100, max: 100, onchange: function(deathType, amnt, originator) {
 						this.attrs.hp.pos = Math.round(this.attrs.hp.pos)
                         if (this.attrs.hp.pos <= 0) {
@@ -494,7 +495,7 @@ var handlers = { // These are the RPC handlers that the client can invoke
         ws.player.fov = gameDefs.playerBaseFov
         ws.player.fov_sq = ws.player.fov * ws.player.fov
 
-        lightmanager.addPlayerPosition(ws.player.pos)
+        lightmanager.addPlayerPosition(ws.player.pos, ws.player.attrs)
         applyPlayerClassBonusesAndPenalties(ws.player)
         
         wss.broadcast(JSON.stringify({type: 'new_player', username: obj.username, player_class: ws.player.player_class}))

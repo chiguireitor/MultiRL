@@ -44,6 +44,7 @@
 
 var currentLevel
 var currentPlayers = []
+var currentPlayersAttrs = []
 
 function assignLevel(level) {
     currentLevel = level
@@ -100,8 +101,9 @@ function newDirectionalLightSource(position, intensity, color, ttl) {
     }
 }
 
-function addPlayerPosition(playerPos) {
+function addPlayerPosition(playerPos, attr) {
     currentPlayers.push(playerPos)
+    currentPlayersAttrs.push(attr)
 }
 
 function removePlayerPosition(playerPos) {
@@ -109,6 +111,7 @@ function removePlayerPosition(playerPos) {
     
     if (p >= 0) {
         currentPlayers.splice(p, 1)
+        currentPlayersAttrs.splice(p, 1)
     }
 }
 
@@ -119,8 +122,9 @@ function calculateLighting(nextTurnId) {
 
     for (var i=0; i < currentPlayers.length; i++) {
         var player = currentPlayers[i]
+        var attrs = currentPlayersAttrs[i]
         newLightSource(player, 10, [255, 255, 235], 1)
-        newDirectionalLightSource(player, 20, [255, 255, 255], 1)
+        newDirectionalLightSource(player, Math.floor(20 * attrs.battery/100), [255, 255, 255], 1)
     }
     
     //for (var i=0; i < 1; i++) {

@@ -307,6 +307,10 @@ function processSemiturn(params) {
         cli.player.wait--
         cli.couldMove = false
     } else {
+        if (typeof(cli.player.attrs.battery) !== "undefined") {
+            cli.player.attrs.battery = Math.max(0, cli.player.attrs.battery - 0.05)
+        }
+        
         if (typeof(cli.player.resistance) !== "undefined") {
             cli.player.resistance /= 2
         }

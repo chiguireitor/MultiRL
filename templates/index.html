@@ -585,8 +585,16 @@ var destinationMovement
 var tutorialSeen = false
 var tutorialPage = 0
 
+var inspectKeyboardIndex = -1
+var inspectKeyboardIdentifier = ""
+
 var weaponSprites = {}
 
+var keybindingsMenuIdentifier = ["Left", "Right", "Up", "Down", "UpLeft", "DownLeft", "UpRight", 
+            "DownRight", "Wait", "Inventory", "Fire", "Reload", "View", "Grab", "SuperPow", "Activate", 
+            "Prone", "Crouch"]
+var keyBindingNames = ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+            
 var playerClasses = [
         {id: "marine", name: "Marine", description: "Most versatile class, without too much bonuses"},
         {id: "heavy", name: "Heavy Weapons", description: "Has bonuses on chainguns and rocket launchers"},
@@ -601,7 +609,7 @@ var playerClasses = [
         {id: "psychic", name: "Psychic", description: "Can resist psychic attacks and in some cases, control enemies"},
         {id: "civil", name: "Civilian", description: "Hardest, craziest way to play the game"},
     ]
-var itemsPerMenu = [4, playerClasses.length + 2, 5, 3, 3]
+var itemsPerMenu = [4, playerClasses.length + 2, 6, 1, 3, 20]
 
 var level = []
 var levelTileset = ""
@@ -1406,11 +1414,15 @@ function updateDisplay() {
         // Options
         updateOptionsMenu()
     } else if (currentMenu == 3) {
-        // Fundraiser
-        updateFundraiserMenu()
+        // Contact
+        //updateFundraiserMenu()
+        updateContactMenu()
     } else if (currentMenu == 4) {
         // Tutorial
         updateTutorial()
+    } else if (currentMenu == 5) {
+        // Tutorial
+        updateKeybindings()
     }
     
     terminal.setPixelBg(lastMove[0], lastMove[1], 
@@ -1643,7 +1655,7 @@ function updateDisplayMenu() {
         menuUse(1)
     }
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 29, "Fundraiser", 12, opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 29, "Contact", 12, opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
         menuUse(2)
     }
     
@@ -1657,30 +1669,7 @@ function updateDisplayMenu() {
         }
     }
     
-    if (gplusSprite) {
-        if (drawRexSprite(((displaySizeX + 32)/2) - 27, 50, gplusSprite)) {
-            // Open G+
-            OpenInNewTab("https://plus.google.com/+JohnVillar")
-        }
-        drawAsciiText(((displaySizeX + 32)/2) - 27, 61, "+JohnVillar", [200, 200, 200], [0, 0, 0])
-    }
-    
-    if (twitterSprite) {
-        if (drawRexSprite(((displaySizeX + 32)/2) + 14, 50, twitterSprite)) {
-            // Open Twitter
-            OpenInNewTab("https://twitter.com/johnvillarz")
-        }
-        drawAsciiText(((displaySizeX + 32)/2) + 14, 61, "@johnvillarz", [200, 200, 200], [0, 0, 0])
-    }
-    
-    if (redditSprite) {
-        if (drawRexSprite(((displaySizeX + 32)/2) - 6, 50, redditSprite)) {
-            // Open Reddit
-            OpenInNewTab("https://www.reddit.com/r/GanymedeGate/")
-        }
-        drawAsciiText(((displaySizeX + 32)/2) - 8, 61, "/r/GanymedeGate", [200, 200, 200], [0, 0, 0])
-    }
-    
+   
     /*for (var i=0; i < 256; i++) {
         terminal.setPixel(i % 16, Math.floor(i / 16), i, [255, 255, 255], [0, 0, 0])
     }*/
@@ -1757,8 +1746,12 @@ function updateOptionsMenu() {
         menuUse(3)
     }
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 4], opsColsBg[menuSel == 4], 4)) {
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, 37, "Keybindings", 32, opsColsFg[menuSel == 4], opsColsBg[menuSel == 4], 4)) {
         menuUse(4)
+    }
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 5], opsColsBg[menuSel == 5], 5)) {
+        menuUse(5)
     }
     
 }
@@ -1810,9 +1803,79 @@ function updateFundraiserMenu() {
         menuUse(2)
     }
 }
+
+function updateContactMenu() {
+    terminal.clear()
+    drawStarsAndGanymede()
+    
+    if (titleSprite) {
+        drawRexSprite(Math.floor((displaySizeX + 32)/2) - 20, 0, titleSprite)
+    }
+    
+    drawAsciiText(10, 25, "Made with ", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(20, 25, "\u2665 ", [225 + Math.cos(Date.now() / 100.0) * 30, 68, 126 + Math.sin(Date.now() / 200.0) * 60], [0, 0, 0])
+    drawAsciiText(22, 25, "@ CCS/VE using Node.js, HTML5, WebGL and NW.js 100% Open Source", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(22, 26, "Licensed under the MIT License / Assets CC-BY 4.0", [200, 200, 200], [0, 0, 0])
+    
+    if (gplusSprite) {
+        if (drawRexSprite(((displaySizeX + 32)/2) - 27, 40, gplusSprite)) {
+            // Open G+
+            OpenInNewTab("https://plus.google.com/+JohnVillar")
+        }
+        drawAsciiText(((displaySizeX + 32)/2) - 27, 51, "+JohnVillar", [200, 200, 200], [0, 0, 0])
+    }
+    
+    if (twitterSprite) {
+        if (drawRexSprite(((displaySizeX + 32)/2) + 14, 40, twitterSprite)) {
+            // Open Twitter
+            OpenInNewTab("https://twitter.com/johnvillarz")
+        }
+        drawAsciiText(((displaySizeX + 32)/2) + 14, 51, "@johnvillarz", [200, 200, 200], [0, 0, 0])
+    }
+    
+    if (redditSprite) {
+        if (drawRexSprite(((displaySizeX + 32)/2) - 6, 40, redditSprite)) {
+            // Open Reddit
+            OpenInNewTab("https://www.reddit.com/r/GanymedeGate/")
+        }
+        drawAsciiText(((displaySizeX + 32)/2) - 8, 51, "/r/GanymedeGate", [200, 200, 200], [0, 0, 0])
+    }
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+        menuUse(0)
+    }
+}
     
 function updateTutorial() {
     terminal.clear()
+    
+    drawAsciiText(35, 20, "There should be some tut here, ain't it? \u263A", [255, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 23, "You can remap keys in the options menu", [255, 255, 200], [0, 0, 0])
+    drawAsciiText(10, 25, "You can use WASD/Vikeys/Arrows to move (diagonals too)", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 27, "F fires, Shift+F uses alternate fire", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 29, "G grabs stuff from the floor", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 31, "R reloads weapons, Shift+R reloads alternate ammo", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 33, "T, will eventually, activate the active super power", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 35, "V toggles look mode", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 37, "Space activates levers and exits level", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 39, "Space also shows the action menu over stuff in look mode", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 41, "You can also use the mouse", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 43, "Shift+Direction let's you jump/trample (have fun with Melee and Swordmaster classes)", [200, 200, 200], [0, 0, 0])
+    
+    var bgcol = [0, Math.floor(Math.sin(Date.now()/100.0) * 32 + 32) + 48, 0]
+    drawAsciiText(18, 23, "remap keys", [255, 128, 128], [Math.floor(Math.sin(Date.now()/100.0) * 32 + 32) + 48, 0, 0])
+    drawAsciiText(22, 25, "WASD/Vikeys/Arrows", [128, 255, 128], bgcol)
+    drawAsciiText(10, 27, "F", [128, 255, 128], bgcol)
+    drawAsciiText(19, 27, "Shift+F", [128, 255, 128], bgcol)
+    drawAsciiText(10, 29, "G", [128, 255, 128], bgcol)
+    drawAsciiText(10, 31, "R", [128, 255, 128], bgcol)
+    drawAsciiText(29, 31, "Shift+R", [128, 255, 128], bgcol)
+    drawAsciiText(10, 33, "T", [128, 255, 128], bgcol)
+    drawAsciiText(10, 35, "V", [128, 255, 128], bgcol)
+    drawAsciiText(10, 37, "Space", [128, 255, 128], bgcol)
+    drawAsciiText(10, 39, "Space", [128, 255, 128], bgcol)
+    drawAsciiText(10, 43, "Shift+Direction", [128, 255, 128], bgcol)
+    
     
     if (drawButtonWithText(((displaySizeX + 32)/2) - 18, displaySizeY - 10, "<< Previous", 16, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
         menuUse(0)
@@ -1824,6 +1887,105 @@ function updateTutorial() {
     
     if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
         menuUse(2)
+    }
+}
+
+function saveKeyBindings() {
+    localStorage.setItem("keyBindings", JSON.stringify(keyBindingNames))
+}
+
+function loadKeyBindings() {
+    try {
+        var newKeyBindings = localStorage.getItem("keyBindings")
+        
+        if ((typeof(newKeyBindings) !== "undefined") && (newKeyBindings != null)) {
+            var parsedKeyBindingNames = JSON.parse(newKeyBindings)
+            
+            if ((typeof(parsedKeyBindingNames) !== "undefined") && (parsedKeyBindingNames != null)) {
+                keyBindingNames = parsedKeyBindingNames
+            }
+        }
+    } catch (e) {
+        // Nothing, no keybindings then
+    }
+}
+
+function updateKeybindings() {
+    terminal.clear()
+    
+    drawStarsAndGanymede()
+    
+    var w4 = displaySizeX / 4
+    var y = 6
+    
+    drawAsciiText(22, 3, "Keybindings (Use \u2191 and \u2193 to move between options)", [240, 240, 240], [0, 0, 0])
+    
+    var btnFn = function(num, key) {
+        var name = keybindingsMenuIdentifier[num]
+        var key = keyBindingNames[num]
+        if (!key || (key.length <= 0)) {
+            key = "Not set"
+        }
+        
+        var py = y + Math.floor(num / 2) * 2
+        var px = w4 * (1 + 2 * (num % 2))
+        
+        var fgBtCol = opsColsFg[menuSel == num]
+        var bgBtCol = opsColsBg[menuSel == num]
+        
+        if (inspectKeyboardIndex >= 0) {
+            if (inspectKeyboardIndex == num) {
+                fgBtCol = [255, 255, 200]
+                bgBtCol = [200, 100, 100]
+            } else {
+                fgBtCol = opsColsFg[false]
+                bgBtCol = opsColsBg[false]
+            }
+        }
+        
+        drawAsciiText(px - Math.floor(name.length/2), py+1, name, [200, 200, 200], [0, 0, 0])
+        if (drawButtonWithText(px + w4 - 8, py, key, 16, fgBtCol, bgBtCol, num)) {
+            inspectKeyboardCodes = true
+            inspectKeyboardIndex = num
+            inspectKeyboardIdentifier = name
+        }
+    }
+    
+    btnFn(0)
+    btnFn(1)
+    y += 4
+    btnFn(2)
+    btnFn(3)
+    y += 4
+    btnFn(4)
+    btnFn(5)
+    y += 4
+    btnFn(6)
+    btnFn(7)
+    y += 4
+    btnFn(8)
+    btnFn(9)
+    y += 4
+    btnFn(10)
+    btnFn(11)
+    y += 4
+    btnFn(12)
+    btnFn(13)
+    y += 4
+    btnFn(14)
+    btnFn(15)
+    y += 4
+    btnFn(16)
+    btnFn(17)
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) - 33, displaySizeY - 4, "Save changes", 32, 
+        opsColsFg[menuSel == (itemsPerMenu[currentMenu]-2)], opsColsBg[menuSel == (itemsPerMenu[currentMenu]-2)], (itemsPerMenu[currentMenu]-2))) {
+        menuUse((itemsPerMenu[currentMenu]-2))
+    }
+    
+    if (drawButtonWithText(((displaySizeX + 32)/2) + 1, displaySizeY - 4, "Go back", 32, 
+        opsColsFg[menuSel == (itemsPerMenu[currentMenu]-1)], opsColsBg[menuSel == (itemsPerMenu[currentMenu]-1)], (itemsPerMenu[currentMenu]-1))) {
+        menuUse((itemsPerMenu[currentMenu]-1))
     }
 }
 
@@ -2288,21 +2450,31 @@ function updateAttrs() {
         var y = 2
         
         drawAsciiText(displaySizeX + 2, y, "Plyr. " + ownUsername, [0, 255, 0], [0, 0, 0])
+        y += 2
         
-        drawAsciiText(displaySizeX + 2, y + 2, "HP " + pad(playerAttrs.hp.pos, 3) + "/" + playerAttrs.hp.max, [0, 255, 0], [0, 0, 0])
-        drawConsoleBar(displaySizeX + 13, y + 2, 12, 1, playerAttrs.hp.pos / playerAttrs.hp.max)
+        drawAsciiText(displaySizeX + 2, y, "HP " + pad(playerAttrs.hp.pos, 3) + "/" + playerAttrs.hp.max, [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(displaySizeX + 13, y, 12, 1, playerAttrs.hp.pos / playerAttrs.hp.max)
+        y += 2
         
-        drawAsciiText(displaySizeX + 2, y + 4, "AR " + pad(playerAttrs.armor.pos, 3) + "/" + playerAttrs.armor.max, [0, 255, 0], [0, 0, 0])
-        drawConsoleBar(displaySizeX + 13, y + 4, 12, 1, playerAttrs.armor.pos / playerAttrs.armor.max)
+        drawAsciiText(displaySizeX + 2, y, "AR " + pad(playerAttrs.armor.pos, 3) + "/" + playerAttrs.armor.max, [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(displaySizeX + 13, y, 12, 1, playerAttrs.armor.pos / playerAttrs.armor.max)
+        y += 2
         
-        drawAsciiText(displaySizeX + 2, y + 6, "ST " + pad(playerAttrs.strength.pos, 3) + "/" + playerAttrs.strength.max, [0, 255, 0], [0, 0, 0])
-        drawConsoleBar(displaySizeX + 13, y + 6, 12, 1, playerAttrs.strength.pos / playerAttrs.strength.max)
+        drawAsciiText(displaySizeX + 2, y, "ST " + pad(playerAttrs.strength.pos, 3) + "/" + playerAttrs.strength.max, [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(displaySizeX + 13, y, 12, 1, playerAttrs.strength.pos / playerAttrs.strength.max)
+        y += 2
         
-        drawAsciiText(displaySizeX + 2, y + 8, "PR " + pad(playerAttrs.precision.pos, 3) + "/" + playerAttrs.precision.max, [0, 255, 0], [0, 0, 0])
-        drawConsoleBar(displaySizeX + 13, y + 8, 12, 1, playerAttrs.precision.pos / playerAttrs.precision.max)
+        drawAsciiText(displaySizeX + 2, y, "PR " + pad(playerAttrs.precision.pos, 3) + "/" + playerAttrs.precision.max, [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(displaySizeX + 13, y, 12, 1, playerAttrs.precision.pos / playerAttrs.precision.max)
+        y += 2
         
-        drawAsciiText(displaySizeX + 2, y + 10, "SP " + pad(playerAttrs.speed.pos, 3) + "/" + playerAttrs.speed.max, [0, 255, 0], [0, 0, 0])
-        drawConsoleBar(displaySizeX + 13, y + 10, 12, 1, playerAttrs.speed.pos / playerAttrs.speed.max)
+        drawAsciiText(displaySizeX + 2, y, "SP " + pad(playerAttrs.speed.pos, 3) + "/" + playerAttrs.speed.max, [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(displaySizeX + 13, y, 12, 1, playerAttrs.speed.pos / playerAttrs.speed.max)
+        y += 2
+        
+        drawAsciiText(displaySizeX + 2, y, "BAT " + pad(Math.round(playerAttrs.battery), 3), [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(displaySizeX + 13, y, 12, 1, playerAttrs.battery / 100)
+        y += 2
         
         var firingPrimary = false
         var firingAlternate = false
@@ -2312,39 +2484,39 @@ function updateAttrs() {
             firingAlternate = player.firing == "alternate"
         }
         
-        drawAsciiText(displaySizeX + 2, y + 13, "Weapon", [0, 255, 0], [0, 0, 0])
-        drawAsciiText(displaySizeX + 2, y + 15, currentWeapon.name, [0, 255, 0], [0, 0, 0])
-        
-        var ntxtPy = y + 16
+        drawAsciiText(displaySizeX + 2, y, "Weapon", [0, 255, 0], [0, 0, 0])
+        y += 2
+        drawAsciiText(displaySizeX + 2, y, currentWeapon.name, [0, 255, 0], [0, 0, 0])
+        y++
         
         if (typeof(currentWeapon.ammoType) !== "undefined") {
             var bgColor = firingPrimary?[128, 128, 0]:[0, 0, 0]
-            drawAsciiText(displaySizeX + 2, ntxtPy, padR(currentWeapon.ammoType, 30), [0, 255, 0], bgColor)
-            ntxtPy++
+            drawAsciiText(displaySizeX + 2, y, padR(currentWeapon.ammoType, 30), [0, 255, 0], bgColor)
+            y++
         }
         
         if (currentWeapon.ammoMax !== 0) {
             var ammoStr = "Ammo " + pad(currentWeapon.ammo, 3) + "/" + currentWeapon.ammoMax
-            drawAsciiText(displaySizeX + 2, y + 17, padR(ammoStr, 30), [0, 255, 0], bgColor)
-            drawConsoleBar(displaySizeX + 15, ntxtPy, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax)
-            ntxtPy++
+            drawAsciiText(displaySizeX + 2, y, padR(ammoStr, 30), [0, 255, 0], bgColor)
+            drawConsoleBar(displaySizeX + 15, y, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax)
+            y++
         }
             
-        drawAsciiText(displaySizeX + 2, ntxtPy, "Dmg. " + currentWeapon.damage[0] + " - " + currentWeapon.damage[1], [0, 255, 0], [0, 0, 0])
-        ntxtPy++
+        drawAsciiText(displaySizeX + 2, y, "Dmg. " + currentWeapon.damage[0] + " - " + currentWeapon.damage[1], [0, 255, 0], [0, 0, 0])
+        y++
         
 		if (currentWeapon.alternate) {
             if (typeof(currentWeapon.alternate.ammoType) !== "undefined") {
                 bgColor = firingAlternate?[128, 128, 0]:[0, 0, 0]
-                drawAsciiText(displaySizeX + 2, ntxtPy, padR(currentWeapon.alternate.ammoType, 30), [0, 255, 128], bgColor)
-                ntxtPy++
+                drawAsciiText(displaySizeX + 2, y, padR(currentWeapon.alternate.ammoType, 30), [0, 255, 128], bgColor)
+                y++
             }
             
             if (currentWeapon.alternate.ammoMax !== 0) {
                 ammoStr = "Ammo " + pad(currentWeapon.alternate.ammo, 3) + "/" + currentWeapon.alternate.ammoMax
-                drawAsciiText(displaySizeX + 2, y + 20, padR(ammoStr, 30), [0, 255, 128], bgColor)
-                drawConsoleBar(displaySizeX + 15, ntxtPy, 10, 1, currentWeapon.alternate.ammo / currentWeapon.alternate.ammoMax)
-                ntxtPy++
+                drawAsciiText(displaySizeX + 2, y, padR(ammoStr, 30), [0, 255, 128], bgColor)
+                drawConsoleBar(displaySizeX + 15, y, 10, 1, currentWeapon.alternate.ammo / currentWeapon.alternate.ammoMax)
+                y++
             }
 		}
 		
@@ -2367,11 +2539,11 @@ function updateAttrs() {
         } else if (weaponSprites[currentWeapon.id]) {
             var spr = weaponSprites[currentWeapon.id]
             
-            drawRexSprite(displaySizeX + 2, y + ((!currentWeapon.alternate)?20:21), spr)
+            drawRexSprite(displaySizeX + 2, y, spr)
         } else if (currentWeapon.name in weaponSprites) {
             var spr = weaponSprites[currentWeapon.name]
             
-            drawRexSprite(displaySizeX + 2, y + ((!currentWeapon.alternate)?20:21), spr)
+            drawRexSprite(displaySizeX + 2, y, spr)
         }
         
         var ramp = [[64, 0, 0], [128, 0, 0], [128, 64, 0], [128, 128, 0], [64, 128, 0], [0, 128, 64], [0, 128, 128], [64, 192, 192], [128, 192, 192], [255, 255, 255]]
@@ -3196,16 +3368,21 @@ function menuUse(n) {
             setupMusic()
         } else if (menuSel == 3) {
             localStorage.useSound = !(localStorage.useSound == "true")
+        } else if (menuSel == 4) {
+            currentMenu = 5
+            menuSel = 0
         }
     } else if (currentMenu == 3) {
-        // Fundraiser
+        // Contact
         if (menuSel == 0) {
-            window.open("https://www.vinumeris.com/lighthouse")
-        } else if (menuSel == 1) {
+            //window.open("https://www.vinumeris.com/lighthouse")
+            currentMenu = 0
+            menuSel = 2
+        /*} else if (menuSel == 1) {
             window.open("https://lighthouse.bitseattle.com/lighthouse-projects/ganymede-gate-fundraiser.lighthouse-project")
         } else if (menuSel == (itemsPerMenu[currentMenu] - 1)) {
             currentMenu = 0
-            menuSel = 2
+            menuSel = 2*/
         }
     } else if (currentMenu == 4) {
         if (menuSel == 0) {
@@ -3215,6 +3392,19 @@ function menuUse(n) {
         } else if (menuSel == (itemsPerMenu[currentMenu] - 1)) {
             currentMenu = 0
             menuSel = 0
+        }
+    } else if (currentMenu == 5) {
+        if (menuSel == (itemsPerMenu[currentMenu] - 1)) {
+            currentMenu = 2
+            menuSel = 4
+        } else if (menuSel == (itemsPerMenu[currentMenu] - 2)) {
+            saveKeyBindings()
+            currentMenu = 2
+            menuSel = 4
+        } else {
+            inspectKeyboardCodes = true
+            inspectKeyboardIndex = menuSel
+            inspectKeyboardIdentifier = keybindingsMenuIdentifier[menuSel]
         }
     }
     
@@ -3231,26 +3421,6 @@ function str2ab(str) {
 }
 
 function loadXpSprite(name, callback) {
-    /*$.ajax("./static/" + name + ".xp", {
-        success: function(data) {
-            try {
-                data = pako.inflate(atob(data))
-                data.alreadyDecompressed = true
-            } catch (e) {
-                if (e.name != 'InvalidCharacterError') {
-                    throw e
-                } else {
-                    data = pako.inflate(str2ab(data))
-                    data.alreadyDecompressed = true
-                }
-            }
-            
-            var sp = new rexSprite.RexSprite(data)
-            
-            callback(sp)
-        }
-    })*/
-    
     var xhr = new XMLHttpRequest()
     var port = (window.location.hostname.indexOf("ganymedegate") < 0)?":8080":""
     xhr.open('GET', "http://" + (window.location.hostname || "127.0.0.1") + port + "/static/" + name + ".xp", true)
@@ -3296,58 +3466,117 @@ function loadGenXpSprite(name, callback, noretry) {
 				}
 			}
 		})
-        
-        
-        /*var xhr = new XMLHttpRequest()
-        xhr.open('GET', "./generated/" + name + ".xp", true)
-        xhr.responseType = 'arraybuffer'
-         
-        xhr.onload = function(e) {
-            // response is unsigned 8 bit integer
-            if (this.status == 200) {
-                var data = data = pako.inflate(new Uint8Array(this.response))
-                data.alreadyDecompressed = true
-                var sp = new rexSprite.RexSprite(data)
-
-                callback(sp)
-            } else if (noretry < 5) {
-                if (this.status == 404) {
-                    setTimeout(function() {
-                        console.log("Trying again to load: " + name)
-                        loadGenXpSprite(name, callback, noretry + 1)
-                    }, 1000)
-                }
-            }
-        }
-         
-        xhr.send()*/
-        
 	}, 500)
 }
 
+function keyIdentifierToText(keyId) {
+    if (keyId.startsWith("U+")) {
+        var code = parseInt(keyId.slice(2), 16)
+        if (code == 32) {
+            keyId = "Space"
+        } else if (code == 127) {
+            keyId = "Delete"
+        } else if (code == 144) {
+            keyId = "NumLock"
+        } else {
+            keyId = String.fromCharCode(code)
+        }
+    }
+    
+    return keyId
+}
+
+/*
+    "Up": fnCommands.up,
+    "Down": fnCommands.down,
+    "Left": fnCommands.left,
+    "Right": fnCommands.right,
+    "Home": fnCommands.upleft,
+    "PageUp": fnCommands.upright,
+    "PageDown": fnCommands.downright,
+    "End": fnCommands.downleft,
+    "Clear": fnCommands.wait,
+    " ": use,
+    "g": grab,
+    "f": fire,
+    "t": superPower,
+    "r": reload,
+	"p": fnCommands.prone,
+	"o": fnCommands.crouch,
+    "i": toggleInventory,
+    "v": fnCommands.toggleKeyboardLook,
+
+keybindingsMenuIdentifier = ["Left", "Right", "Up", "Down", "UpLeft", "DownLeft", "UpRight", 
+            "DownRight", "Wait", "Inventory", "Fire", "Reload", "View", "Grab", "SuperPow", "Activate", ]
+*/
+var positionalKeyBindingHandler = [
+    fnCommands.left,
+    fnCommands.right,
+    fnCommands.up,
+    fnCommands.down,
+    fnCommands.upleft,
+    fnCommands.downleft,
+    fnCommands.upright,
+    fnCommands.downright,
+    fnCommands.wait,
+    toggleInventory,
+    fire,
+    reload,
+    fnCommands.toggleKeyboardLook,
+    grab,
+    superPower,
+    use,
+    prone,
+    crouch
+    ]
+    
 var inspectKeyboardCodes = false
 $(document).ready(function () {
     $(document).keyup(function (event) {
         if (!editMode) {
             event = window.event || event
             var k = event.keyIdentifier || event.key
+            var keyId = keyIdentifierToText(event.keyIdentifier || event.originalEvent.keyIdentifier)
             
             if (inspectKeyboardCodes) {
                 console.log(k)
-            }
-            
-            if (k in kb_hnd) {
-                var res = kb_hnd[k](event.shiftKey)
                 
-                if (res != "cursor") {
-                    lastMove[0] = -1
-                    lastMove[1] = -1
-                    
-                    lastClick[0] = -1
-                    lastClick[1] = -1
-                }
+                keyBindingNames[inspectKeyboardIndex] = keyId
+                inspectKeyboardCodes = false
+                inspectKeyboardIndex = -1
+                inspectKeyboardIdentifier = ""
                 
                 event.preventDefault()
+                lastClick[0] = -1
+                lastClick[1] = -1
+                return
+            }
+            
+            var alreadyHandled = false
+            var res
+            if (gameStarted) {
+                for (var i=0; i < keyBindingNames.length; i++) {
+                    if (keyBindingNames[i] == keyId) {
+                        alreadyHandled = true
+                        res = positionalKeyBindingHandler[i](event.shiftKey)
+                        event.preventDefault()
+                        break
+                    }
+                }
+            }
+            
+            if (!alreadyHandled && (k in kb_hnd)) {
+                res = kb_hnd[k](event.shiftKey)
+                
+                event.preventDefault()
+            }
+            
+            if (res != "cursor") {
+                lastMove[0] = -1
+                lastMove[1] = -1
+                
+                lastClick[0] = -1
+                lastClick[1] = -1
             }
         } else {
             event = window.event || event
@@ -3400,14 +3629,8 @@ $(document).ready(function () {
         }
     })
     
-    //collectStyleSheetRules()
-
     $("#fs-edit").val(ASCIITerminal.util.fragmentShaders["default"])
     $("#vs-edit").val(ASCIITerminal.util.vertexShaders["default"])
-    
-    /*setInterval(updateFundRaiser, 120000)
-    updateBar("fndRaise", 0, fundRaiserTarget)
-    updateFundRaiser()*/
     
     if (localStorage.inited == "true") {
         pickClass(localStorage.chartype)
@@ -3470,6 +3693,8 @@ $(document).ready(function () {
         setupMusic()
     })
     createjs.Sound.registerSound("./sounds/seedybg.wav", "seedybg")
+    
+    loadKeyBindings()
     
     if (window.location.hostname.toLowerCase().indexOf("ganymedegate.com") >= 0) {
         showOrigin()

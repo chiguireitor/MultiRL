@@ -459,7 +459,7 @@ ASCIITerminal.prototype.setPixel = function(x, y, glyph, fgcol, bgcol, luma, mod
     }
     
     var hadModulation = false
-    if (typeof(modulate) == "undefined") {
+    if (typeof(modulate) === "undefined") {
         modulate = [0xFF, 0xFF, 0xFF]
     } else {
         modulate = modulate.color
@@ -491,6 +491,7 @@ ASCIITerminal.prototype.setPixel = function(x, y, glyph, fgcol, bgcol, luma, mod
 
         if (bgcol) {
             bgcol = hexToColor(bgcol)
+            
             this.gl.backTextureData[p] = (((bgcol & 0x00FF0000) >> 16) * modulate[0]) >> 8
             this.gl.backTextureData[p + 1] = (((bgcol & 0x0000FF00) >> 8) * modulate[1]) >> 8
             this.gl.backTextureData[p + 2] = (((bgcol & 0x000000FF)) * modulate[2]) >> 8

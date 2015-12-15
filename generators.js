@@ -454,7 +454,7 @@ function riverH(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCs
                     tile.tile = riverTile
                     tile.cssClass = riverCssClass
                     if (light) {
-                        tile.light = light
+                        tile.lightsource = [light]
                     }
                     if (riverDamage) {
                         tile.damage = riverDamage
@@ -476,7 +476,7 @@ function riverH(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCs
     }
 }
 
-function riverV(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage) {
+function riverV(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCssClass, riverDamage, light) {
     var w = level[0].length
     var h = level.length
     
@@ -511,7 +511,7 @@ function riverV(generator, level, riverTile, riverCssClass, bridgeTile, bridgeCs
                     tile.tile = riverTile
                     tile.cssClass = riverCssClass
                     if (light) {
-                        tile.light = light
+                        tile.lightsource = [light]
                     }
                     if (riverDamage) {
                         tile.damage = riverDamage

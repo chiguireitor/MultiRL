@@ -115,11 +115,16 @@ function removePlayerPosition(playerPos) {
     }
 }
 
+var staticLighting
 function calculateLighting(nextTurnId) {
     if (currentLevel.length == 0) {
         return
     }
 
+    if (typeof(staticLighting) === "undefined") {
+        staticLighting = calculateLighting_iteration(nextTurnId, false)
+    }
+    
     for (var i=0; i < currentPlayers.length; i++) {
         var player = currentPlayers[i]
         var attrs = currentPlayersAttrs[i]
@@ -127,23 +132,30 @@ function calculateLighting(nextTurnId) {
         newDirectionalLightSource(player, Math.floor(20 * attrs.battery/100), [255, 255, 255], 1)
     }
     
-    //for (var i=0; i < 1; i++) {
-        calculateLighting_iteration(nextTurnId)
-    //}
+    calculateLighting_iteration(nextTurnId, true)
 }
 
-function calculateLighting_iteration(nextTurnId) {
-    var lgt = currentLevel.map(function(row) {
-        return row.map(function(tile) {
+function calculateLighting_iteration(nextTurnId, onlyDynamic) {
+    var hasStaticLighting = typeof(staticLighting) !== "undefined"
+    
+    var lgt = currentLevel.map(function(row, ly) {
+        return row.map(function(tile, lx) {
             var ntl = {lightsource: [], intensity: 0, color: [0, 0, 0]}
+            
+            if (onlyDynamic && hasStaticLighting) {
+                ntl.intensity = staticLighting[ly][lx].intensity
+                ntl.color = staticLighting[ly][lx].color
+            }
+            
             if (tile.lightsource.length > 0) {
                 var lti = 0
                 
                 while (lti < tile.lightsource.length) {
                     var lightsource = tile.lightsource[lti]
+                    lightsource.origin = {x: lx, y: ly, idx: lti}
                     var hasTtl = typeof(lightsource.ttl) !== "undefined"
                     
-                    if (hasTtl && (lightsource.ttl > 0)) {
+                    if (hasTtl && (lightsource.ttl > 0) && onlyDynamic) {
                         if ((typeof(lightsource.lastTurnId) === "undefined") || (lightsource.lastTurnId != nextTurnId)) {
                             lightsource.ttl--
                             lightsource.lastTurnId = nextTurnId
@@ -155,7 +167,7 @@ function calculateLighting_iteration(nextTurnId) {
                             ntl.lightsource.push(lightsource)
                         }
                         lti++
-                    } else if (hasTtl && (lightsource.ttl == 0)) {
+                    } else if (hasTtl && (lightsource.ttl == 0) && onlyDynamic) {
                         tile.lightsource.splice(lti, 1)
                     } else {
                         ntl.lightsource.push(lightsource)
@@ -218,6 +230,8 @@ function calculateLighting_iteration(nextTurnId) {
             currentLevel[y][x].light = tile.light
         })
     })
+    
+    return lgt
 }
 
 function pointLight(x, y, intensity, mw, mh, lgt, tile) {

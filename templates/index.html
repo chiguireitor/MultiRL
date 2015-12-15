@@ -471,7 +471,7 @@ Tweet
 <script src="./templates/traceline.js"></script>
 <script src="./templates/pako_inflate.min.js"></script>
 <script src="./templates/gl-matrix.js"></script>
-<script src="./templates/soundjs-0.6.0.min.js"></script>
+<script src="./templates/soundjs-0.6.2.min.js"></script>
 <script src="./templates/RexSprite.js"></script>
 <script>
 var player = {
@@ -576,7 +576,6 @@ var lighthouseSprite
 var ganymedeSprite
 var menuSel = 0
 var currentMenu = 0
-var menuOptionsNumber = 4
 var lastClick = [-1, -1]
 var lastMove = [-1, -1]
 var keyboardLook = false
@@ -609,7 +608,8 @@ var playerClasses = [
         {id: "psychic", name: "Psychic", description: "Can resist psychic attacks and in some cases, control enemies"},
         {id: "civil", name: "Civilian", description: "Hardest, craziest way to play the game"},
     ]
-var itemsPerMenu = [4, playerClasses.length + 2, 6, 1, 3, 20]
+var itemsPerMenu = [(typeof(require) !== "undefined")?5:4, playerClasses.length + 2, 6, 1, 3, 20]
+var menuOptionsNumber = itemsPerMenu[0]
 
 var level = []
 var levelTileset = ""
@@ -787,6 +787,24 @@ function describe(x, y) {
                 if ("color" in tile.debris) {
                     description[description.length-1].fg = tile.debris.color
                 }
+            }
+            
+            var hazardDescribed = false
+            if ("cssClass" in tile) {
+                if (tile.cssClass == "acid") {
+                    hazardDescribed = true
+                    description.push({text: "Acid", cssClass: "acid"})
+                } else if (tile.cssClass == "lava") {
+                    hazardDescribed = true
+                    description.push({text: "Lava", cssClass: "lava"})
+                } else if (tile.cssClass == "plasma") {
+                    hazardDescribed = true
+                    description.push({text: "Plasma", cssClass: "plasma"})
+                }
+            }
+            
+            if (!hazardDescribed && ("damage" in tile)) {
+                description.push({text: "Hazardous floor", cssClass: "lava"})
             }
             
             if (levelTileset in tilesetDescription) {
@@ -988,6 +1006,13 @@ function fire(alternate, pos) {
         }
         ret = "cursor"
         announceMsg("Click over a cell to target")
+        
+        var ntgt = nearestTarget()
+        
+        if (typeof(ntgt) !== "undefined") {
+            lastMove = [ntgt.x, ntgt.y]
+        }
+        
     } else {
         fireFunc(pos.x, pos.y)
         player.firing = 'no'
@@ -1160,6 +1185,54 @@ function drawInventory() {
     if (drawButtonWithText(((displaySizeX + 32)/2) - 24, displaySizeY - 4, "Close", 16, opsColsFg, opsColsBg, 0)) {
         showingInventory = false
         actionMenuShown = false
+    }
+}
+
+function cancelTarget() {
+    onClickTarget = undefined
+    player.firing = 'no'
+}
+
+function nearestTarget() {
+    var sightFov = player.fov
+    var sf2 = sightFov * sightFov
+    var foundTarget = false
+    var lightThreshold = 96
+    var selx, sely, seld2 = sf2*2
+    
+    for (var y=-sightFov; y < sightFov; y++) {
+        var ty = player.pos.y + y
+        
+        if ((ty >= 0) && (ty < level.length)) {
+            var yy = y*y
+            for (var x=-sightFov; x < sightFov; x++) {
+                var tx = player.pos.x + x
+                if ((tx >= 0) && (tx < level[0].length)) {
+                    var d2 = x*x + yy
+                    
+                    if ((d2 <= sf2) && (d2 != 0)) {
+                        var tile = level[ty][tx]
+                        
+                        if (tile.character && (tile.turn == turn)) {
+                            // TODO: Check the character is aggresive to us
+                            
+                            var newFoundLight = Math.max(tile.light.color[0], tile.light.color[1], tile.light.color[2])
+                            
+                            if ((d2 < seld2) && (newFoundLight > lightThreshold)) {
+                                selx = tx
+                                sely = ty
+                                seld2 = d2
+                                foundTarget = true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if (foundTarget) {
+        return {x: selx - player.pos.x + player.cpos.x, y: sely - player.pos.y + player.cpos.y}
     }
 }
 
@@ -1539,6 +1612,7 @@ function beginEditText(txt, cb) {
     }, 200)
     
     editCallback = function(key) {
+        var finished = false
         if (key == 8) {
             if (editCursorPos >= editText.length) {
                 editText = editText.slice(0, editText.length - 1)
@@ -1550,6 +1624,9 @@ function beginEditText(txt, cb) {
             editCursorPos = Math.max(0, editCursorPos-1)
         } else if (key == 39) {
             editCursorPos = Math.min(editText.length, editCursorPos+1)
+        } else if (key == 13) {
+            finishEditText()
+            finished = true
         } else {
             if (editCursorPos >= editText.length) {
                 editText += String.fromCharCode(key)
@@ -1559,13 +1636,15 @@ function beginEditText(txt, cb) {
             editCursorPos += 1
         }
         
-        cb(editText)
+        cb(editText, finished)
     }
 }
 
 function finishEditText() {
     clearInterval(cursorBlinkInterval)
-    editCallback(39)
+    if (typeof(editCallback) !== "undefined") {
+        editCallback(39)
+    }
     editMode = false
 }
 
@@ -1666,6 +1745,14 @@ function updateDisplayMenu() {
     } else {
         if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 33, "Start", 12, opsColsFg[menuSel == 3], opsColsBg[menuSel == 3], 3)) {
             menuUse(3)
+        }
+    }
+    
+    if (typeof(require) !== "undefined") {
+        var exbg = {true: [192, 64, 64], false: [48, 0, 0]}
+        var exfg = {true: [192, 192, 64], false: [48, 48, 0]}
+        if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 38, "Exit Game", 12, exfg[menuSel == 4], exbg[menuSel == 4], 4)) {
+            menuUse(4)
         }
     }
     
@@ -1860,7 +1947,8 @@ function updateTutorial() {
     drawAsciiText(10, 37, "Space activates levers and exits level", [200, 200, 200], [0, 0, 0])
     drawAsciiText(10, 39, "Space also shows the action menu over stuff in look mode", [200, 200, 200], [0, 0, 0])
     drawAsciiText(10, 41, "You can also use the mouse", [200, 200, 200], [0, 0, 0])
-    drawAsciiText(10, 43, "Shift+Direction let's you jump/trample (have fun with Melee and Swordmaster classes)", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 43, "Shift+Direction lets you jump/trample (have fun with Melee and Swordmaster classes)", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 45, "X, '.' or Keypad 5 skips one turn", [200, 200, 200], [0, 0, 0])
     
     var bgcol = [0, Math.floor(Math.sin(Date.now()/100.0) * 32 + 32) + 48, 0]
     drawAsciiText(18, 23, "remap keys", [255, 128, 128], [Math.floor(Math.sin(Date.now()/100.0) * 32 + 32) + 48, 0, 0])
@@ -1875,15 +1963,16 @@ function updateTutorial() {
     drawAsciiText(10, 37, "Space", [128, 255, 128], bgcol)
     drawAsciiText(10, 39, "Space", [128, 255, 128], bgcol)
     drawAsciiText(10, 43, "Shift+Direction", [128, 255, 128], bgcol)
+    drawAsciiText(10, 45, "X, '.' or Keypad 5", [128, 255, 128], bgcol)
     
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) - 18, displaySizeY - 10, "<< Previous", 16, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+    /*if (drawButtonWithText(((displaySizeX + 32)/2) - 18, displaySizeY - 10, "<< Previous", 16, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
         menuUse(0)
     }
     
     if (drawButtonWithText(((displaySizeX + 32)/2) + 2, displaySizeY - 10, "Next >>", 16, opsColsFg[menuSel == 1], opsColsBg[menuSel == 1], 1)) {
         menuUse(1)
-    }
+    }*/
     
     if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
         menuUse(2)
@@ -2152,35 +2241,54 @@ function updateDisplayGameStarted() {
                             ti++
                         }
                     }
-                } else if (tile.character) {
-                    if ((player.pos.x == x + sx0)&&(player.pos.y == y +sy0)) {
-                        player.cpos = {x: x, y: y}
-                    }
+                } else {
+                    var fgAssigned = false
+                    var hazardBackground = false
                     
-                    glyph = tile.character.pix
-                    if (tile.character.color) {
-                        fg = tile.character.color
-                    }
-                    cssClass = tile.character.cssClass
-                } else if (tile.item) {
-                    glyph = tile.item.pix
-                    cssClass = tile.item.cssClass
-                } else if (tile.debris) {
-                    glyph = tile.debris.pix
-                    fg = tile.debris.color
-                    cssClass = tile.debris.cssClass
-                } else if (tile.tile) {
-                    glyph = tile.tile
+                    if (tile.character) {
+                        fgAssigned = true
+                        if ((player.pos.x == x + sx0)&&(player.pos.y == y +sy0)) {
+                            player.cpos = {x: x, y: y}
+                        }
+                        
+                        glyph = tile.character.pix
+                        if (tile.character.color) {
+                            fg = tile.character.color
+                        }
+                        cssClass = tile.character.cssClass
+                    } else if (tile.item) {
+                        fgAssigned = true
+                        glyph = tile.item.pix
+                        fg = tile.item.color
+                        cssClass = tile.item.cssClass
+                    } else if (tile.debris) {
+                        fgAssigned = true
+                        glyph = tile.debris.pix
+                        fg = tile.debris.color
+                        cssClass = tile.debris.cssClass
+                    } 
                     
-                    if (tile.fg) {
-                        fg = "#" + tile.fg
+                    if (tile.tile) {
+                        if (!fgAssigned) {
+                            glyph = tile.tile
+                            
+                            if (tile.fg) {
+                                fg = "#" + tile.fg
+                            }
+                            
+                            cssClass = tile.cssClass
+                        }
+                        
+                        if (tile.bg) {
+                            bg = "#" + tile.bg
+                        }
+                        
+                        hazardBackground = 'damage' in tile
+                        if (hazardBackground) {
+                            cssClass = tile.cssClass
+                            //console.log("Overriding cssClass for " + tile.cssClass)
+                        }
                     }
-                    
-                    if (tile.bg) {
-                        bg = "#" + tile.bg
-                    }
-                    
-                    cssClass = tile.cssClass
                 }
                 
                 if (cssClass) {
@@ -2191,7 +2299,7 @@ function updateDisplayGameStarted() {
                             fg = fgColorFromColorMapRule(rule, x*y)
                         }
                         
-                        if ((!tile.bg)&&("backgroundColor" in rule)) {
+                        if ((!tile.bg)&&("backgroundColor" in rule)&&(!hazardBackground || !fgAssigned)) {
                             bg = rule.backgroundColor
                         }
                         
@@ -2205,21 +2313,24 @@ function updateDisplayGameStarted() {
                             fg = rule.style.color
                         }
                         
-                        if ((!tile.bg)&&(rule.style.backgroundColor.length > 0)) {
+                        if ((!tile.bg)&&(rule.style.backgroundColor.length > 0)&&(!hazardBackground || !fgAssigned)) {
                             bg = rule.style.backgroundColor
                         }
                     }
                 }
                 
+                var lgt = tile.light
                 if (shroud) {
-                    fg = "#333333"
+                    fg = "#181818"
                     
                     if (bg) {
                         bg = "#000000"
                     }
+                    
+                    lgt = undefined
                 }
                 
-                terminal.setPixel(x, y, glyph, fg, bg, luma, tile.light)
+                terminal.setPixel(x, y, glyph, fg, bg, luma, lgt)
             }
         }
     }
@@ -2798,7 +2909,6 @@ var handlers = {
             for (var i=0; i < obj.snds.length; i++) {
                 var snd = obj.snds[i]
                 
-                console.log(snd.s)
                 createjs.Sound.play(snd.s, {
                     volume: snd.v/128.0,
                     pan: snd.p/128.0,
@@ -3144,6 +3254,14 @@ function shutdownKeyboardLook() {
     lastMove = [-1, -1]
 }
 
+function cancelEverything() {
+    shutdownKeyboardLook()
+    cancelTarget()
+    finishEditText()
+    showingInventory = false
+    actionMenuShown = false
+}
+
 var kb_hnd = {
     // Up group
     "Up": fnCommands.up,
@@ -3235,6 +3353,8 @@ var kb_hnd = {
     
     "v": fnCommands.toggleKeyboardLook,
     "U+0056": fnCommands.toggleKeyboardLook,
+    
+    "U+001B": cancelEverything
 }
 
 function render() {
@@ -3340,19 +3460,31 @@ function menuUse(n) {
                 menuSel = 1
                 tutorialPage = 0
             }
+        } else if (menuSel == 4) {
+            window.close()
         }
     } else if (currentMenu == 1) {
         // Char select
         if (menuSel == (itemsPerMenu[currentMenu] - 1)) {
             currentMenu = 0
             menuSel = 0
+            finishEditText()
         } else if (menuSel == (itemsPerMenu[currentMenu] - 2)) {
-            beginEditText(ownUsername, function(x) {
+            beginEditText(ownUsername, function(x, finished) {
                 ownUsername = x
+                if (finished) {
+                    start()
+                }
             })
         } else {
             playerPickClass = playerClasses[menuSel].id
-            start()
+            
+            if (typeof(ownUsername) === "undefined") {
+                menuUse(playerClasses.length)
+            } else {
+                finishEditText()
+                start()
+            }
         }
     } else if (currentMenu == 2) {
         // Options
@@ -3651,7 +3783,7 @@ $(document).ready(function () {
     loadXpSprite("gplus", function(sp) { gplusSprite = sp })
     loadXpSprite("twitter", function(sp) { twitterSprite = sp })
     loadXpSprite("reddit", function(sp) { redditSprite = sp })
-    loadXpSprite("lighthouse", function(sp) { lighthouseSprite = sp })
+    //loadXpSprite("lighthouse", function(sp) { lighthouseSprite = sp })
     
     initAsciiDisplay('term', displaySizeX, displaySizeY)
     
@@ -3661,6 +3793,11 @@ $(document).ready(function () {
     createjs.Sound.registerSound("./sounds/pickup.wav", "pickup")
     createjs.Sound.registerSound("./sounds/empty_gun.wav", "empty_gun")
     createjs.Sound.registerSound("./sounds/dirt_step.wav", "dirt_step")
+    createjs.Sound.registerSound("./sounds/water_step.wav", "water_step")
+    createjs.Sound.registerSound("./sounds/acid_step.wav", "acid_step")
+    createjs.Sound.registerSound("./sounds/lava_step.wav", "lava_step")
+    createjs.Sound.registerSound("./sounds/plasma_step.wav", "plasma_step")
+    createjs.Sound.registerSound("./sounds/metal_step.wav", "metal_step")
     createjs.Sound.registerSound("./sounds/reload.wav", "reload")
     createjs.Sound.registerSound("./sounds/hit.wav", "hit")
     createjs.Sound.registerSound("./sounds/gibs.wav", "gibs")
@@ -3695,6 +3832,12 @@ $(document).ready(function () {
     createjs.Sound.registerSound("./sounds/seedybg.wav", "seedybg")
     
     loadKeyBindings()
+    
+    if (typeof(require) !== "undefined") {
+        if (localStorage.dupConSz) {
+            window.resizeTo(1600, 1060)
+        }
+    }
     
     if (window.location.hostname.toLowerCase().indexOf("ganymedegate.com") >= 0) {
         showOrigin()

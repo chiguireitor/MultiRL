@@ -51,6 +51,8 @@ function Instant(options) {
     this.instant = true
     this.effects = options.effects || []
     this.lightsource = options.lightsource
+    this.color = options.color
+    this.cssClass = options.cssClass
     this.sndOnUse = options.sndOnUse || 'pickup'
 }
 
@@ -61,7 +63,9 @@ Instant.prototype.clone = function() {
         onuse: this.onuse,
         effects: this.effects,
         sndOnUse: this.sndOnUse,
-        lightsource: this.lightsource
+        lightsource: this.lightsource,
+        color: this.color,
+        cssClass: this.cssClass
     })
 }
 

@@ -389,7 +389,13 @@ var AI = function(params) {
     }
     
     var astarIteration = 1
+    var numAstarTraverse = 0
+    this.getNumAstarTraverse = function() {
+        return numAstarTraverse
+    }
+    
     this.traverse = function(agent, target, level, scores) {
+        numAstarTraverse++
         var openSet = []
         var pss = this.passable
         astarIteration++

@@ -391,9 +391,9 @@ function blinkEventConstructor() {
 }
 
 var leverEvents = [
-        poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "lava", {damage: gameDefs.lavaDamage}),
-        poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "acid", {damage: gameDefs.acidDamage}),
-        poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "plasma", {damage: gameDefs.plasmaDamage}),
+        poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "lava", {damage: gameDefs.lavaDamage, lightsource: [{intensity: 2, color: [255, 128, 0]}]}),
+        poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "acid", {damage: gameDefs.acidDamage, lightsource: [{intensity: 2, color: [0, 255, 0]}]}),
+        poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "plasma", {damage: gameDefs.plasmaDamage, lightsource: [{intensity: 3, color: [255, 0, 255]}]}),
         poolSpawnEventConstructor(asciiMapping["~"], gameDefs.spawnPoolMaxRadius, "water"),
         wallExplosionEventConstructor,
         monsterSpawnEventConstructor,
@@ -1124,11 +1124,9 @@ function resetLevel() {
         var nRivers = riverGen.random() 
         nRivers = Math.floor(nRivers * nRivers * gameDefs.level.maxRivers)
         
-        console.log('Generating ' + nRivers + ' rivers')
-        
         for (var i=0; i < nRivers; i++) {
             var nRiverTile = Math.floor(riverGen.random() * riverTiles.length)
-            generators.river(level, 
+            generators.river(riverGen, level, 
                 (riverGen.random()<0.5)?'horizontal':'vertical', 
                 riverTiles[nRiverTile][0], 
                 riverTiles[nRiverTile][1], 
@@ -1499,42 +1497,67 @@ function _processTurnIfAvailable_priv_() {
     }
     
     // Process Movement
-    var somethingHappened = false
+    var waitingForPlayer = false
+    var playerSomethingHappened = false
     var nturns = 0
-    while ((!somethingHappened) && (nturns < 10)) { // Only wait 10 turns before bailing out
-        for (var i in wss.clients) {
-            var ws = wss.clients[i]
-            somethingHappened |= util.processSemiturn({
-                agent: ws,
-                level: level,
-                passable: passable,
-                activableTiles: activableTiles,
-                soundManager: soundManager,
-                grab: grab,
-                inflictMeleeDamage: inflictMeleeDamage,
-                usableTiles: usableTiles,
-                activable: activable,
-                generator: sessionRandom.child('player')
-            })
-        }
-        somethingHappened |= aiState.process()
-        nturns++
-    }
+    var aiSomethingHappened = false
+    var somethingHappened = false
     
-    lightmanager.calculateLighting(nextTurnId)
-    
-    // Send new info to clients
-    for (var i in wss.clients) {
-        var ws = wss.clients[i]
-        var scope = sendScopeToClient(ws)
-        try {
-            ws.sendPako(JSON.stringify(scope))
-        } catch(err) {
-            console.log(scope)
+    //while (!waitingForPlayer) {
+        while ((!somethingHappened) && (nturns < 10)) { // Only wait 10 turns before bailing out
+            for (var i in wss.clients) {
+                var ws = wss.clients[i]
+                playerSomethingHappened |= util.processSemiturn({
+                    agent: ws,
+                    level: level,
+                    passable: passable,
+                    activableTiles: activableTiles,
+                    soundManager: soundManager,
+                    grab: grab,
+                    inflictMeleeDamage: inflictMeleeDamage,
+                    usableTiles: usableTiles,
+                    activable: activable,
+                    generator: sessionRandom.child('player')
+                })
+            }
+            aiSomethingHappened |= aiState.process()
             
-            throw err
+            somethingHappened = aiSomethingHappened | playerSomethingHappened
+            nturns++
         }
-    }
+        
+        if (playerSomethingHappened) {
+            lightmanager.calculateLighting(nextTurnId)
+        }
+        
+        // Send new info to clients
+        if (playerSomethingHappened) {
+            waitingForPlayer = true
+            for (var i in wss.clients) {
+                var ws = wss.clients[i]
+                var scope = sendScopeToClient(ws)
+                try {
+                    ws.sendPako(JSON.stringify(scope))
+                } catch(err) {
+                    console.log(scope)
+                    
+                    throw err
+                }
+            }
+        }
+        
+        if (wss.clients.length > 0) {
+            for (var i in wss.clients) {
+                var ws = wss.clients[i]
+                
+                if (ws.player.wait <= 0) {
+                    waitingForPlayer = true
+                }
+            }
+        } else {
+            waitingForPlayer = true
+        }
+    //}
 
     soundManager.endTurn(nextTurnId)
     comms.tick()
@@ -1598,6 +1621,13 @@ function nextLevel() {
 }
 
 function traceable(x0, y0, x1, y1) {
+    /*util.bresenhamsEvaluate(level, x0, y0, x1, y1, undefined,
+        function(tile, x, y) {
+            if (!(passable(tile) >= 1)) {
+                return false
+            }
+        })
+    return true*/
     var dx = x1 - x0
     var dy = y1 - y0
 
@@ -1699,10 +1729,11 @@ function traceable(x0, y0, x1, y1) {
     return true
 }
 
+var trimTileProperties = ["astarIteration", "forcePassable", "lightsource"]
 function tidyTile(tl) {
     var o = {}
     for (k in tl) {
-        if (tl.hasOwnProperty(k)) {
+        if (tl.hasOwnProperty(k) && (trimTileProperties.indexOf(k) < 0)) {
             v = tl[k]
             
             if ((v != null)&&(!(v instanceof Function))) {
@@ -2123,10 +2154,26 @@ var htServer = http.createServer(function (req, res) {
     res.end()
 })
 
-var ipaddress = process.env.OPENSHIFT_NODEJS_IP || "0.0.0.0"
-var port = process.env.OPENSHIFT_NODEJS_PORT || 8080
+function lazyRequire(mdl) {
+    try {
+        return require(mdl)
+    } catch(e) {
+        // Nothing
+    }
+}
+
+var gui = lazyRequire('nw.gui')
+var ipaddress, port
+
+if (typeof(gui) === "undefined") {
+    ipaddress = process.env.OPENSHIFT_NODEJS_IP || "0.0.0.0"
+    port = process.env.OPENSHIFT_NODEJS_PORT || 8080
+} else {
+    ipaddress = '127.0.0.1'
+    port = 8080
+}
 htServer.listen(port, ipaddress)
-console.log("HTTP Server " + "READY".green + " on port " + port)
+console.log("HTTP Server " + "READY".green + " on " + ipaddress + ":" + port)
 
 function permaLog(s) {
     console.log("#PMLOG#;" + s)

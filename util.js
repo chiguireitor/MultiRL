@@ -530,7 +530,19 @@ function processSemiturn(params) {
                     if (jumped) {
                         soundManager.addSound(cli.player.pos.x, cli.player.pos.y, 5, "jump", 0)
                     } else {
-                        soundManager.addSound(cli.player.pos.x, cli.player.pos.y, 5, "dirt_step", 0)
+                        if (ctl.cssClass == 'dirt') {
+                            soundManager.addSound(cli.player.pos.x, cli.player.pos.y, 5, "dirt_step", 0)
+                        } else if (ctl.cssClass == 'water') {
+                            soundManager.addSound(cli.player.pos.x, cli.player.pos.y, 5, "water_step", 0)
+                        } else if (ctl.cssClass == 'acid') {
+                            soundManager.addSound(cli.player.pos.x, cli.player.pos.y, 5, "acid_step", 0)
+                        } else if (ctl.cssClass == 'lava') {
+                            soundManager.addSound(cli.player.pos.x, cli.player.pos.y, 5, "lava_step", 0)
+                        } else if (ctl.cssClass == 'plasma') {
+                            soundManager.addSound(cli.player.pos.x, cli.player.pos.y, 5, "plasma_step", 0)
+                        } else {
+                            soundManager.addSound(cli.player.pos.x, cli.player.pos.y, 5, "metal_step", 0)
+                        }
                     }
                 }
                 
@@ -712,10 +724,17 @@ function fill0s(str, num) {
     return str
 }
 
+var numBresenhamsCalls = 0
+function getBresenhamsCalls() {
+    return numBresenhamsCalls
+}
+
 function bresenhamsEvaluate(level, x0, y0, x1, y1, energy, callback) {
     // Callback should be of the form
     //   function(tile, x, y)
     // And return true if it should stop evaluating the line
+    numBresenhamsCalls++
+    
     var initialEnergy = energy
     var result = []
     
@@ -901,5 +920,6 @@ module.exports = {
     sign: sign,
     registerGenerator: registerGenerator,
     fill0s: fill0s,
-    bresenhamsEvaluate: bresenhamsEvaluate
+    bresenhamsEvaluate: bresenhamsEvaluate,
+    getBresenhamsCalls: getBresenhamsCalls
 }

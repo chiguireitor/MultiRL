@@ -616,7 +616,7 @@ function Marine(aiState, name, tx, ty, faction, hue, level) {
                     }
                 }
                 
-                return {wait: 1}
+                return {wait: 10}
             },
             
             // Hostile Engagement
@@ -641,7 +641,7 @@ function Marine(aiState, name, tx, ty, faction, hue, level) {
                 
                 vars.same_hostile_ask_backup++
                 
-                return {wait: 1}
+                return {wait: 10}
             },
             'engage_hostile': function(vars) {
                 var cmd = {}
@@ -700,7 +700,7 @@ function Marine(aiState, name, tx, ty, faction, hue, level) {
                     randomRadioSound(currentAgent.pos.x, currentAgent.pos.y)
                 }
                 
-                return {wait: 1}
+                return {wait: 10}
             },
             'search_squad': function(vars) {
                 vars.t++
@@ -715,7 +715,7 @@ function Marine(aiState, name, tx, ty, faction, hue, level) {
                     }
                 }
                 
-                return {wait: 1}
+                return {wait: 10}
             },
             'pursue_squad': function(vars) {
                 var dx = vars.leader_position.x - currentAgent.pos.x

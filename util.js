@@ -346,7 +346,7 @@ function processSemiturn(params) {
         }
         
         var playerDefined = (typeof(cli.player) != "undefined")&&(cli.player != null)
-        somethingHappened = true // Something could happen, let the player that can do something play
+        //somethingHappened = true // Something could happen, let the player that can do something play
         var waitMultiplier = 1
         
         if (typeof(cli.player.waitMultiplier) != "undefined"){
@@ -360,6 +360,7 @@ function processSemiturn(params) {
             if ((cli.player.pos.x != cli.dst.x)||(cli.player.pos.y != cli.dst.y)) {
                 var jumpTrample = false
                 var canJumpTrample = false
+                somethingHappened = true
                 
                 if ((typeof(cli.player.prone) != "undefined") && cli.player.prone) {
                     cli.player.wait = gameDefs.turnsForStep * 3 * waitMultiplier
@@ -550,9 +551,11 @@ function processSemiturn(params) {
                 cli.dst = null
             } else {
                 cli.player.wait = gameDefs.turnsForStep
+                somethingHappened = true
             }
         } else if ((typeof(cli.useTile) != "undefined") && (cli.useTile)) {
             cli.useTile = false
+            somethingHappened = true
             
             var t = level[cli.player.pos.y][cli.player.pos.x]
             if (t.tile in usableTiles) {
@@ -560,6 +563,7 @@ function processSemiturn(params) {
             }
         } else if ((typeof(cli.grabTile) != "undefined") && (cli.grabTile)) {
             cli.grabTile = false
+            somethingHappened = true
             var t = level[cli.player.pos.y][cli.player.pos.x]
             
             if ((typeof(t.item) != "undefined") && (t.item != null)) {
@@ -569,6 +573,7 @@ function processSemiturn(params) {
             }
         } else if ((typeof(cli.fireWeapon) != "undefined") && (cli.fireWeapon)) {
             cli.fireWeapon = false
+            somethingHappened = true
             
             if ((typeof(cli.player.weapon) != "undefined") && 
                 (typeof(cli.player.weapon.fire) != "undefined")) {
@@ -588,12 +593,14 @@ function processSemiturn(params) {
             cli.fireAlternate = false
         } else if (typeof(cli.reloadWeapon) != "undefined" && cli.reloadWeapon) {
             cli.reloadWeapon = false
+            somethingHappened = true
             if ((typeof(cli.player.weapon) != "undefined") && 
                 cli.player.weapon != null) {
                 cli.player.weapon.reload(cli.player, cli.reloadAlternate)
             }
             cli.reloadAlternate = false
         } else if (typeof(cli.goProne) != "undefined" && cli.goProne) {
+            somethingHappened = true
             if ((typeof(cli.player.prone) != "undefined")) {
                 cli.player.prone = !cli.player.prone
                 cli.player.crouch = false
@@ -608,6 +615,7 @@ function processSemiturn(params) {
                 cli.player.color = '#44F'
             }
         } else if (typeof(cli.goCrouch) != "undefined" && cli.goCrouch) {
+            somethingHappened = true
             if ((typeof(cli.player.crouch) != "undefined")) {
                 cli.player.crouch = !cli.player.crouch
                 cli.player.prone = false
@@ -622,11 +630,13 @@ function processSemiturn(params) {
                 cli.player.color = '#44F'
             }
         } else if ((typeof(cli.useSuPow) != "undefined") && cli.useSuPow) {
+            somethingHappened = true
             cli.useSuPow = false
             cli.player.attrs.suPowWait = 0
             cli.player.attrs.suPow = 0
             somethingHappened = true
         } else if ((typeof(cli.useSuPowAlternate) != "undefined") && cli.useSuPowAlternate) {
+            somethingHappened = true
             cli.useSuPowAlternate = false
             cli.player.attrs.suPowWait = 0
             cli.player.attrs.suPow = 0
@@ -636,6 +646,7 @@ function processSemiturn(params) {
             cli.player.idleCounter++
             
             if (ctl.tile in activableTiles) {
+                somethingHappened = true
                 activableTiles[ctl.tile](ctl, cli)
             } else if ((cli.player.idleCounter > gameDefs.spyIdleCounter) && (cli.player.player_class == 'spy')) {
                 //ctl.character = null // TODO: Poor way to go stealth

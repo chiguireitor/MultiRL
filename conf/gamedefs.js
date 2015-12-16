@@ -84,6 +84,6 @@ module.exports = {
         minNumberItems: 35,
         randomNumberItems: 35, // This gets multiplied by the level number
         numSpritesToTryFit: 50, // How much sprites the level generator will try to fit
-        numEnemies: 25, // Number of enemies to keep alive at all times
+        numEnemies: 10, // Number of enemies to keep alive at all times
     }
 }

@@ -388,6 +388,154 @@ var AI = function(params) {
         return somethingHappened
     }
     
+    
+    
+    this.semiprocess = function() {
+        var i = 0
+        var agentList = []
+        
+        while (i < this.agents.length) {
+            var agent = this.agents[i]
+            var cmd = {player: agent, wait: 0}
+            
+            if (agent) {
+                if (agent.attrs.hp.pos <= 0) {
+                    this.level[agent.pos.y][agent.pos.x].character = null
+                    
+                    if (!(agent.knockback && (agent.knockback.amount > 0))) {
+                        this.agents.splice(i, 1)
+                    }
+                    
+                    var bloodSplats = "+-{};\"^%&()|º<>"
+                    var cnt = Math.floor(this.generator.random() * 12) + 6
+                    
+                    if (agent.knockback && (agent.knockback.amount > 0)) {
+                        cnt /= agent.knockback.amount
+                    }
+                    
+                    for (var sb=0; sb < cnt; sb++) {
+                        particles.Singleton().spawnParticle(
+                            agent.pos.x, agent.pos.y, 
+                            agent.pos.x + Math.round(this.generator.random() * 7 - 3),
+                            agent.pos.y + Math.round(this.generator.random() * 7 - 3), 1, bloodSplats[Math.floor(this.generator.random() * bloodSplats.length)], 
+                            "blood",  
+                            "instant", undefined, Math.round((this.generator.random() * 100) + 100), undefined)
+                    }
+                    
+                    if (!(agent.knockback && (agent.knockback.amount > 0))) {
+                        var gmul = (agent.attrs.hp.pos < -agent.attrs.hp.max)?2:1
+                        var options = {spread: gmul*2}
+                        
+                        this.spawnGibs(agent.pos.x, agent.pos.y, agent.pix, Math.round(this.generator.random() * 4) * gmul, 2 * gmul, "#A00", "#600", agent.gibs, options)
+                        
+                        util.dropInventory(agent, this.level, this.passable)
+                        agent = undefined
+                        i--
+                    }
+                }
+            }
+            
+            if (agent && (agent.wait <= 0)) {
+                // Process the agent state and take a decision accordingly
+                var tx, ty
+                if (agent.customDecision) {
+                    var ret = agent.customDecision.call(agent, this.level, this)
+                    
+                    for (p in ret) {
+                        if (p == 'wait') {
+                            cmd.wait += ret.wait
+                        } else if (ret.hasOwnProperty(p)) {
+                            cmd[p] = ret[p]
+                        }
+                    }
+                } else {
+                    var character = this.findNearestEnemy(agent.pos.x, agent.pos.y, agent.fov, agent.attrs.faction)
+                    var dx = 0
+                    var dy = 0
+                    
+                    if (character) {
+                        if ((typeof(agent.weapon) != "undefined")
+                            && (agent.weapon != null)
+                            && (this.generator.random() < 0.2)) {
+                            
+                            if (agent.weapon.ranged && agent.weapon.alternate && (this.generator.random() < 0.2)) {
+                                if (agent.weapon.alternate.ammo == 0) {
+                                    //agent.weapon.reload(agent, true)
+                                    cmd.reloadWeapon = true
+                                    cmd.reloadAlternate = true
+                                } else {
+                                    //agent.weapon.fire(character.pos.x, character.pos.y, agent, {useAlternate: true})
+                                    
+                                    cmd.fireWeapon = true
+                                    cmd.fireAlternate = true
+                                    cmd.fireTarget = {x: character.pos.x, y: character.pos.y}
+                                }
+                            } else if (agent.weapon.ranged) {
+                                if (agent.weapon.ammo == 0) {
+                                    //agent.weapon.reload(agent)
+                                    cmd.reloadWeapon = true
+                                    cmd.reloadAlternate = true
+                                } else {
+                                    //agent.weapon.fire(character.pos.x, character.pos.y, agent)
+                                    cmd.fireWeapon = true
+                                    cmd.fireTarget = {x: character.pos.x, y: character.pos.y}
+                                }
+                            }
+                            
+                        }
+                    
+                        if (character.pos.x < agent.pos.x) {
+                            dx = -1
+                        } else if (character.pos.x > agent.pos.x) {
+                            dx = 1
+                        }
+                        
+                        if (character.pos.y < agent.pos.y) {
+                            dy = -1
+                        } else if (character.pos.y > agent.pos.y) {
+                            dy = 1
+                        }
+                    } else {
+                        var nm = Math.floor(this.generator.random() * 8)
+                        dx = [-1, 0, 1, -1, 1, -1, 0, 1][nm]
+                        dy = [-1, -1, -1, 0, 0, 1, 1, 1][nm]
+                    }
+                    
+                    tx = agent.pos.x + dx
+                    ty = agent.pos.y + dy
+                }
+                    
+                if ((tx >= 0) && (tx < this.level[0].length) && (ty >= 0) && (ty < this.level.length)) {
+                    var tile = this.level[ty][tx]
+                    
+                    // Won't walk purposefully over a damaging tile
+                    if ((!tile.damage) || (tile.damage <= 0)) {
+                        var p = this.passable(tile)
+                        if (p == 1) {
+                            cmd.dst = {x: tx, y: ty}
+                        } else if (p == 2) {
+                            if (((agent.pos.x != tx) && (agent.pos.y != ty))) {
+                                cmd.dst = {x: tx, y: ty}
+                            }
+                        }
+                    }
+                }
+                
+                agent.semi_wait = cmd.wait
+            }
+
+            if (cmd) {
+                cmd.generator = this.generator
+                agentList.push(cmd)
+            }
+            
+            i++
+        }
+        
+        return agentList
+    }
+    
+    
     var astarIteration = 1
     var numAstarTraverse = 0
     this.getNumAstarTraverse = function() {

@@ -480,10 +480,10 @@ var handlers = { // These are the RPC handlers that the client can invoke
                     strength: {pos: 0, max: 100},
                     precision: {pos: 0, max: 100},
                     speed: {pos: 0, max: 100},
-                    wait: 0,
                     kind: "organic",
                     faction: "players"
                 },
+                wait: 0,
                 weapon: null,
                 inventory: [],
                 messages: [],
@@ -1057,7 +1057,7 @@ function resetLevel() {
 
     lightmanager.assignLevel(level)
     
-    var levelType = sessionRandom.child('level-session').randomIntRange(3)
+    var levelType = -1 //sessionRandom.child('level-session').randomIntRange(3)
     if (levelType == -1) {
         levelTileset = "base"
         generators.testLevel(sessionRandom.child('level'), level,
@@ -1426,7 +1426,7 @@ function spawnGibs(x, y, pix, n, nmin, colorLight, colorDark, gibs, options) {
 }
 
 function processTurnIfAvailable() {
-	var keepProcessing = wss.clients.length > 0
+	/*var keepProcessing = wss.clients.length > 0
     
 	while (keepProcessing) {
 		_processTurnIfAvailable_priv_()
@@ -1448,7 +1448,29 @@ function processTurnIfAvailable() {
 				ws.turn = nextTurnId
 			}
 		}
-	}
+	}*/
+    _processTurnIfAvailable_priv_()
+}
+
+function listReduceWait(lst) {
+    for (var i=0; i < lst.length; i++) {
+        lst[i].player.wait--
+    }
+}
+
+function orderedInsert(agent, lst) {
+    var i = 0
+    while (i < lst.length) {
+        if (lst[i].player.wait < agent.player.wait) {
+            i++
+        } else {
+            var tail = lst.splice(i)
+            
+            return lst.concat([agent], tail)
+        }
+    }
+    
+    return lst.concat([agent])
 }
 
 function _processTurnIfAvailable_priv_() {
@@ -1498,17 +1520,34 @@ function _processTurnIfAvailable_priv_() {
     
     // Process Movement
     var waitingForPlayer = false
-    var playerSomethingHappened = false
     var nturns = 0
-    var aiSomethingHappened = false
     var somethingHappened = false
+    var agentList = []
+    var lastProcessedAgent
     
-    //while (!waitingForPlayer) {
-        while ((!somethingHappened) && (nturns < 10)) { // Only wait 10 turns before bailing out
-            for (var i in wss.clients) {
-                var ws = wss.clients[i]
-                playerSomethingHappened |= util.processSemiturn({
-                    agent: ws,
+    agentList = aiState.semiprocess().concat(agentList)
+    for (var i in wss.clients) {
+        var ws = wss.clients[i]
+        ws.generator = sessionRandom.child('player')
+        agentList.push(ws)
+    }
+    
+    agentList.sort(function(a, b) {
+        return a.player.wait < b.player.wait
+    })
+    
+    while ((agentList.length > 0) && (nturns < 10)) {
+        while ((agentList.length > 0) && (nturns < 10) && (!somethingHappened)) { // Only wait 10 turns before bailing out
+            if (agentList[0].player.wait > 0) {
+                listReduceWait(agentList)
+                nturns++
+            }
+            
+            if (agentList[0].player.wait <= 0) {
+                var agent = agentList.shift()
+                
+                somethingHappened |= util.processSemiturn({
+                    agent: agent,
                     level: level,
                     passable: passable,
                     activableTiles: activableTiles,
@@ -1517,48 +1556,39 @@ function _processTurnIfAvailable_priv_() {
                     inflictMeleeDamage: inflictMeleeDamage,
                     usableTiles: usableTiles,
                     activable: activable,
-                    generator: sessionRandom.child('player')
+                    generator: agent.generator
                 })
-            }
-            aiSomethingHappened |= aiState.process()
-            
-            somethingHappened = aiSomethingHappened | playerSomethingHappened
-            nturns++
-        }
-        
-        if (playerSomethingHappened) {
-            lightmanager.calculateLighting(nextTurnId)
-        }
-        
-        // Send new info to clients
-        if (playerSomethingHappened) {
-            waitingForPlayer = true
-            for (var i in wss.clients) {
-                var ws = wss.clients[i]
-                var scope = sendScopeToClient(ws)
-                try {
-                    ws.sendPako(JSON.stringify(scope))
-                } catch(err) {
-                    console.log(scope)
-                    
-                    throw err
-                }
-            }
-        }
-        
-        if (wss.clients.length > 0) {
-            for (var i in wss.clients) {
-                var ws = wss.clients[i]
                 
-                if (ws.player.wait <= 0) {
-                    waitingForPlayer = true
+                if (somethingHappened) {
+                    lastProcessedAgent = agent
+                    
+                    if ("semi_wait" in agent.player) {
+                        agent.player.wait += agent.player.semi_wait
+                        delete agent.player.semi_wait
+                    }
+                    
+                    agentList = orderedInsert(agent, agentList)
                 }
             }
-        } else {
-            waitingForPlayer = true
         }
-    //}
 
+        somethingHappened = false
+    }
+    
+    lightmanager.calculateLighting(nextTurnId)
+
+    for (var i in wss.clients) {
+        var ws = wss.clients[i]
+        var scope = sendScopeToClient(ws)
+        try {
+            ws.sendPako(JSON.stringify(scope))
+        } catch(err) {
+            console.log(scope)
+            
+            throw err
+        }
+    }
+    
     soundManager.endTurn(nextTurnId)
     comms.tick()
     particleManager.processTurn()

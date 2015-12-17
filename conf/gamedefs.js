@@ -64,11 +64,11 @@ module.exports = {
     enemyBaseFov: 14,
     suPowWaitMax: 25, // How much turns can the player wait with the super power fully charged without draining completely
     suPowGainMultiplier: 3, // How much super power factor from the enemy points does the player gain
-    suPowDecayAfterWait: 0.1, // How much absolute super power gets decreased by turn after the wait timer hits its max
+    suPowDecayAfterWait: 1, // How much absolute super power gets decreased by turn after the wait timer hits its max
     dropProbability: 0.10, // Too high and the game gets VERY easy
     knockbackStaticDestroy: 3, // How much knockback should a agent have to destroy trough walls
     maxInventoryItems: 15,
-    flashlightBatteryDecayRate: 0.01,
+    flashlightBatteryDecayRate: 0.05,
     batteryNearExitProbability: 0.3,
     jamOnUnloadProbability: 0.02, // This must be a rare event, it is REALLY frustrating
     level: {

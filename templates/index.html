@@ -557,7 +557,7 @@ function fgColorFromColorMapRule(rule, timeModifier) {
 }
 
 var ownUsername
-var displaySizeX = 64
+var displaySizeX = 96
 var displaySizeY = 64
 var turn = 0
 var minCoords = {x: 0, y: 0}
@@ -663,6 +663,7 @@ var opsColsLuma = {true: [255, 255, 255], false: [16, 16, 16]}
 var menuStars = []
 
 var announcements = []
+var lastAnnTmstmp = 0
 
 var descriptions = []
 var actionMenuShown = false
@@ -672,11 +673,13 @@ var actionMenuActions
 var currentPkts = []
 
 function queueAnnouncements(msgs) {
-    announcements = announcements.concat(msgs)
+    lastAnnTmstmp = Date.now()
+    announcements = announcements.concat(msgs.map(function(m, i) { return {tmstmp: lastAnnTmstmp + i * 3000, msg: m} }))
 }
 
 function announceMsg(msg) {
-    announcements.push(msg)
+    lastAnnTmstmp = Date.now()
+    announcements.push({tmstmp: lastAnnTmstmp, msg: msg})
 }
 
 function pickClass(cls) {
@@ -1707,7 +1710,7 @@ function drawStarsAndGanymede() {
         var tg = ((d / 24000.0) % 1)
         var px = Math.floor( tg * (displaySizeX + 64) - 32)
         var py = Math.floor( -tg * (displaySizeY / 2) + displaySizeY / 4 * 2)
-        drawRexSprite(px, py, ganymedeSprite)
+        drawRexSprite(Math.min(displaySizeX, px), py, ganymedeSprite)
     }
 }
 
@@ -1717,33 +1720,34 @@ function updateDisplayMenu() {
     drawStarsAndGanymede()
     
     if (titleSprite) {
-        drawRexSprite(Math.floor((displaySizeX + 32)/2) - 20, 0, titleSprite)
+        //drawRexSprite(Math.floor((displaySizeX + 32)/2) - 20, 0, titleSprite)
+        drawRexSpriteHCenter(titleSprite, 0)
     }
         
     if (tutorialSeen) {
-        if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 21, "Start", 12, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+        if (drawButtonWithText((displaySizeX - 12)/2, 21, "Start", 12, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
             menuUse(0)
         }
     } else {
-        if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 21, "Tutorial", 12, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+        if (drawButtonWithText((displaySizeX - 12)/2, 21, "Tutorial", 12, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
             menuUse(0)
         }
     }
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 25, "Options", 12, opsColsFg[menuSel == 1], opsColsBg[menuSel == 1], 1)) {
+    if (drawButtonWithText((displaySizeX - 12)/2, 25, "Options", 12, opsColsFg[menuSel == 1], opsColsBg[menuSel == 1], 1)) {
         menuUse(1)
     }
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 29, "Contact", 12, opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
+    if (drawButtonWithText((displaySizeX - 12)/2, 29, "Contact", 12, opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
         menuUse(2)
     }
     
     if (tutorialSeen) {
-        if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 33, "Tutorial", 12, opsColsFg[menuSel == 3], opsColsBg[menuSel == 3], 3)) {
+        if (drawButtonWithText((displaySizeX - 12)/2, 33, "Tutorial", 12, opsColsFg[menuSel == 3], opsColsBg[menuSel == 3], 3)) {
             menuUse(3)
         }
     } else {
-        if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 33, "Start", 12, opsColsFg[menuSel == 3], opsColsBg[menuSel == 3], 3)) {
+        if (drawButtonWithText((displaySizeX - 12)/2, 33, "Start", 12, opsColsFg[menuSel == 3], opsColsBg[menuSel == 3], 3)) {
             menuUse(3)
         }
     }
@@ -1751,7 +1755,7 @@ function updateDisplayMenu() {
     if (typeof(require) !== "undefined") {
         var exbg = {true: [192, 64, 64], false: [48, 0, 0]}
         var exfg = {true: [192, 192, 64], false: [48, 48, 0]}
-        if (drawButtonWithText(((displaySizeX + 32)/2) - 6, 38, "Exit Game", 12, exfg[menuSel == 4], exbg[menuSel == 4], 4)) {
+        if (drawButtonWithText((displaySizeX - 12)/2, 38, "Exit Game", 12, exfg[menuSel == 4], exbg[menuSel == 4], 4)) {
             menuUse(4)
         }
     }
@@ -1804,11 +1808,11 @@ function updateCharMenu() {
         }
     }
     
-    if (drawEditWithHint(((displaySizeX + 32)/2) - 16, displaySizeY - 10, ownUsername, "Player's name", 32, opsColsFg[menuSel == playerClasses.length], opsColsBg[menuSel == playerClasses.length], playerClasses.length)) {
+    if (drawEditWithHint(((displaySizeX - 32)/2), displaySizeY - 10, ownUsername, "Player's name", 32, opsColsFg[menuSel == playerClasses.length], opsColsBg[menuSel == playerClasses.length], playerClasses.length)) {
         menuUse(playerClasses.length)
     }
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == playerClasses.length+1], opsColsBg[menuSel == playerClasses.length+1], playerClasses.length+1)) {
+    if (drawButtonWithText(((displaySizeX - 32)/2), displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == playerClasses.length+1], opsColsBg[menuSel == playerClasses.length+1], playerClasses.length+1)) {
         menuUse(playerClasses.length+1)
     }
 }
@@ -1817,27 +1821,27 @@ function updateOptionsMenu() {
     terminal.clear()
     drawStarsAndGanymede()
     
-    if (drawButtonWithCheckAndText(((displaySizeX + 32)/2) - 16, 21, "Duplicate console size", 32, localStorage.dupConSz == "true", opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+    if (drawButtonWithCheckAndText(((displaySizeX - 32)/2), 21, "Duplicate console size", 32, localStorage.dupConSz == "true", opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
         menuUse(0)
     }
     
-    if (drawButtonWithCheckAndText(((displaySizeX + 32)/2) - 16, 25, "Use 2xSAI shader", 32, localStorage.use2xsai == "true", opsColsFg[menuSel == 1], opsColsBg[menuSel == 1], 1)) {
+    if (drawButtonWithCheckAndText(((displaySizeX - 32)/2), 25, "Use 2xSAI shader", 32, localStorage.use2xsai == "true", opsColsFg[menuSel == 1], opsColsBg[menuSel == 1], 1)) {
         menuUse(1)
     }
     
-    if (drawButtonWithCheckAndText(((displaySizeX + 32)/2) - 16, 29, "Use Music", 32, localStorage.useMusic == "true", opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
+    if (drawButtonWithCheckAndText(((displaySizeX - 32)/2), 29, "Use Music", 32, localStorage.useMusic == "true", opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
         menuUse(2)
     }
     
-    if (drawButtonWithCheckAndText(((displaySizeX + 32)/2) - 16, 33, "Use Sound", 32, localStorage.useSound == "true", opsColsFg[menuSel == 3], opsColsBg[menuSel == 3], 3)) {
+    if (drawButtonWithCheckAndText(((displaySizeX +-32)/2), 33, "Use Sound", 32, localStorage.useSound == "true", opsColsFg[menuSel == 3], opsColsBg[menuSel == 3], 3)) {
         menuUse(3)
     }
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, 37, "Keybindings", 32, opsColsFg[menuSel == 4], opsColsBg[menuSel == 4], 4)) {
+    if (drawButtonWithText(((displaySizeX - 32)/2), 37, "Keybindings", 32, opsColsFg[menuSel == 4], opsColsBg[menuSel == 4], 4)) {
         menuUse(4)
     }
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 5], opsColsBg[menuSel == 5], 5)) {
+    if (drawButtonWithText(((displaySizeX - 32)/2), displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 5], opsColsBg[menuSel == 5], 5)) {
         menuUse(5)
     }
     
@@ -1896,7 +1900,7 @@ function updateContactMenu() {
     drawStarsAndGanymede()
     
     if (titleSprite) {
-        drawRexSprite(Math.floor((displaySizeX + 32)/2) - 20, 0, titleSprite)
+        drawRexSpriteHCenter(titleSprite, 0)
     }
     
     drawAsciiText(10, 25, "Made with ", [200, 200, 200], [0, 0, 0])
@@ -1905,36 +1909,38 @@ function updateContactMenu() {
     drawAsciiText(22, 26, "Licensed under the MIT License / Assets CC-BY 4.0", [200, 200, 200], [0, 0, 0])
     
     if (gplusSprite) {
-        if (drawRexSprite(((displaySizeX + 32)/2) - 27, 40, gplusSprite)) {
+        if (drawRexSpriteHCenter(gplusSprite, 40, -24)) {
             // Open G+
             OpenInNewTab("https://plus.google.com/+JohnVillar")
         }
-        drawAsciiText(((displaySizeX + 32)/2) - 27, 51, "+JohnVillar", [200, 200, 200], [0, 0, 0])
+        drawAsciiText((displaySizeX/2) - 24 - 6, 51, "+JohnVillar", [200, 200, 200], [0, 0, 0])
     }
     
     if (twitterSprite) {
-        if (drawRexSprite(((displaySizeX + 32)/2) + 14, 40, twitterSprite)) {
+        if (drawRexSpriteHCenter(twitterSprite, 40)) {
             // Open Twitter
             OpenInNewTab("https://twitter.com/johnvillarz")
         }
-        drawAsciiText(((displaySizeX + 32)/2) + 14, 51, "@johnvillarz", [200, 200, 200], [0, 0, 0])
+        drawAsciiText(((displaySizeX - 12)/2), 51, "@johnvillarz", [200, 200, 200], [0, 0, 0])
     }
     
     if (redditSprite) {
-        if (drawRexSprite(((displaySizeX + 32)/2) - 6, 40, redditSprite)) {
+        if (drawRexSpriteHCenter(redditSprite, 40, 24)) {
             // Open Reddit
             OpenInNewTab("https://www.reddit.com/r/GanymedeGate/")
         }
-        drawAsciiText(((displaySizeX + 32)/2) - 8, 51, "/r/GanymedeGate", [200, 200, 200], [0, 0, 0])
+        drawAsciiText((displaySizeX/2) + 24 - 8, 51, "/r/GanymedeGate", [200, 200, 200], [0, 0, 0])
     }
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
+    if (drawButtonWithText(((displaySizeX - 32)/2), displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
         menuUse(0)
     }
 }
-    
+
+var TUTORIAL_VERSION = 2
 function updateTutorial() {
     terminal.clear()
+    var sinusoidal = Math.floor(Math.sin(Date.now()/100.0) * 32 + 32) + 48
     
     drawAsciiText(35, 20, "There should be some tut here, ain't it? \u263A", [255, 200, 200], [0, 0, 0])
     drawAsciiText(10, 23, "You can remap keys in the options menu", [255, 255, 200], [0, 0, 0])
@@ -1949,8 +1955,9 @@ function updateTutorial() {
     drawAsciiText(10, 41, "You can also use the mouse", [200, 200, 200], [0, 0, 0])
     drawAsciiText(10, 43, "Shift+Direction lets you jump/trample (have fun with Melee and Swordmaster classes)", [200, 200, 200], [0, 0, 0])
     drawAsciiText(10, 45, "X, '.' or Keypad 5 skips one turn", [200, 200, 200], [0, 0, 0])
+    drawAsciiText(10, 47, "? shows all hud and last messages", [200, 200, 200], [sinusoidal, sinusoidal, 0])
     
-    var bgcol = [0, Math.floor(Math.sin(Date.now()/100.0) * 32 + 32) + 48, 0]
+    var bgcol = [0, sinusoidal, 0]
     drawAsciiText(18, 23, "remap keys", [255, 128, 128], [Math.floor(Math.sin(Date.now()/100.0) * 32 + 32) + 48, 0, 0])
     drawAsciiText(22, 25, "WASD/Vikeys/Arrows", [128, 255, 128], bgcol)
     drawAsciiText(10, 27, "F", [128, 255, 128], bgcol)
@@ -1964,6 +1971,7 @@ function updateTutorial() {
     drawAsciiText(10, 39, "Space", [128, 255, 128], bgcol)
     drawAsciiText(10, 43, "Shift+Direction", [128, 255, 128], bgcol)
     drawAsciiText(10, 45, "X, '.' or Keypad 5", [128, 255, 128], bgcol)
+    drawAsciiText(10, 47, "?", [128, 255, 128], bgcol)
     
     
     /*if (drawButtonWithText(((displaySizeX + 32)/2) - 18, displaySizeY - 10, "<< Previous", 16, opsColsFg[menuSel == 0], opsColsBg[menuSel == 0], 0)) {
@@ -1974,7 +1982,7 @@ function updateTutorial() {
         menuUse(1)
     }*/
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) - 16, displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
+    if (drawButtonWithText(((displaySizeX - 32)/2), displaySizeY - 6, "Go back", 32, opsColsFg[menuSel == 2], opsColsBg[menuSel == 2], 2)) {
         menuUse(2)
     }
 }
@@ -2017,7 +2025,7 @@ function updateKeybindings() {
         }
         
         var py = y + Math.floor(num / 2) * 2
-        var px = w4 * (1 + 2 * (num % 2))
+        var px = Math.floor(w4 * (2 * (num % 2)) + w4/2)
         
         var fgBtCol = opsColsFg[menuSel == num]
         var bgBtCol = opsColsBg[menuSel == num]
@@ -2067,12 +2075,12 @@ function updateKeybindings() {
     btnFn(16)
     btnFn(17)
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) - 33, displaySizeY - 4, "Save changes", 32, 
+    if (drawButtonWithText((displaySizeX/2) - 34, displaySizeY - 4, "Save changes", 32, 
         opsColsFg[menuSel == (itemsPerMenu[currentMenu]-2)], opsColsBg[menuSel == (itemsPerMenu[currentMenu]-2)], (itemsPerMenu[currentMenu]-2))) {
         menuUse((itemsPerMenu[currentMenu]-2))
     }
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) + 1, displaySizeY - 4, "Go back", 32, 
+    if (drawButtonWithText((displaySizeX/2) + 2, displaySizeY - 4, "Go back", 32, 
         opsColsFg[menuSel == (itemsPerMenu[currentMenu]-1)], opsColsBg[menuSel == (itemsPerMenu[currentMenu]-1)], (itemsPerMenu[currentMenu]-1))) {
         menuUse((itemsPerMenu[currentMenu]-1))
     }
@@ -2524,6 +2532,14 @@ function drawAsciiText(x, y, txt, fg, bg, luma) {
     }
 }
 
+function drawRexSpriteHCenter(spr, y, dx) {
+    if (typeof(dx) === "undefined") {
+        dx = 0
+    }
+    
+    return drawRexSprite(Math.floor((displaySizeX - spr.layers[0].width)/2 + dx), y, spr)
+}
+
 function drawRexSprite(x, y, spr) {
     var clicked = false
     for (var l=0; l < spr.layers.length; l++) {
@@ -2556,37 +2572,74 @@ function pruneWeaponName(name) {
     return name.replace(/\s/g, '')
 }
 
+var lastAttrs = {}
+var tmstmpShowAllHud = 0
+function testAttrBeforeDraw(attrName, attrVal, fnDraw) {
+    if ((Date.now() - tmstmpShowAllHud) < 3000) {
+        fnDraw()
+    } else if (!(attrName in lastAttrs) || 
+        ((Date.now() - lastAttrs[attrName].timeChange) < 3000) ||
+        (lastAttrs[attrName].value !== attrVal)) {
+        
+        if (!(attrName in lastAttrs)) {
+            lastAttrs[attrName] = {timeChange: Date.now(), value: attrVal}
+        } else if (lastAttrs[attrName].value !== attrVal) {
+            lastAttrs[attrName].value = attrVal
+            lastAttrs[attrName].timeChange = Date.now()
+        }
+        
+        fnDraw()
+    }
+}
+
 function updateAttrs() {
     if (playerAttrs) {
         var y = 2
         
-        drawAsciiText(displaySizeX + 2, y, "Plyr. " + ownUsername, [0, 255, 0], [0, 0, 0])
-        y += 2
+        /*drawAsciiText(displaySizeX + 2, y, "Plyr. " + ownUsername, [0, 255, 0], [0, 0, 0])
+        y += 2*/
+        var attrsDisplayX = displaySizeX - 33
+        if (("cpos" in player) && (player.cpos.x > (displaySizeX / 2))) {
+            attrsDisplayX = 2
+        }
         
-        drawAsciiText(displaySizeX + 2, y, "HP " + pad(playerAttrs.hp.pos, 3) + "/" + playerAttrs.hp.max, [0, 255, 0], [0, 0, 0])
-        drawConsoleBar(displaySizeX + 13, y, 12, 1, playerAttrs.hp.pos / playerAttrs.hp.max)
-        y += 2
+        testAttrBeforeDraw("hp", playerAttrs.hp.pos + "/" + playerAttrs.hp.max, function() {
+            drawAsciiText(attrsDisplayX, y, "HP " + pad(playerAttrs.hp.pos, 3) + "/" + playerAttrs.hp.max, [0, 255, 0], [0, 0, 0])
+            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.hp.pos / playerAttrs.hp.max)
+            y += 2
+        })
         
-        drawAsciiText(displaySizeX + 2, y, "AR " + pad(playerAttrs.armor.pos, 3) + "/" + playerAttrs.armor.max, [0, 255, 0], [0, 0, 0])
-        drawConsoleBar(displaySizeX + 13, y, 12, 1, playerAttrs.armor.pos / playerAttrs.armor.max)
-        y += 2
+        testAttrBeforeDraw("armor", playerAttrs.armor.pos + "/" + playerAttrs.armor.max, function() {
+            drawAsciiText(attrsDisplayX, y, "AR " + pad(playerAttrs.armor.pos, 3) + "/" + playerAttrs.armor.max, [0, 255, 0], [0, 0, 0])
+            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.armor.pos / playerAttrs.armor.max)
+            y += 2
+        })
         
-        drawAsciiText(displaySizeX + 2, y, "ST " + pad(playerAttrs.strength.pos, 3) + "/" + playerAttrs.strength.max, [0, 255, 0], [0, 0, 0])
-        drawConsoleBar(displaySizeX + 13, y, 12, 1, playerAttrs.strength.pos / playerAttrs.strength.max)
-        y += 2
+        testAttrBeforeDraw("strength", playerAttrs.strength.pos + "/" + playerAttrs.strength.max, function() {
+            drawAsciiText(attrsDisplayX, y, "ST " + pad(playerAttrs.strength.pos, 3) + "/" + playerAttrs.strength.max, [0, 255, 0], [0, 0, 0])
+            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.strength.pos / playerAttrs.strength.max)
+            y += 2
+        })
         
-        drawAsciiText(displaySizeX + 2, y, "PR " + pad(playerAttrs.precision.pos, 3) + "/" + playerAttrs.precision.max, [0, 255, 0], [0, 0, 0])
-        drawConsoleBar(displaySizeX + 13, y, 12, 1, playerAttrs.precision.pos / playerAttrs.precision.max)
-        y += 2
+        testAttrBeforeDraw("precision", playerAttrs.precision.pos + "/" + playerAttrs.precision.max, function() {
+            drawAsciiText(attrsDisplayX, y, "PR " + pad(playerAttrs.precision.pos, 3) + "/" + playerAttrs.precision.max, [0, 255, 0], [0, 0, 0])
+            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.precision.pos / playerAttrs.precision.max)
+            y += 2
+        })
         
-        drawAsciiText(displaySizeX + 2, y, "SP " + pad(playerAttrs.speed.pos, 3) + "/" + playerAttrs.speed.max, [0, 255, 0], [0, 0, 0])
-        drawConsoleBar(displaySizeX + 13, y, 12, 1, playerAttrs.speed.pos / playerAttrs.speed.max)
-        y += 2
+        testAttrBeforeDraw("speed", playerAttrs.speed.pos + "/" + playerAttrs.speed.max, function() {
+            drawAsciiText(attrsDisplayX, y, "PR " + pad(playerAttrs.speed.pos, 3) + "/" + playerAttrs.speed.max, [0, 255, 0], [0, 0, 0])
+            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.speed.pos / playerAttrs.speed.max)
+            y += 2
+        })
         
-        drawAsciiText(displaySizeX + 2, y, "BAT " + pad(Math.round(playerAttrs.battery), 3), [0, 255, 0], [0, 0, 0])
-        drawConsoleBar(displaySizeX + 13, y, 12, 1, playerAttrs.battery / 100)
-        y += 2
+        testAttrBeforeDraw("battery", Math.round(playerAttrs.battery), function() {
+            drawAsciiText(attrsDisplayX, y, "BAT " + pad(Math.round(playerAttrs.battery), 3), [0, 255, 0], [0, 0, 0])
+            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.battery / 100)
+            y += 2
+        })
         
+                
         var firingPrimary = false
         var firingAlternate = false
         
@@ -2595,39 +2648,51 @@ function updateAttrs() {
             firingAlternate = player.firing == "alternate"
         }
         
-        drawAsciiText(displaySizeX + 2, y, "Weapon", [0, 255, 0], [0, 0, 0])
-        y += 2
-        drawAsciiText(displaySizeX + 2, y, currentWeapon.name, [0, 255, 0], [0, 0, 0])
-        y++
-        
-        if (typeof(currentWeapon.ammoType) !== "undefined") {
-            var bgColor = firingPrimary?[128, 128, 0]:[0, 0, 0]
-            drawAsciiText(displaySizeX + 2, y, padR(currentWeapon.ammoType, 30), [0, 255, 0], bgColor)
+        testAttrBeforeDraw("weaponname", currentWeapon.name, function() {
+            drawAsciiText(attrsDisplayX, y, "Weapon", [0, 255, 0], [0, 0, 0])
+            y += 2
+            drawAsciiText(attrsDisplayX, y, currentWeapon.name, [0, 255, 0], [0, 0, 0])
             y++
+        })
+        
+        var bgColor = firingPrimary?[128, 128, 0]:[0, 0, 0]
+        if (typeof(currentWeapon.ammoType) !== "undefined") {
+            testAttrBeforeDraw("weaponammotype", currentWeapon.ammoType + firingPrimary, function() {
+                drawAsciiText(attrsDisplayX, y, padR(currentWeapon.ammoType, 30), [0, 255, 0], bgColor)
+                y++
+            })
         }
         
         if (currentWeapon.ammoMax !== 0) {
-            var ammoStr = "Ammo " + pad(currentWeapon.ammo, 3) + "/" + currentWeapon.ammoMax
-            drawAsciiText(displaySizeX + 2, y, padR(ammoStr, 30), [0, 255, 0], bgColor)
-            drawConsoleBar(displaySizeX + 15, y, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax)
-            y++
-        }
-            
-        drawAsciiText(displaySizeX + 2, y, "Dmg. " + currentWeapon.damage[0] + " - " + currentWeapon.damage[1], [0, 255, 0], [0, 0, 0])
-        y++
-        
-		if (currentWeapon.alternate) {
-            if (typeof(currentWeapon.alternate.ammoType) !== "undefined") {
-                bgColor = firingAlternate?[128, 128, 0]:[0, 0, 0]
-                drawAsciiText(displaySizeX + 2, y, padR(currentWeapon.alternate.ammoType, 30), [0, 255, 128], bgColor)
+            testAttrBeforeDraw("weaponammoamnt", currentWeapon.ammo + "/" + currentWeapon.ammoMax, function() {
+                var ammoStr = "Ammo " + pad(currentWeapon.ammo, 3) + "/" + currentWeapon.ammoMax
+                drawAsciiText(attrsDisplayX, y, padR(ammoStr, 30), [0, 255, 0], bgColor)
+                drawConsoleBar(attrsDisplayX + 15, y, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax)
                 y++
+            })
+        }
+        
+        testAttrBeforeDraw("weapondmg", currentWeapon.ammo + "/" + currentWeapon.ammoMax, function() {
+            drawAsciiText(attrsDisplayX, y, "Dmg. " + currentWeapon.damage[0] + " - " + currentWeapon.damage[1], [0, 255, 0], [0, 0, 0])
+                y++
+        })
+            
+		if (currentWeapon.alternate) {
+            bgColor = firingAlternate?[128, 128, 0]:[0, 0, 0]
+            if (typeof(currentWeapon.alternate.ammoType) !== "undefined") {
+                testAttrBeforeDraw("weaponaltammotype", currentWeapon.alternate.ammoType + firingAlternate, function() {
+                    drawAsciiText(attrsDisplayX, y, padR(currentWeapon.alternate.ammoType, 30), [0, 255, 128], bgColor)
+                    y++
+                })
             }
             
             if (currentWeapon.alternate.ammoMax !== 0) {
-                ammoStr = "Ammo " + pad(currentWeapon.alternate.ammo, 3) + "/" + currentWeapon.alternate.ammoMax
-                drawAsciiText(displaySizeX + 2, y, padR(ammoStr, 30), [0, 255, 128], bgColor)
-                drawConsoleBar(displaySizeX + 15, y, 10, 1, currentWeapon.alternate.ammo / currentWeapon.alternate.ammoMax)
-                y++
+                testAttrBeforeDraw("weaponaltammoamnt", currentWeapon.alternate.ammo + "/" + currentWeapon.alternate.ammoMax, function() {
+                    ammoStr = "Ammo " + pad(currentWeapon.alternate.ammo, 3) + "/" + currentWeapon.alternate.ammoMax
+                    drawAsciiText(attrsDisplayX, y, padR(ammoStr, 30), [0, 255, 128], bgColor)
+                    drawConsoleBar(attrsDisplayX + 15, y, 10, 1, currentWeapon.alternate.ammo / currentWeapon.alternate.ammoMax)
+                    y++
+                })
             }
 		}
 		
@@ -2650,11 +2715,15 @@ function updateAttrs() {
         } else if (weaponSprites[currentWeapon.id]) {
             var spr = weaponSprites[currentWeapon.id]
             
-            drawRexSprite(displaySizeX + 2, y, spr)
+            testAttrBeforeDraw("weaponsprite", currentWeapon.id, function() {
+                drawRexSprite(attrsDisplayX, y, spr)
+            })
         } else if (currentWeapon.name in weaponSprites) {
             var spr = weaponSprites[currentWeapon.name]
             
-            drawRexSprite(displaySizeX + 2, y, spr)
+            testAttrBeforeDraw("weaponsprite", currentWeapon.name, function() {
+                drawRexSprite(attrsDisplayX, y, spr)
+            })
         }
         
         var ramp = [[64, 0, 0], [128, 0, 0], [128, 64, 0], [128, 128, 0], [64, 128, 0], [0, 128, 64], [0, 128, 128], [64, 192, 192], [128, 192, 192], [255, 255, 255]]
@@ -2670,20 +2739,53 @@ function updateAttrs() {
         var colorCycle = Math.floor(Date.now() / 50.0)
         //var bg = (maxY <= 0)?ramp[Math.floor((Math.sin(Date.now()/50.0)+1) / 2 * (ramp.length - 1))]:[0,0,0]
         
+        var suPowBarX = displaySizeX - 1
+        if (("cpos" in player) && (player.cpos.x > (displaySizeX / 2))) {
+            suPowBarX = 0
+        }
+        
         for (var i=displaySizeY - 1; i >= maxY; i--) {
             var fgIdx = ramp.length - Math.floor(i * ramp.length / displaySizeY) - 1
             var bg = (maxY <= 0)?ramp[Math.floor((Math.sin(Date.now()/150.0 + Math.cos(Date.now()/300.0 + i*10.0) * 0.5)+1) / 2 * (ramp.length - 1))]:[0,0,0]
             
             var fg = (maxY <= 0)?[0, 0, 0]:ramp[fgIdx]
-            drawAsciiText(displaySizeX, i, "\u25B2", fg, bg)
+            drawAsciiText(suPowBarX, i, "\u25B2", fg, bg)
         }
     }
 }
 
 function updateLogs() {
-    drawAsciiText(displaySizeX + 2, 41, "Game log", [0, 255, 0], [0, 0, 0])
+    //drawAsciiText(displaySizeX + 2, 41, "Game log", [0, 255, 0], [0, 0, 0])
     
-    var m = announcements.length-1
+    var py = 0
+    var px = 0
+    var dy = 1
+    var rightJustified = false
+    
+    if ("cpos" in player) {
+        if (player.cpos.x > (displaySizeX / 2)) {
+            rightJustified = true
+            px = displaySizeX - 1
+        } else if (player.cpos.y <= 20) {
+            py = displaySizeY - 1
+            dy = -1
+        }
+    }
+    
+    for (var i=0; i < announcements.length; i++) {
+        var ann = announcements[i]
+        if ((Date.now() - ann.tmstmp) < 3000) {
+            var nx = px
+            if (rightJustified) {
+                nx -= ann.msg.length
+            }
+            drawAsciiText(nx, py, ann.msg, [64, 200, 64], [0, 0, 0])
+            py += dy
+        }
+    }
+    
+    /*var m = announcements.length-1
+    
     var l = Math.min(m, displaySizeY - 39)
     for (var i=0; i < l; i++) {
         var ann = announcements[m - i]
@@ -2702,7 +2804,7 @@ function updateLogs() {
         }
         
         drawAsciiText(displaySizeX + 2, 42 + i, ann, [64, 200, 64], [0, 0, 0])
-    }
+    }*/
 } 
 
 function showPkts(pkts) {
@@ -2800,7 +2902,7 @@ function initAsciiDisplay(id, w, h) {
     terminal = new ASCIITerminal({
         font: './static/CGA8x8thick.png',
         target: 'term',
-        console: {width: w + 32, height: h},
+        console: {width: w, height: h},
         consoleScale: (localStorage.dupConSz == "true")?2:1,
         use2xsai: localStorage.use2xsai == "true"
     })
@@ -3262,6 +3364,21 @@ function cancelEverything() {
     actionMenuShown = false
 }
 
+function showAllHud() {
+    tmstmpShowAllHud = Date.now()
+    if (announcements.length > 0) {
+        var n = announcements.length - 1
+        var i = 5
+        var dt = Date.now()
+        
+        while ((n >= 0) && (i > 0)) {
+            announcements[n].tmstmp = dt + i * 3000
+            n--
+            i--
+        }
+    }
+}
+
 var kb_hnd = {
     // Up group
     "Up": fnCommands.up,
@@ -3354,7 +3471,8 @@ var kb_hnd = {
     "v": fnCommands.toggleKeyboardLook,
     "U+0056": fnCommands.toggleKeyboardLook,
     
-    "U+001B": cancelEverything
+    "U+001B": cancelEverything,
+    "U+00DB": showAllHud,
 }
 
 function render() {
@@ -3435,7 +3553,7 @@ function menuUse(n) {
         if (menuSel == 0) {
             if (!tutorialSeen) {
                 tutorialSeen = true
-                localStorage.tutorialSeen = true
+                localStorage.tutorialSeen = TUTORIAL_VERSION
                 currentMenu = 4
                 menuSel = 1
                 tutorialPage = 0
@@ -3455,7 +3573,7 @@ function menuUse(n) {
                 menuSel = 0
             } else {
                 tutorialSeen = true
-                localStorage.tutorialSeen = true
+                localStorage.tutorialSeen = TUTORIAL_VERSION
                 currentMenu = 4
                 menuSel = 1
                 tutorialPage = 0
@@ -3766,7 +3884,7 @@ $(document).ready(function () {
     
     if (localStorage.inited == "true") {
         pickClass(localStorage.chartype)
-        tutorialSeen = localStorage.tutorialSeen == "true"
+        tutorialSeen = localStorage.tutorialSeen === (""+TUTORIAL_VERSION)
     } else {
         localStorage.inited = true
         localStorage.dupConSz = false

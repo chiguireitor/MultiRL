@@ -1057,7 +1057,7 @@ function resetLevel() {
 
     lightmanager.assignLevel(level)
     
-    var levelType = -1 //sessionRandom.child('level-session').randomIntRange(3)
+    var levelType = sessionRandom.child('level-session').randomIntRange(3)
     if (levelType == -1) {
         levelTileset = "base"
         generators.testLevel(sessionRandom.child('level'), level,
@@ -1545,6 +1545,7 @@ function _processTurnIfAvailable_priv_() {
             
             if (agentList[0].player.wait <= 0) {
                 var agent = agentList.shift()
+                var waitBefore = agent.player.wait
                 
                 somethingHappened |= util.processSemiturn({
                     agent: agent,
@@ -1567,7 +1568,9 @@ function _processTurnIfAvailable_priv_() {
                         delete agent.player.semi_wait
                     }
                     
-                    agentList = orderedInsert(agent, agentList)
+                    if (agent.player.wait > waitBefore) {
+                        agentList = orderedInsert(agent, agentList)
+                    }
                 }
             }
         }

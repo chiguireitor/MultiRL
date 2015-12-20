@@ -313,7 +313,9 @@ Weapon.prototype.rpcRepr = function(c) {
         identified: (this.identified || (this.identifiedName == '')),
         chargerAmmoType: this.chargerAmmoType,
         damage: [dmgVals.minDamage, dmgVals.maxDamage],
-        knockback: dmgVals.knockback
+        knockback: dmgVals.knockback,
+        pix: this.pix,
+        range: this.range
     }
 	
 	if (this.alternate) {

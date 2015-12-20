@@ -101,21 +101,23 @@ Tweet
         
         // These "if"s are for the damage radius around the screen edge
         float v = damageRadius;
+        float cw = fontSize.x * uConsoleCharWidth;
         if (gl_FragCoord.x <= v){
             float d = (v - gl_FragCoord.x) / 20.0;
             
             gl_FragColor.r = gl_FragColor.r + d;
-        } else if ((gl_FragCoord.x >= (512.0 - v)) && (gl_FragCoord.x <= 512.0)) {
-            float d = (v - (512.0 - gl_FragCoord.x)) / 20.0;
+        //} else if ((gl_FragCoord.x >= (512.0 - v)) && (gl_FragCoord.x <= 512.0)) {
+        } else if ((gl_FragCoord.x >= (cw - v)) && (gl_FragCoord.x <= cw)) {
+            float d = (v - (cw - gl_FragCoord.x)) / 20.0;
             
             gl_FragColor.r = gl_FragColor.r + d;
         }
         
-        if ((gl_FragCoord.y <= v) && (gl_FragCoord.x <= 512.0)) {
+        if ((gl_FragCoord.y <= v) && (gl_FragCoord.x <= cw)) {
             float d = (v - gl_FragCoord.y) / 20.0;
             
             gl_FragColor.r = gl_FragColor.r + d;
-        } else if ((gl_FragCoord.y >= (512.0 - v)) && (gl_FragCoord.x <= 512.0)) {
+        } else if ((gl_FragCoord.y >= (512.0 - v)) && (gl_FragCoord.x <= cw)) {
             float d = (v - (512.0 - gl_FragCoord.y)) / 20.0;
             
             gl_FragColor.r = gl_FragColor.r + d;
@@ -524,6 +526,97 @@ function OpenInNewTab(url) {
   win.focus()
 }
 
+// Following two functions are from http://stackoverflow.com/questions/17242144/javascript-convert-hsb-hsv-color-to-rgb-accurately
+function HSVtoRGB(h, s, v) {
+    var r, g, b, i, f, p, q, t;
+    if (arguments.length === 1) {
+        s = h.s, v = h.v, h = h.h;
+    }
+    i = Math.floor(h * 6);
+    f = h * 6 - i;
+    p = v * (1 - s);
+    q = v * (1 - f * s);
+    t = v * (1 - (1 - f) * s);
+    switch (i % 6) {
+        case 0: r = v, g = t, b = p; break;
+        case 1: r = q, g = v, b = p; break;
+        case 2: r = p, g = v, b = t; break;
+        case 3: r = p, g = q, b = v; break;
+        case 4: r = t, g = p, b = v; break;
+        case 5: r = v, g = p, b = q; break;
+    }
+    return {
+        r: Math.round(r * 255),
+        g: Math.round(g * 255),
+        b: Math.round(b * 255)
+    };
+}
+
+function RGBtoHSV(r, g, b) {
+    if (arguments.length === 1) {
+        g = r.g, b = r.b, r = r.r;
+    }
+    var max = Math.max(r, g, b), min = Math.min(r, g, b),
+        d = max - min,
+        h,
+        s = (max === 0 ? 0 : d / max),
+        v = max / 255;
+
+    switch (max) {
+        case min: h = 0; break;
+        case r: h = (g - b) + d * (g < b ? 6: 0); h /= 6 * d; break;
+        case g: h = (b - r) + d * 2; h /= 6 * d; break;
+        case b: h = (r - g) + d * 4; h /= 6 * d; break;
+    }
+
+    return {
+        h: h,
+        s: s,
+        v: v
+    };
+}
+
+function hsvModulate(col, hm, sm, vm) {
+    if (typeof(col) !== "undefined") {
+        var hsv = RGBtoHSV(col[0], col[1], col[2])
+        hsv.h *= hm
+        hsv.s *= sm
+        hsv.v *= vm
+        
+        var rgb = HSVtoRGB(hsv)
+        
+        return [rgb.r, rgb.g, rgb.b]
+    }
+}
+
+function hsvModulateFlt(col, hm, sm, vm) {
+    if (typeof(col) !== "undefined") {
+        var hsv = RGBtoHSV(Math.round(col[0] * 255), Math.round(col[1] * 255), Math.round(col[2] * 255))
+        hsv.h *= hm
+        hsv.s *= sm
+        hsv.v *= vm
+        
+        var rgb = HSVtoRGB(hsv)
+        
+        return [rgb.r/255, rgb.g/255, rgb.b/255]
+    }
+}
+
+function mixRGB(a, b, t) {
+    if ((typeof(a) !== "undefined") && (typeof(b) !== "undefined") && a.map && b.map) {
+        var t1 = 1 - t
+        return a.map(function(x, i) { return Math.floor(x * t1 + b[i] * t) })
+    }
+}
+
+function hexToRGBArr(hex) {
+    if (typeof(hex) !== "undefined") {
+        var v = parseInt(hex, 16)
+        
+        return [(v & 0xFF0000) >> 16, (v & 0xFF00) >> 8, v & 0xFF]
+    }
+}
+
 function fgColorFromColorMapRule(rule, timeModifier) {
     var col = rule
     
@@ -552,7 +645,7 @@ function fgColorFromColorMapRule(rule, timeModifier) {
         
         return [rt, gt, bt]
     } else {
-        return col.color
+        return hexToRGBArr(col.color)
     }
 }
 
@@ -581,6 +674,7 @@ var lastMove = [-1, -1]
 var keyboardLook = false
 var onClickTarget
 var destinationMovement
+var destinationPath
 var tutorialSeen = false
 var tutorialPage = 0
 
@@ -638,6 +732,10 @@ var tilesetDescription = {
     }
 }
 
+var tilePassabilityOverrides = {
+    61: {val: 1, costMult: 2.0, costAdd: 10}
+}
+
 var tilePixActions = {
     24: "Activate",
     61: "Open door",
@@ -669,6 +767,7 @@ var descriptions = []
 var actionMenuShown = false
 var actionMenuCenter = [0, 0]
 var actionMenuActions
+var askingShortcutIndex
 
 var currentPkts = []
 
@@ -684,6 +783,334 @@ function announceMsg(msg) {
 
 function pickClass(cls) {
     playerPickClass = cls
+}
+
+function passability(tile) {
+    if (tile.tile in tilePassabilityOverrides) {
+        return tilePassabilityOverrides[tile.tile]
+    } else {
+        return {val: tile.pss, costMult: 1, costAdd: 0}
+    }
+}
+
+var astarIteration = 0
+var lastTracedPath
+function clearLastTracedPath() {
+    if (typeof(lastTracedPath) !== "undefined") {
+        for (var i=0; i < lastTracedPath.length; i++) {
+            var p = lastTracedPath[i]
+            var t = level[p.y][p.x]
+            
+            if (typeof(t.hl) !== "undefined") {
+                delete t.hl
+            }
+        }
+    }
+}
+
+function astarTraverse(agent, start, target, scores) {
+    astarIteration++
+    var openSet = []
+    var pss = passability
+    
+    clearLastTracedPath()
+    
+    var euristicRelax = 0.8
+    var includeOnOpenSet = function(item) {
+        var i = 0
+        while (i < openSet.length) {
+            if ((openSet[i].carriedCost * euristicRelax) > item.carriedCost) {
+                var tail = openSet.splice(i)
+                openSet = openSet.concat([item], tail)
+                return
+            }
+            i++
+        }
+        
+        openSet = openSet.concat([item])
+    }
+    
+    var expand = function(elem, level) {
+        for (var dy=0; dy <= 2; dy++) {
+            var uy = dy
+            if (uy == 2) { // Expand first the straight sections
+                uy = -1
+            }
+            var ny = elem.y + uy
+            if ((ny >= 0) && (ny < level.length)) {
+                var row = level[ny]
+                for (var dx=0; dx <= 2; dx++) {
+                    var ux = dx
+                    if (ux == 2) { // Expand first the straight sections
+                        ux = -1
+                    }
+                    var nx = elem.x + ux
+                    if (!((dx == 0) && (dy == 0)) && (nx >= 0) && (nx < row.length)) {
+                        var tile = row[nx]
+                        
+                        if (!('astarIteration' in tile) || (tile.astarIteration < astarIteration)) {
+                            tile.astarIteration = astarIteration
+                            var pa = pss(tile)
+                            var p = pa.val
+                            
+                            var difX = nx - target.x
+                            var difY = ny - target.y
+                            var euclideanCost = Math.sqrt(difX * difX + difY * difY)
+                            
+                            var newCost = elem.carriedCost + euclideanCost * pa.costMult + pa.costAdd
+                            var discard = false
+                            
+                            if (p == 1) {
+                                if (tile.damage) {
+                                    if (tile.damage <= agent.attrs.hp.pos) {
+                                        newCost += tile.damage * 100
+                                    } else {
+                                        discard = true
+                                    }
+                                }
+                            } else if (p == 2) {
+                                if ((typeof(tile.character) != "undefined") && (tile.character != null)) {
+                                    if ((tile.character.attrs) && (tile.character.attrs.faction != agent.attrs.faction)) {
+                                        if ((typeof(scores) !== "undefined") && ('enemy' in scores)) {
+                                            newCost += scores.enemy(tile.character)
+                                        } else {
+                                            discard = true
+                                        }
+                                    } else {
+                                        discard = true
+                                    }
+                                } else {
+                                    discard = true
+                                }
+                            } else if (p == 0) {
+                                discard = true
+                            } else if (p == 3) {
+                                newCost += euclideanCost * 3
+                            } else if ((typeof(tile.item) != "undefined") && (tile.item != null)) {
+                                if ((typeof(scores) !== "undefined") && ('item' in scores)) {
+                                    newCost += scores.item(tile.item)
+                                }
+                            }
+                            
+                            if (!discard) {
+                                includeOnOpenSet({x: nx, y: ny, carriedCost: newCost, history: elem.history.concat([elem])})
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    var path
+    expand({x: start.x, y: start.y, carriedCost: 0, history: []}, level)
+    while (openSet.length > 0) {
+        var nextElement = openSet.shift()
+        
+        if ((nextElement.x == target.x) && (nextElement.y == target.y)) {
+            path = nextElement.history.concat([nextElement])
+            break
+        } else {
+            expand(nextElement, level)
+        }
+    }
+    
+    if (path) {
+        path.shift()
+        lastTracedPath = path.map(function(e) { return {x: e.x, y: e.y} })
+        return lastTracedPath
+    }
+}
+
+function bresenhamsTrace(agent, start, target, energy) {
+    clearLastTracedPath()
+    
+    var path = bresenhamsEvaluate(start.x, start.y, target.x, target.y, energy, function(tile, x, y) {
+        return passability(tile).val != 1
+    })
+    
+    lastTracedPath = path
+    
+    return path
+}
+
+function bresenhamsEvaluate(x0, y0, x1, y1, energy, callback) {
+    // Callback should be of the form
+    //   function(tile, x, y)
+    // And return true if it should stop evaluating the line
+    
+    var initialEnergy = energy
+    var result = []
+    
+	if (!energy) {
+		energy = 1000
+	}
+	
+    if (x0 < 0) {
+        x0 = 0
+    } else if (x0 >= level[0].length) {
+        x0 = level[0].length - 1
+    }
+    
+    if (x1 < 0) {
+        x1 = 0
+    } else if (x1 >= level[0].length) {
+        x1 = level[0].length - 1
+    }
+    
+    if (y0 < 0) {
+        y0 = 0
+    } else if (y0 >= level.length) {
+        y0 = level.length - 1
+    }
+    
+    if (y1 < 0) {
+        y1 = 0
+    } else if (y1 >= level.length) {
+        y1 = level.length - 1
+    }
+
+    var dx = x1 - x0
+    var dy = y1 - y0
+    var lx, ly
+    var path = 0
+    
+    if ((dx == 0) && (dy == 0)) {
+        result.push({x: x1, y: y1})
+    } else if (dy == 0) {
+        // Horizontal line, easiest
+        path = 1
+        var row = level[Math.floor(y0)]
+        var ix = (dx > 0)?1:-1
+        dx = Math.abs(dx)
+        
+        var x = x0 + ix
+        while ((x >= 0) && (x < row.length) && (energy > 0)) {
+            path = 1001
+            lx = x
+            ly = y0
+            
+			var tile = row[Math.floor(x)]
+            
+            var res = callback(tile, Math.floor(x), Math.floor(y0))
+            result.push({x: Math.floor(x), y: Math.floor(y0)})
+            if (res) {
+                break
+            }
+            
+            x += ix
+			energy--
+        }
+    } else if (dx == 0) {
+        // Vertical line, easy
+        path = 2
+        
+        var iy = (dy > 0)?1:-1
+        dy = Math.abs(dy)
+        
+        var y = y0 + iy
+        while ((y >= 0) && (y < level.length) && (energy > 0)) {
+            lx = x0
+            ly = y
+            
+			var tile = level[Math.floor(y)][Math.floor(x0)]
+			var res = callback(tile, Math.floor(x0), Math.floor(y))
+            result.push({x: Math.floor(x0), y: Math.floor(y)})
+            if (res) {
+                break
+            }
+            
+            y += iy
+			energy--
+        }
+    } else {
+        // Run the algorithm
+        path = 3
+        
+        var ix = (dx > 0)?1:-1
+        var iy = (dy > 0)?1:-1
+        var error = 0
+        
+        if (Math.abs(dx) > Math.abs(dy)) {
+            var derror = Math.abs(dy/dx)
+            var y = y0
+            var x=x0+ix
+            
+            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
+                lx = x
+                ly = y
+                
+                error += derror
+                if (error > 0.5) {
+                    y += iy
+                    error -= 1.0
+                }
+                
+                if ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
+					var tile = level[Math.floor(y)][Math.floor(x)]
+					var res = callback(tile, Math.floor(x), Math.floor(y))
+                    result.push({x: Math.floor(x), y: Math.floor(y)})
+                    if (res) {
+                        break
+                    }
+                }
+                
+                x+=ix
+				energy--
+            }
+        } else if (Math.abs(dx) < Math.abs(dy)) {
+            var derror = Math.abs(dx/dy)
+            var x = x0
+            var y=y0+iy
+            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
+                error += derror
+                if (error > 0.5) {
+                    x += ix
+                    error -= 1.0
+                }
+                
+                lx = x
+                ly = y
+                
+                if ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length)) {
+					var tile = level[Math.floor(y)][Math.floor(x)]
+					var res = callback(tile, Math.floor(x), Math.floor(y))
+                    result.push({x: Math.floor(x), y: Math.floor(y)})
+                    if (res) {
+                        break
+                    }
+                }
+                
+                y+=iy
+				energy--
+            }
+        } else if (Math.abs(dx) == Math.abs(dy)) {
+            var x = x0+ix
+            var y = y0+iy
+            while ((x >= 0) && (x < level[0].length) && (y >= 0) && (y < level.length) && (energy > 0)) {
+				var tile = level[Math.floor(y)][Math.floor(x)]
+				
+                lx = x
+                ly = y
+                
+                var res = callback(tile, Math.floor(x), Math.floor(y))
+                result.push({x: Math.floor(x), y: Math.floor(y)})
+                if (res) {
+                    break
+                }
+                
+                x += ix
+                y += iy
+				energy--
+            }
+        }
+    }
+    
+    if (isNaN(lx) || isNaN(ly)) {
+        console.log("NaN on failover tracing " + lx + " " + ly + "; Path: " + path + "; NRG: " + initialEnergy)
+    }
+    
+    return result
 }
 
 function start() {
@@ -707,6 +1134,7 @@ function start() {
 }
 
 function pos(ndx, ndy, shifted) {
+    clearLastTracedPath()
     descriptions = []
     
     var npos = {x: player.pos.x, y: player.pos.y}
@@ -749,19 +1177,29 @@ function describe(x, y) {
             }
             
             if ("character" in tile) {
+                var additional = ""
+                
+                if (tile.character.aggro > 0) {
+                    if (tile.character.aggro > 25) {
+                        additional = " (Very aggressive)"
+                    } else {
+                        additional = " (Aggressive)"
+                    }
+                }
+                
                 if (("type" in tile.character) && (tile.character.type == 'ai')) {
                     if (tile.character.username) {
-                        description.push({text: (/(.*)N.*/).exec(tile.character.username).pop().trim()})
+                        description.push({text: (/(.*)[N]*.*/).exec(tile.character.username).pop().trim() + additional})
                     } else {
-                        description.push({text: "Unnamed enemy"})
+                        description.push({text: "Unnamed enemy" + additional})
                     }
                 } else {
                     if ((x == player.pos.x) && (y == player.pos.y)) {
-                        description.push({text: "Yourself"})
+                        description.push({text: "Yourself" + additional})
                     } else if (!tile.character.username) {
-                        description.push({text: "Player " + tile.character.username})
+                        description.push({text: "Player " + tile.character.username + additional})
                     } else {
-                        description.push({text: "A Player"})
+                        description.push({text: "A Player" + additional})
                     }
                 }
                 
@@ -831,13 +1269,33 @@ function describe(x, y) {
                 }
             }
             
-            //console.log(tile)
-            //console.log(descriptions)
-            
             desc.pos = [lastMove[0], lastMove[1] - description.length - 1]
             desc.lines = description
             
             descriptions.push(desc)
+            
+            var playerFiring = (typeof(player.firing) !== "undefined") && (player.firing !== "no")
+            if (!actionMenuShown && !playerFiring) {
+                var path = astarTraverse({attrs: playerAttrs}, {x: player.pos.x, y: player.pos.y}, {x: x, y: y})
+                if (path) {
+                    for (var i=0; i < path.length; i++) {
+                        var p = path[i]
+                        var tile = level[p.y][p.x]
+                        
+                        tile.hl = {t: turn, col: [255, 0, 0]}
+                    }
+                }
+            } else if (playerFiring) {
+                var path = bresenhamsTrace({attrs: playerAttrs}, {x: player.pos.x, y: player.pos.y}, {x: x, y: y}, currentWeapon.range || 0)
+                if (path) {
+                    for (var i=0; i < path.length; i++) {
+                        var p = path[i]
+                        var tile = level[p.y][p.x]
+                        
+                        tile.hl = {t: turn, col: [0, 255, 0]}
+                    }
+                }
+            }
         }
     }
 }
@@ -858,26 +1316,105 @@ function crouch() {
     })
 }
 
+function collectVisibleEnemies() {
+    var ret = {}
+    
+    for (var i=0; i < level.length; i++) {
+        var row = level[i]
+        for (var j=0; j < row.length; j++) {
+            var tile = row[j]
+            
+            if ((tile.turn == turn) && 
+                (typeof(tile.character) !== "undefined") && (tile.character.aggro > 0) &&
+                (typeof(tile.light) !== "undefined") && (Math.max(tile.light.color[0], tile.light.color[1], tile.light.color[2]) > 128)) {
+                ret[tile.character.username] = {trn: turn, x: j, y: i}
+            }
+        }
+    }
+    
+    return ret
+}
+
 var expectedPlayerPos
 var onReachCallback
+var lastEnemies = {}
 function tryMoveTowardsDestination() {
     descriptions = []
     
-    if ((destinationMovement != undefined)&&
-        ((expectedPlayerPos == undefined)||
+    if ((typeof(destinationPath) !== "undefined") && (destinationPath.length > 0)) {
+        // Retrace the path, everything could have changed
+        var lastStep = destinationPath[destinationPath.length - 1]
+        var newPath = astarTraverse({attrs: playerAttrs}, {x: player.pos.x, y: player.pos.y}, {x: lastStep.x, y: lastStep.y})
+        
+        destinationPath = newPath
+        
+        var newEnemiesVisible = collectVisibleEnemies()
+        var newEnemiesVisLean = {}
+        var hasNewEnemies = false
+        
+        for (x in newEnemiesVisible) {
+            newEnemiesVisLean[x] = newEnemiesVisible[x].trn
+            // Enemies still visible shouldn't affect processing
+            var nev = newEnemiesVisible.hasOwnProperty(x)
+            var lev = lastEnemies.hasOwnProperty(x)
+            
+            if (nev && lev) {
+                lastEnemies[x] = newEnemiesVisible[x].trn
+            } else if (nev && !lev) {
+                hasNewEnemies = true
+            }
+        }
+        
+        for (x in lastEnemies) {
+            // Enemies that aren't visible for a certain number of turns shouldn't affect processing
+            if ((turn - lastEnemies[x]) > 5) {
+                delete lastEnemies[x]
+            }
+        }
+        
+        if (hasNewEnemies) {
+            for (x in lastEnemies) {
+                delete newEnemiesVisible[x]
+            }
+            
+            for (x in newEnemiesVisible) {
+                var tile = level[newEnemiesVisible[x].y][newEnemiesVisible[x].x]
+                tile.hl = {t: turn, col: {"color": "FF2200", "cycle": "FFFF00", "msscale": 600}}
+            }
+            
+            for (x in newEnemiesVisLean) {
+                if (!lastEnemies.hasOwnProperty(x)) {
+                    lastEnemies[x] = newEnemiesVisLean[x]
+                }
+            }
+            destinationPath = undefined
+            
+            return
+        }
+        
+        if (typeof(destinationPath) === "undefined") {
+            return
+        }
+        
+        destinationMovement = destinationPath.shift()
+    }
+    
+    if ((typeof(destinationMovement) !== "undefined")&&
+        ((typeof(expectedPlayerPos) === "undefined")||
          ((expectedPlayerPos[0] == player.pos.x)&&
-          (expectedPlayerPos[1] == player.pos.y)) ) ) {
+          (expectedPlayerPos[1] == player.pos.y))||
+         (level[expectedPlayerPos[1]][expectedPlayerPos[0]].tile === 95)) ) {
         var dx = 0, dy = 0
         
-        if (player.pos.x < destinationMovement[0]) {
+        if (player.pos.x < destinationMovement.x) {
             dx = 1
-        } else if (player.pos.x > destinationMovement[0]) {
+        } else if (player.pos.x > destinationMovement.x) {
             dx = -1
         }
         
-        if (player.pos.y < destinationMovement[1]) {
+        if (player.pos.y < destinationMovement.y) {
             dy = 1
-        } else if (player.pos.y > destinationMovement[1]) {
+        } else if (player.pos.y > destinationMovement.y) {
             dy = -1
         }
         
@@ -972,6 +1509,10 @@ function inspect(idx) {
     })
 }
 
+function askShortcut(idx) {
+    askingShortcutIndex = idx
+}
+
 function grab() {
     descriptions = []
     
@@ -1014,6 +1555,7 @@ function fire(alternate, pos) {
         
         if (typeof(ntgt) !== "undefined") {
             lastMove = [ntgt.x, ntgt.y]
+            describe(ntgt.x + player.pos.x - player.cpos.x, ntgt.y + player.pos.y - player.cpos.y)
         }
         
     } else {
@@ -1070,6 +1612,7 @@ function activateInventory(idx) {
     actions.push({"text": "Drop"})
     actions.push({"text": "Unload"})
     actions.push({"text": "Inspect"})
+    actions.push({"text": "Shortcut"})
     actions.push({"text": "Close", "bg": {true: [192, 64, 64], false: [48, 0, 0]}})
     actionMenuShown = true
     actionMenuActions = actions
@@ -1160,27 +1703,74 @@ function drawInventory() {
         
         for (var i=0; i < inventoryList.length; i++) {
             var item = inventoryList[i]
-            var txt = ''
+            var txt = '[ ] '
             var fgcol = [0, 0, 0]
             
             if (item.type == 'ammo') {
-                txt = item.ammoType + ' (' + item.amount + ') x' + item.minDamageMult + '-' + item.maxDamageMult
+                var mults = ""
+                if ((item.minDamageMult != 1) || (item.maxDamageMult != 1)) {
+                    mults = 'x' + item.minDamageMult
+                    
+                    if (item.minDamageMult != item.maxDamageMult) {
+                        mults += '-' + item.maxDamageMult
+                    }
+                }
+                
+                txt += item.ammoType + ' (' + item.amount + ') ' + mults
                 fgcol = [153, 153, 0]
             } else if (item.type == 'weapon') {
-                txt = item.name + ' dmg: ' + item.damage[0] + '-' + item.damage[1] + ' (' + item.ammoType + ' ' + item.ammo + '/' + item.ammoMax+ ')'
+                var ammo = ""
+                if (item.ammoMax > 0) {
+                    ammo = ' (' + item.ammoType + ' ' + item.ammo + '/' + item.ammoMax+ ')'
+                }
+                txt += item.name + ' dmg: ' + item.damage[0] + '-' + item.damage[1] + ammo
                 fgcol = [221, 0, 0]
             } else {
-                txt = item.name
+                txt += item.name
                 fgcol = [64, 192, 0]
             }
             
-            drawAsciiText(1, 2 + i * 2, txt, fgcol, opsColsBg[i == inventoryIndex])
+            var bgCol = opsColsBg[i == inventoryIndex]
+            
+            if ((typeof(item.cssClass) !== "undefined") && (item.identified)) {
+                if (item.cssClass in colorMap) {
+                    fgcol = fgColorFromColorMapRule(colorMap[item.cssClass], i * 5)
+                }
+            } else if ((typeof(item.identified) !== "undefined") && !item.identified) {
+                fgcol = [255, 0, 0]
+                bgCol = {true: [128, 0, 0], false: [64, 0, 0]}[i == inventoryIndex]
+            }
+            
+            drawAsciiText(1, 2 + i * 2, txt, fgcol, bgCol)
+            terminal.setPixel(2, 2 + i * 2, item.pix, fgcol, bgCol)
             
             if (!actionMenuShown && (lastClick[0] != -1) && (lastClick[1] != -1) &&
                 (lastClick[0] == lastMove[0]) && (lastClick[1] == lastMove[1])&&
                 (inventoryIndex == i)) {
                 use()
                 lastClick = [-1, -1]
+            }
+        }
+        
+        if ((typeof(askingShortcutIndex) !== "undefined") && (askingShortcutIndex >= 0)) {
+            var bx = displaySizeX/2 - 24
+            var by = displaySizeY/2 - 16
+            var fgcol = [96, 255, 96]
+            var altfgcol = [96, 128, 255]
+            var bgcol = [32, 32, 32]
+            
+            var pulseVal = Math.floor((Math.sin(Date.now() / 100) +  1) * 24)
+            var pulseColor = [pulseVal, 32 + pulseVal, 32]
+            
+            drawBox(bx, by, 48, 32, bgcol)
+            
+            
+            drawAsciiText(displaySizeX/2 - 8, by + 1, "Select a Number:", fgcol, bgcol)
+            
+            for (var i=1; i <= 10; i++) {
+                var shrtItemName = "-- No item selected --"
+                drawAsciiText(displaySizeX/2 - 22, by + 3 + i * 2, "[" + (i % 10) + "] " + shrtItemName, fgcol, bgcol)
+                drawAsciiText(displaySizeX/2 - 22, by + 3 + i * 2, "[" + (i % 10) + "]", altfgcol, pulseColor)
             }
         }
     }
@@ -1296,14 +1886,15 @@ function waitTarget(fn) {
     }
 }
 
-function moveToDest(x, y, reachCallback) {
+function moveToDest(cx, cy, reachCallback) {
     descriptions = []
     
     if (player.cpos) {
-        var x = player.pos.x + (x - player.cpos.x)
-        var y = player.pos.y + (y - player.cpos.y)
+        var x = player.pos.x + (cx - player.cpos.x)
+        var y = player.pos.y + (cy - player.cpos.y)
         
         destinationMovement = [x, y]
+        destinationPath = astarTraverse({attrs: playerAttrs}, {x: player.pos.x, y: player.pos.y}, {x: x, y: y})
         
         onReachCallback = reachCallback
         tryMoveTowardsDestination()
@@ -1516,6 +2107,20 @@ function aberrateColor(col) {
         ]
     } else {
         return col
+    }
+}
+
+function drawBox(x, y, w, h, col) {
+    var y0 = Math.max(y, 0)
+    var x0 = Math.max(x, 0)
+    
+    var y1 = Math.min(y + h, displaySizeY)
+    var x1 = Math.min(x + w, displaySizeX)
+    
+    for (var j=y0; j < y1; j++) {
+        for (var i=x0; i < x1; i++) {
+            terminal.setPixel(i, j, 0, col, col)
+        }
     }
 }
 
@@ -2176,6 +2781,9 @@ var mouseActions = {
     "Inspect": function() { // Inventory action
         inspect(inventoryIndex)
     },
+    "Shortcut": function() { // Inventory action
+        askShortcut(inventoryIndex)
+    },
     "God mode": function() {
         cheat('god')
     },
@@ -2184,7 +2792,6 @@ var mouseActions = {
         cheat('showfsm', {x: x, y: y, id: nonce})
     }
 }
-
 
 function updateDisplayGameStarted() {
     var sx0 = Math.min(Math.max(player.pos.x - displaySizeX/2, 0), level[0].length - displaySizeX)
@@ -2204,7 +2811,7 @@ function updateDisplayGameStarted() {
             for (var x=0; x < displaySizeX; x++) {
                 var tile = levelRow[sx0 + x]
                 var shroud = false
-                var fg = "#AAAAAA"
+                var fg = hexToRGBArr("#AAAAAA")
                 var bg = undefined
                 var luma = undefined
                 var glyph = asciiMapping[" "]
@@ -2219,8 +2826,6 @@ function updateDisplayGameStarted() {
                 var cssClass = undefined
                 if (tile.particles.length > 0) {
                     var ti = 0
-                    
-                    // trail: {from: "DDDDDD", to: "222222", ttl: 200, num: 3, inherit: false, velocity: [-0.25, 0.25]}
                     
                     while (ti < tile.particles.length) {
                         var part = tile.particles[ti]
@@ -2281,14 +2886,18 @@ function updateDisplayGameStarted() {
                             glyph = tile.tile
                             
                             if (tile.fg) {
-                                fg = "#" + tile.fg
+                                fg = hexToRGBArr(tile.fg)
+                            } else {
+                                fg = [0xAA, 0xAA, 0xAA]
                             }
                             
                             cssClass = tile.cssClass
                         }
                         
                         if (tile.bg) {
-                            bg = "#" + tile.bg
+                            bg = hexToRGBArr(tile.bg)
+                        } else {
+                            bg = [0,0,0]
                         }
                         
                         hazardBackground = 'damage' in tile
@@ -2329,22 +2938,45 @@ function updateDisplayGameStarted() {
                 
                 var lgt = tile.light
                 if (shroud) {
-                    fg = "#181818"
+                    fg = hsvModulate(fg, 1.0, 0.0, 0.2) //"#181818"
                     
                     if (bg) {
-                        bg = "#000000"
+                        bg = hexToRGBArr("#000000")
                     }
                     
-                    lgt = undefined
+                    lgt = undefined //lgt.color = hsvModulate(lgt.color, 1.0, 0.0, 0.5)
+                }
+                
+                if ((typeof(tile.hl) !== "undefined") && (tile.hl.t == turn)) {
+                    if (typeof(tile.hl.col.color) != "undefined") {
+                        var nc = fgColorFromColorMapRule(tile.hl.col, 0)
+                        bg = mixRGB(bg, nc, 0.5)
+                        
+                        if (typeof(lgt) !== "undefined") {
+                            ncol = mixRGB(lgt.color, nc, 0.5)
+                        }
+                        
+                        lgt = {color: ncol, intensity: 0}
+                    } else {
+                        fg = mixRGB(fg, tile.hl.col, 0.5)
+                        bg = mixRGB(bg, tile.hl.col, 0.5)
+                        
+                        var ncol = tile.hl.col
+                        if (typeof(lgt) !== "undefined") {
+                            ncol = mixRGB(lgt.color, ncol, 0.5)
+                        }
+                        
+                        lgt = {color: ncol, intensity: 0}
+                    }
                 }
                 
                 terminal.setPixel(x, y, glyph, fg, bg, luma, lgt)
             }
         }
+        
+        updateAttrs()
+        updateLogs()
     }
-    
-    updateAttrs()
-    updateLogs()
 
     if ((typeof(playerAttrs) != "undefined") && (playerAttrs.hp.pos <= 0)) {
         actionMenuShown = false
@@ -2489,8 +3121,13 @@ function updateDisplayGameStarted() {
 
 }
 
-function drawConsoleBar(x, y, w, h, percent) {
-    var cols = [[255, 0, 0], [255, 255, 0], [0, 255, 0], [0, 0, 255]]
+function drawConsoleBar(x, y, w, h, percent, alpha) {
+    if (typeof(alpha) === "undefined") {
+        alpha = 1.0
+    }
+    
+    var cols = [[255, 0, 0], [255, 255, 0], [0, 255, 0], [0, 0, 255]].map(function(x) { return modulateAlpha(x, alpha) })
+    var grayBg = modulateAlpha([64, 64, 64], alpha)
     
     for (var iy=0; iy < h; iy++) {
         for (var ix=0; ix < w; ix++) {
@@ -2501,7 +3138,7 @@ function drawConsoleBar(x, y, w, h, percent) {
             if (p < percent) {
                 terminal.setPixel(x + ix, y + iy, 178, col, [0,0,0])
             } else {
-                terminal.setPixel(x + ix, y + iy, 178, [0,0,0], [64, 64, 64])
+                terminal.setPixel(x + ix, y + iy, 178, [0,0,0], grayBg)
             }
         }
     }
@@ -2567,6 +3204,37 @@ function drawRexSprite(x, y, spr) {
     return clicked
 }
 
+function drawRexSpriteAlpha(x, y, spr, alpha) {
+    if (typeof(alpha) === "undefined") {
+        alpha = 1.0
+    }
+    
+    var clicked = false
+    for (var l=0; l < spr.layers.length; l++) {
+        var layer = spr.layers[l]
+        
+        for (var iy=0; iy < layer.height; iy++) {
+            for (var ix=0; ix < layer.width; ix++) {
+                var ras = layer.raster[iy + ix * layer.height]
+                
+                if (!((ras.bg.r == 255) && (ras.bg.g == 0) && (ras.bg.b == 255))) {
+                    terminal.setPixel(x + ix, y + iy, ras.asciiCode,
+                        modulateAlpha([ras.fg.r, ras.fg.g, ras.fg.b], alpha),
+                        modulateAlpha([ras.bg.r, ras.bg.g, ras.bg.b], alpha))
+                        
+                    if ((lastClick[0] == (x + ix))&&(lastClick[1] == (y + iy))) {
+                        lastClick[0] = -1
+                        lastClick[1] = -1
+                        clicked = true
+                    }
+                }
+            }
+        }
+    }
+    
+    return clicked
+}
+
 function pruneWeaponName(name) {
     //return name.toLocaleLowerCase().replace(/\s/g, '')
     return name.replace(/\s/g, '')
@@ -2575,10 +3243,16 @@ function pruneWeaponName(name) {
 var lastAttrs = {}
 var tmstmpShowAllHud = 0
 function testAttrBeforeDraw(attrName, attrVal, fnDraw) {
-    if ((Date.now() - tmstmpShowAllHud) < 3000) {
-        fnDraw()
+    var dn = Date.now()
+    var tAll = (dn - tmstmpShowAllHud)
+    if (tAll < 3000) {
+        if (tAll < 2500) {
+            fnDraw(1.0)
+        } else {
+            fnDraw((3000 - tAll)/500)
+        }
     } else if (!(attrName in lastAttrs) || 
-        ((Date.now() - lastAttrs[attrName].timeChange) < 3000) ||
+        ((dn - lastAttrs[attrName].timeChange) < 3000) ||
         (lastAttrs[attrName].value !== attrVal)) {
         
         if (!(attrName in lastAttrs)) {
@@ -2588,13 +3262,23 @@ function testAttrBeforeDraw(attrName, attrVal, fnDraw) {
             lastAttrs[attrName].timeChange = Date.now()
         }
         
-        fnDraw()
+        if ((dn - lastAttrs[attrName].timeChange) < 2500) {
+            fnDraw(1.0)
+        } else {
+            var alpha = (3000 - (dn - lastAttrs[attrName].timeChange))/500
+            
+            fnDraw(alpha)
+        }
     }
+}
+
+function modulateAlpha(triad, alpha) {
+    return triad.map(function(comp) { return Math.floor(comp * alpha) })
 }
 
 function updateAttrs() {
     if (playerAttrs) {
-        var y = 2
+        var y = 0
         
         /*drawAsciiText(displaySizeX + 2, y, "Plyr. " + ownUsername, [0, 255, 0], [0, 0, 0])
         y += 2*/
@@ -2603,39 +3287,42 @@ function updateAttrs() {
             attrsDisplayX = 2
         }
         
-        testAttrBeforeDraw("hp", playerAttrs.hp.pos + "/" + playerAttrs.hp.max, function() {
-            drawAsciiText(attrsDisplayX, y, "HP " + pad(playerAttrs.hp.pos, 3) + "/" + playerAttrs.hp.max, [0, 255, 0], [0, 0, 0])
-            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.hp.pos / playerAttrs.hp.max)
+        /*testAttrBeforeDraw("hp", playerAttrs.hp.pos + "/" + playerAttrs.hp.max, function(alpha) {
+            drawAsciiText(attrsDisplayX, y, "HP " + pad(playerAttrs.hp.pos, 3) + "/" + playerAttrs.hp.max, modulateAlpha([0, 255, 0], alpha), [0, 0, 0])
+            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.hp.pos / playerAttrs.hp.max, alpha)
+            y += 2
+        })*/
+        drawAsciiText(attrsDisplayX, y, "HP " + pad(playerAttrs.hp.pos, 3) + "/" + playerAttrs.hp.max, [0, 255, 0], [0, 0, 0])
+        drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.hp.pos / playerAttrs.hp.max)
+        y += 2
+        
+        testAttrBeforeDraw("armor", playerAttrs.armor.pos + "/" + playerAttrs.armor.max, function(alpha) {
+            drawAsciiText(attrsDisplayX, y, "AR " + pad(playerAttrs.armor.pos, 3) + "/" + playerAttrs.armor.max, modulateAlpha([0, 255, 0], alpha), [0, 0, 0])
+            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.armor.pos / playerAttrs.armor.max, alpha)
             y += 2
         })
         
-        testAttrBeforeDraw("armor", playerAttrs.armor.pos + "/" + playerAttrs.armor.max, function() {
-            drawAsciiText(attrsDisplayX, y, "AR " + pad(playerAttrs.armor.pos, 3) + "/" + playerAttrs.armor.max, [0, 255, 0], [0, 0, 0])
-            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.armor.pos / playerAttrs.armor.max)
+        testAttrBeforeDraw("strength", playerAttrs.strength.pos + "/" + playerAttrs.strength.max, function(alpha) {
+            drawAsciiText(attrsDisplayX, y, "ST " + pad(playerAttrs.strength.pos, 3) + "/" + playerAttrs.strength.max, modulateAlpha([0, 255, 0], alpha), [0, 0, 0])
+            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.strength.pos / playerAttrs.strength.max, alpha)
             y += 2
         })
         
-        testAttrBeforeDraw("strength", playerAttrs.strength.pos + "/" + playerAttrs.strength.max, function() {
-            drawAsciiText(attrsDisplayX, y, "ST " + pad(playerAttrs.strength.pos, 3) + "/" + playerAttrs.strength.max, [0, 255, 0], [0, 0, 0])
-            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.strength.pos / playerAttrs.strength.max)
+        testAttrBeforeDraw("precision", playerAttrs.precision.pos + "/" + playerAttrs.precision.max, function(alpha) {
+            drawAsciiText(attrsDisplayX, y, "PR " + pad(playerAttrs.precision.pos, 3) + "/" + playerAttrs.precision.max, modulateAlpha([0, 255, 0], alpha), [0, 0, 0])
+            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.precision.pos / playerAttrs.precision.max, alpha)
             y += 2
         })
         
-        testAttrBeforeDraw("precision", playerAttrs.precision.pos + "/" + playerAttrs.precision.max, function() {
-            drawAsciiText(attrsDisplayX, y, "PR " + pad(playerAttrs.precision.pos, 3) + "/" + playerAttrs.precision.max, [0, 255, 0], [0, 0, 0])
-            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.precision.pos / playerAttrs.precision.max)
+        testAttrBeforeDraw("speed", playerAttrs.speed.pos + "/" + playerAttrs.speed.max, function(alpha) {
+            drawAsciiText(attrsDisplayX, y, "PR " + pad(playerAttrs.speed.pos, 3) + "/" + playerAttrs.speed.max, modulateAlpha([0, 255, 0], alpha), [0, 0, 0])
+            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.speed.pos / playerAttrs.speed.max, alpha)
             y += 2
         })
         
-        testAttrBeforeDraw("speed", playerAttrs.speed.pos + "/" + playerAttrs.speed.max, function() {
-            drawAsciiText(attrsDisplayX, y, "PR " + pad(playerAttrs.speed.pos, 3) + "/" + playerAttrs.speed.max, [0, 255, 0], [0, 0, 0])
-            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.speed.pos / playerAttrs.speed.max)
-            y += 2
-        })
-        
-        testAttrBeforeDraw("battery", Math.round(playerAttrs.battery), function() {
-            drawAsciiText(attrsDisplayX, y, "BAT " + pad(Math.round(playerAttrs.battery), 3), [0, 255, 0], [0, 0, 0])
-            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.battery / 100)
+        testAttrBeforeDraw("battery", Math.round(playerAttrs.battery), function(alpha) {
+            drawAsciiText(attrsDisplayX, y, "BAT " + pad(Math.round(playerAttrs.battery), 3), modulateAlpha([0, 255, 0], alpha), [0, 0, 0])
+            drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.battery / 100, alpha)
             y += 2
         })
         
@@ -2648,51 +3335,63 @@ function updateAttrs() {
             firingAlternate = player.firing == "alternate"
         }
         
-        testAttrBeforeDraw("weaponname", currentWeapon.name, function() {
-            drawAsciiText(attrsDisplayX, y, "Weapon", [0, 255, 0], [0, 0, 0])
+        testAttrBeforeDraw("weaponname", currentWeapon.name, function(alpha) {
+            drawAsciiText(attrsDisplayX, y, "Weapon", modulateAlpha([0, 255, 0], alpha), [0, 0, 0])
             y += 2
-            drawAsciiText(attrsDisplayX, y, currentWeapon.name, [0, 255, 0], [0, 0, 0])
+            drawAsciiText(attrsDisplayX, y, currentWeapon.name, modulateAlpha([0, 255, 0], alpha), [0, 0, 0])
             y++
         })
         
         var bgColor = firingPrimary?[128, 128, 0]:[0, 0, 0]
         if (typeof(currentWeapon.ammoType) !== "undefined") {
-            testAttrBeforeDraw("weaponammotype", currentWeapon.ammoType + firingPrimary, function() {
-                drawAsciiText(attrsDisplayX, y, padR(currentWeapon.ammoType, 30), [0, 255, 0], bgColor)
+            /*testAttrBeforeDraw("weaponammotype", currentWeapon.ammoType + firingPrimary, function(alpha) {
+                drawAsciiText(attrsDisplayX, y, padR(currentWeapon.ammoType, 30), modulateAlpha([0, 255, 0], alpha), modulateAlpha(bgColor, alpha))
                 y++
-            })
+            })*/
+            drawAsciiText(attrsDisplayX, y, padR(currentWeapon.ammoType, 30), [0, 255, 0], bgColor)
+            y++
         }
         
         if (currentWeapon.ammoMax !== 0) {
-            testAttrBeforeDraw("weaponammoamnt", currentWeapon.ammo + "/" + currentWeapon.ammoMax, function() {
+            /*testAttrBeforeDraw("weaponammoamnt", currentWeapon.ammo + "/" + currentWeapon.ammoMax, function(alpha) {
                 var ammoStr = "Ammo " + pad(currentWeapon.ammo, 3) + "/" + currentWeapon.ammoMax
-                drawAsciiText(attrsDisplayX, y, padR(ammoStr, 30), [0, 255, 0], bgColor)
-                drawConsoleBar(attrsDisplayX + 15, y, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax)
+                drawAsciiText(attrsDisplayX, y, padR(ammoStr, 30), modulateAlpha([0, 255, 0], alpha), modulateAlpha(bgColor, alpha))
+                drawConsoleBar(attrsDisplayX + 15, y, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax, alpha)
                 y++
-            })
+            })*/
+            var ammoStr = "Ammo " + pad(currentWeapon.ammo, 3) + "/" + currentWeapon.ammoMax
+            drawAsciiText(attrsDisplayX, y, padR(ammoStr, 30), [0, 255, 0], bgColor)
+            drawConsoleBar(attrsDisplayX + 15, y, 10, 1, currentWeapon.ammo / currentWeapon.ammoMax)
+            y++
         }
         
-        testAttrBeforeDraw("weapondmg", currentWeapon.ammo + "/" + currentWeapon.ammoMax, function() {
-            drawAsciiText(attrsDisplayX, y, "Dmg. " + currentWeapon.damage[0] + " - " + currentWeapon.damage[1], [0, 255, 0], [0, 0, 0])
+        testAttrBeforeDraw("weapondmg", currentWeapon.ammo + "/" + currentWeapon.ammoMax, function(alpha) {
+            drawAsciiText(attrsDisplayX, y, "Dmg. " + currentWeapon.damage[0] + " - " + currentWeapon.damage[1], modulateAlpha([0, 255, 0], alpha), [0, 0, 0])
                 y++
         })
             
 		if (currentWeapon.alternate) {
             bgColor = firingAlternate?[128, 128, 0]:[0, 0, 0]
             if (typeof(currentWeapon.alternate.ammoType) !== "undefined") {
-                testAttrBeforeDraw("weaponaltammotype", currentWeapon.alternate.ammoType + firingAlternate, function() {
-                    drawAsciiText(attrsDisplayX, y, padR(currentWeapon.alternate.ammoType, 30), [0, 255, 128], bgColor)
+                /*testAttrBeforeDraw("weaponaltammotype", currentWeapon.alternate.ammoType + firingAlternate, function(alpha) {
+                    drawAsciiText(attrsDisplayX, y, padR(currentWeapon.alternate.ammoType, 30), modulateAlpha([0, 255, 128], alpha), modulateAlpha(bgColor, alpha))
                     y++
-                })
+                })*/
+                drawAsciiText(attrsDisplayX, y, padR(currentWeapon.alternate.ammoType, 30), [0, 255, 128], bgColor)
+                y++
             }
             
             if (currentWeapon.alternate.ammoMax !== 0) {
-                testAttrBeforeDraw("weaponaltammoamnt", currentWeapon.alternate.ammo + "/" + currentWeapon.alternate.ammoMax, function() {
-                    ammoStr = "Ammo " + pad(currentWeapon.alternate.ammo, 3) + "/" + currentWeapon.alternate.ammoMax
-                    drawAsciiText(attrsDisplayX, y, padR(ammoStr, 30), [0, 255, 128], bgColor)
-                    drawConsoleBar(attrsDisplayX + 15, y, 10, 1, currentWeapon.alternate.ammo / currentWeapon.alternate.ammoMax)
+                /*testAttrBeforeDraw("weaponaltammoamnt", currentWeapon.alternate.ammo + "/" + currentWeapon.alternate.ammoMax, function(alpha) {
+                    var ammoStr = "Ammo " + pad(currentWeapon.alternate.ammo, 3) + "/" + currentWeapon.alternate.ammoMax
+                    drawAsciiText(attrsDisplayX, y, padR(ammoStr, 30), modulateAlpha([0, 255, 128], alpha), modulateAlpha(bgColor, alpha))
+                    drawConsoleBar(attrsDisplayX + 15, y, 10, 1, currentWeapon.alternate.ammo / currentWeapon.alternate.ammoMax, alpha)
                     y++
-                })
+                })*/
+                var ammoStr = "Ammo " + pad(currentWeapon.alternate.ammo, 3) + "/" + currentWeapon.alternate.ammoMax
+                drawAsciiText(attrsDisplayX, y, padR(ammoStr, 30), [0, 255, 128], bgColor)
+                drawConsoleBar(attrsDisplayX + 15, y, 10, 1, currentWeapon.alternate.ammo / currentWeapon.alternate.ammoMax)
+                y++
             }
 		}
 		
@@ -2715,14 +3414,14 @@ function updateAttrs() {
         } else if (weaponSprites[currentWeapon.id]) {
             var spr = weaponSprites[currentWeapon.id]
             
-            testAttrBeforeDraw("weaponsprite", currentWeapon.id, function() {
-                drawRexSprite(attrsDisplayX, y, spr)
+            testAttrBeforeDraw("weaponsprite", currentWeapon.id, function(alpha) {
+                drawRexSpriteAlpha(attrsDisplayX, y, spr, alpha)
             })
         } else if (currentWeapon.name in weaponSprites) {
             var spr = weaponSprites[currentWeapon.name]
             
-            testAttrBeforeDraw("weaponsprite", currentWeapon.name, function() {
-                drawRexSprite(attrsDisplayX, y, spr)
+            testAttrBeforeDraw("weaponsprite", currentWeapon.name, function(alpha) {
+                drawRexSpriteAlpha(attrsDisplayX, y, spr, alpha)
             })
         }
         
@@ -2766,7 +3465,9 @@ function updateLogs() {
         if (player.cpos.x > (displaySizeX / 2)) {
             rightJustified = true
             px = displaySizeX - 1
-        } else if (player.cpos.y <= 20) {
+        } 
+        
+        if (player.cpos.y <= 20) {
             py = displaySizeY - 1
             dy = -1
         }
@@ -2774,12 +3475,17 @@ function updateLogs() {
     
     for (var i=0; i < announcements.length; i++) {
         var ann = announcements[i]
-        if ((Date.now() - ann.tmstmp) < 3000) {
+        var t = Date.now() - ann.tmstmp
+        if (t < 3000) {
             var nx = px
             if (rightJustified) {
                 nx -= ann.msg.length
             }
-            drawAsciiText(nx, py, ann.msg, [64, 200, 64], [0, 0, 0])
+            var fgCol = [64, 200, 64]
+            if (t >= 2500) {
+                fgCol = modulateAlpha(fgCol, (3000 - t)/500)
+            }
+            drawAsciiText(nx, py, ann.msg, fgCol, [0, 0, 0])
             py += dy
         }
     }
@@ -3001,6 +3707,10 @@ var handlers = {
         
         if ("damaged" in obj) {
             showDamage = obj.damaged?30:0
+            
+            if ((typeof(destinationPath) !== "undefined") && (destinationPath.length > 0)) {
+                destinationPath = undefined
+            }
         }
         
         if ("inventory" in obj) {
@@ -3221,6 +3931,7 @@ var fnCommands = {
                 moveCell(lastMove[0], Math.max(0, lastMove[1] - 1))
                 return "cursor"
             } else {
+                destinationPath = undefined
                 pos(0, -1, shift)
             }
         } else {
@@ -3240,6 +3951,7 @@ var fnCommands = {
                 moveCell(lastMove[0], Math.min(displaySizeY - 1, lastMove[1] + 1))
                 return "cursor"
             } else {
+                destinationPath = undefined
                 pos(0, 1, shift)
             }
         } else {
@@ -3255,6 +3967,7 @@ var fnCommands = {
             } else if (actionMenuShown) {
                 // Do nothing
             } else {
+                destinationPath = undefined
                 pos(-1, 0, shift)
             }
         }
@@ -3268,6 +3981,7 @@ var fnCommands = {
             } else if (actionMenuShown) {
                 // Do nothing
             } else {
+                destinationPath = undefined
                 pos(1, 0, shift)
             }
         }
@@ -3281,6 +3995,7 @@ var fnCommands = {
             } else if (actionMenuShown) {
                 // Do nothing
             } else {
+                destinationPath = undefined
                 pos(-1, -1, shift)
             }
         }
@@ -3294,6 +4009,7 @@ var fnCommands = {
             } else if (actionMenuShown) {
                 // Do nothing
             } else {
+                destinationPath = undefined
                 pos(1, -1, shift)
             }
         }
@@ -3307,6 +4023,7 @@ var fnCommands = {
             } else if (actionMenuShown) {
                 // Do nothing
             } else {
+                destinationPath = undefined
                 pos(1, 1, shift)
             }
         }
@@ -3320,6 +4037,7 @@ var fnCommands = {
             } else if (actionMenuShown) {
                 // Do nothing
             } else {
+                destinationPath = undefined
                 pos(-1, 1, shift)
             }
         }
@@ -3329,6 +4047,7 @@ var fnCommands = {
         } else if (actionMenuShown) {
             // Do nothing
         } else {
+            destinationPath = undefined
             pos(0, 0, shift)
         }
     },
@@ -3821,7 +4540,7 @@ $(document).ready(function () {
                 event.preventDefault()
             }
             
-            if (res != "cursor") {
+            if ((res != "cursor") && (k !== "Shift")) {
                 lastMove[0] = -1
                 lastMove[1] = -1
                 

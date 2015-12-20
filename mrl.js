@@ -390,6 +390,64 @@ function blinkEventConstructor() {
     }
 }
 
+function leetAmmoEventConstructor() {
+    var levelGen = sessionRandom.child('level')
+    var itemGen = levelGen.child('item-placement')
+    var numItems = itemGen.random()*10 + 2
+    var itemList = []
+    while (numItems > 0) {
+        var nitm = items[Math.floor(itemGen.random() * items.length)].clone()
+        if (nitm.type == 'weapon') {
+            nitm.findChargerAndAssign(items)
+        }
+        itemList.push(nitm)
+        numItems--
+    }
+    
+    return function (t, c) {
+        while (itemList.length > 0) {
+            var nitm = itemList.shift()
+            
+            var itemDropped = false
+            var sqRad = 1
+            
+            while (!itemDropped) {
+                var x = c.player.pos.x + itemGen.randomInt(-sqRad, sqRad)
+                var y = c.player.pos.y + itemGen.randomInt(-sqRad, sqRad)
+                
+                if ((y >= 0) && (y < level.length) && (x >= 0) && (x < level[0].length)) {
+                    var t = level[y][x]
+                    if (passable(t)) {
+                        t.item = nitm
+                        itemDropped = true
+                    }
+                }
+                
+                sqRad++
+            }
+        }
+        c.player.messages.push("Sweet loot found!")
+        
+        return true
+    }
+}
+
+function adrenalineStationEventConstructor() {
+    var charges = 3
+    
+    return function (t, c) {
+        
+        c.player.attrs.suPow = 100
+        c.player.attrs.suPowWait = 0
+        
+        charges--
+        
+        c.player.messages.push("Adrenaline station: One dose administered, charges left " + charges)
+        
+        return charges <= 0
+    }
+}
+
 var leverEvents = [
         poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "lava", {damage: gameDefs.lavaDamage, lightsource: [{intensity: 2, color: [255, 128, 0]}]}),
         poolSpawnEventConstructor(asciiMapping["≈"], gameDefs.spawnPoolMaxRadius, "acid", {damage: gameDefs.acidDamage, lightsource: [{intensity: 2, color: [0, 255, 0]}]}),
@@ -398,17 +456,22 @@ var leverEvents = [
         wallExplosionEventConstructor,
         monsterSpawnEventConstructor,
         function () {
+            var charges = 3
             return function (t, c) {
                 if (c.player.attrs.hp.pos < c.player.attrs.hp.max) {
-                    c.player.messages.push("You feel restored!")
+                    c.player.messages.push("Health station: You feel restored!")
                     c.player.attrs.hp.pos = Math.min(c.player.attrs.hp.pos + 50, c.player.attrs.hp.max)
+                    charges--
+                    return charges <= 0
                 } else {
                     c.player.messages.push("Health station: No need to heal")
                     return false
                 }
             }
         },
-        blinkEventConstructor
+        blinkEventConstructor,
+        leetAmmoEventConstructor,
+        adrenalineStationEventConstructor
     ]
 
 /**
@@ -1100,7 +1163,7 @@ function resetLevel() {
     var riverTiles = [
         [asciiMapping['~'], 'water', null, undefined],
         [asciiMapping['≈'], 'acid', 1, {intensity: 2, color: [53, 168, 46]}],
-        [asciiMapping['≈'], 'lava', 5, {intensity: 3, color: [202, 96, 34]}]]
+        [asciiMapping['≈'], 'lava', 5, {intensity: 2, color: [32, 0, 0]}]]
     
     var levelGen = sessionRandom.child('level')
     var riverGen = levelGen.child('river-placement')
@@ -1536,6 +1599,7 @@ function _processTurnIfAvailable_priv_() {
         return a.player.wait < b.player.wait
     })
     
+    var hasPlayerPlayed = false
     while ((agentList.length > 0) && (nturns < 10)) {
         while ((agentList.length > 0) && (nturns < 10) && (!somethingHappened)) { // Only wait 10 turns before bailing out
             if (agentList[0].player.wait > 0) {
@@ -1572,6 +1636,14 @@ function _processTurnIfAvailable_priv_() {
                         agentList = orderedInsert(agent, agentList)
                     }
                 }
+                
+                if (agent.player.type === "player") {
+                    hasPlayerPlayed = true
+                }
+            }
+            
+            if ((nturns >= 10) && (!hasPlayerPlayed)) {
+                nturns = 9
             }
         }
 
@@ -1763,7 +1835,7 @@ function traceable(x0, y0, x1, y1) {
 }
 
 var trimTileProperties = ["astarIteration", "forcePassable", "lightsource"]
-function tidyTile(tl) {
+function tidyTile(tl, player) {
     var o = {}
     for (k in tl) {
         if (tl.hasOwnProperty(k) && (trimTileProperties.indexOf(k) < 0)) {
@@ -1772,11 +1844,18 @@ function tidyTile(tl) {
             if ((v != null)&&(!(v instanceof Function))) {
                 if (k == "character") {
                     // Don't reveal everything to the client about characters
+                    var fscore = 0
+                    
+                    if (typeof(v.attrs) !== "undefined") {
+                        fscore = aiState.factionScore(v.attrs.faction, player.attrs.faction)
+                    }
+                    
                     o[k] = {
                         pix: v.pix,
                         color: v.color,
                         username: v.username,
-                        type: v.type
+                        type: v.type,
+                        aggro: fscore
                     }
                 } else {
                     o[k] = v
@@ -1784,6 +1863,7 @@ function tidyTile(tl) {
             }
         }
     }
+    o.pss = passable(tl)
     
     return o
 }
@@ -1879,12 +1959,12 @@ function sendScopeToClient(ws) {
             
             if (dd <= tfov_sq) {
                 if ((dd <= clairvoyanceDistSq) || traceable(x, y, ws.player.pos.x, ws.player.pos.y)) {
-                    row[x - (ws.player.pos.x - tfov)] = tidyTile(tile)
+                    row[x - (ws.player.pos.x - tfov)] = tidyTile(tile, ws.player)
                 }
             } else if ((dd <= organicSense) && (typeof(tile.character) !== "undefined") && (tile.character != null) && (tile.character.attrs.kind == "organic")) {
-                row[x - (ws.player.pos.x - tfov)] = tidyTile(tile)
+                row[x - (ws.player.pos.x - tfov)] = tidyTile(tile, ws.player)
             } else if ((dd <= roboticSense) && (typeof(tile.character) !== "undefined") && (tile.character != null) && (tile.character.attrs.kind == "robotic")) {
-                row[x - (ws.player.pos.x - tfov)] = tidyTile(tile)
+                row[x - (ws.player.pos.x - tfov)] = tidyTile(tile, ws.player)
             }
         }
         

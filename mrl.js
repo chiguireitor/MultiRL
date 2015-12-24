@@ -65,6 +65,7 @@ var comms = require('./comms.js')
 var soundManager = require('./soundman.js').getManager()
 var determinist = require('./determinist.js')
 var lightmanager = require('./lightmanager.js')
+var logicBricks = require('./logicbricks.js')
 
 var util = require('./util.js')
 
@@ -1011,7 +1012,7 @@ function applyPlayerClassBonusesAndPenalties(player) {
         player.attrs.armor.max = 200
         player.attrs.strength.pos = 50
         player.attrs.precision.max = 30
-        player.attrs.speed.max = 80
+        player.attrs.speed.max = 50
     } else if (player.player_class == 'sniper') {
         defaultWeapon = "xM50 Rifle"
         defaultCharger = "7.62x54mm bullets"
@@ -1029,7 +1030,7 @@ function applyPlayerClassBonusesAndPenalties(player) {
         player.attrs.hp.max -= 30
         
         player.attrs.armor.max = 50
-        player.attrs.precision.max = 200
+        player.attrs.precision.max = 130
         player.attrs.speed.max = 200
     } else if (player.player_class == 'civil') {
         player.attrs.hp.pos = 50
@@ -1093,6 +1094,7 @@ function init(session) {
     weapons.registerPassableFn(passable)
     weapons.registerLevel(level)
     weapons.registerGenerator(sessionRandom.child('weapons'))
+    logicBricks.registerPassableFn(passable)
     util.registerGenerator(sessionRandom.child('util'))
     effects.registerGenerator(sessionRandom.child('effects'))
     items.registerGenerator(sessionRandom.child('level').child('items'))
@@ -1120,7 +1122,7 @@ function resetLevel() {
 
     lightmanager.assignLevel(level)
     
-    var levelType = sessionRandom.child('level-session').randomIntRange(3)
+    var levelType = -1 //sessionRandom.child('level-session').randomIntRange(3)
     if (levelType == -1) {
         levelTileset = "base"
         generators.testLevel(sessionRandom.child('level'), level,
@@ -1650,6 +1652,7 @@ function _processTurnIfAvailable_priv_() {
         somethingHappened = false
     }
     
+    logicBricks.processLevel(level, nextTurnId)
     lightmanager.calculateLighting(nextTurnId)
 
     for (var i in wss.clients) {
@@ -1857,6 +1860,9 @@ function tidyTile(tl, player) {
                         type: v.type,
                         aggro: fscore
                     }
+                } else if (k == "brick") {
+                    // Can see only if certain class with certain attributes
+                    // TODO: Tech must transmit bricks
                 } else {
                     o[k] = v
                 }

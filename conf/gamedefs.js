@@ -51,7 +51,7 @@ module.exports = {
     plasmaDamage: 15,
     lavaDamage: 5,
     acidDamage: 1,
-    allowCheating: false,
+    allowCheating: true,
     spawnPoolMaxRadius: 8,
 	proneToHit: 0.2,
 	crouchToHit: 0.6,
@@ -84,6 +84,6 @@ module.exports = {
         minNumberItems: 35,
         randomNumberItems: 35, // This gets multiplied by the level number
         numSpritesToTryFit: 50, // How much sprites the level generator will try to fit
-        numEnemies: 20, // Number of enemies to keep alive at all times
+        numEnemies: 30, // Number of enemies to keep alive at all times
     }
 }

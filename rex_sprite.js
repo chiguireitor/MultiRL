@@ -247,6 +247,61 @@ RexSprite.prototype.draw = function(level, x, y) {
                                     levelPixel.damageExplode = 255-logicBrick.fg.g // FG Green channel determines the damage dealt when exploding
                                     levelPixel.damageRadius = 255-logicBrick.fg.r // FG Red channel determines the explosion radius
                                     levelPixel.tileHealth = 255-logicBrick.fg.b // FG Blue channel determines the tile health
+                                } else if (logicBrick.asciiCode == 98) { // Button
+                                    levelPixel.brick = {type: "button", userActivable: true}
+                                } else if (logicBrick.asciiCode == 99) { // Compactor right
+                                    levelPixel.brick = {type: "compactor", dx: 1, dy: 0, replacementPix: 196}
+                                } else if (logicBrick.asciiCode == 100) { // Compactor left
+                                    levelPixel.brick = {type: "compactor", dx: -1, dy: 0, replacementPix: 196}
+                                } else if (logicBrick.asciiCode == 101) { // Compactor down
+                                    levelPixel.brick = {type: "compactor", dx: 0, dy: 1, replacementPix: 179}
+                                } else if (logicBrick.asciiCode == 102) { // Compactor up
+                                    levelPixel.brick = {type: "compactor", dx: 0, dy: -1, replacementPix: 179}
+                                } else if (logicBrick.asciiCode == 114) { // Spike trap
+                                    levelPixel.brick = {type: "spikes"}
+                                } else if (logicBrick.asciiCode == 118) { // Conveyor up
+                                    levelPixel.brick = {type: "conveyor", dx: 0, dy: -1}
+                                } else if (logicBrick.asciiCode == 117) { // Conveyor down
+                                    levelPixel.brick = {type: "conveyor", dx: 0, dy: 1}
+                                } else if (logicBrick.asciiCode == 115) { // Conveyor right
+                                    levelPixel.brick = {type: "conveyor", dx: 1, dy: 0}
+                                } else if (logicBrick.asciiCode == 116) { // Conveyor left
+                                    levelPixel.brick = {type: "conveyor", dx: -1, dy: 0}
+                                } else if (logicBrick.asciiCode == 103) { // Item dispenser
+                                    levelPixel.brick = {type: "itemdisp", amount: logicBrick.r}
+                                } else if (logicBrick.asciiCode == 104) { // Recycler
+                                    levelPixel.brick = {type: "recycler"}
+                                } else if (logicBrick.asciiCode == 105) { // Terminal
+                                    levelPixel.brick = {type: "terminal", userActivable: true}
+                                } else if (logicBrick.asciiCode == 106) { // Optional Item
+                                    levelPixel.brick = {type: "itemopt"}
+                                } else if (logicBrick.asciiCode == 119) { // Wire
+                                    levelPixel.brick = {type: "wire", conductor: true}
+                                } else if (logicBrick.asciiCode == 120) { // Timer
+                                    levelPixel.brick = {type: "timer", delay: logicBrick.r, repeat: logicBrick.g, conductor: true}
+                                } else if (logicBrick.asciiCode == 121) { // Power source
+                                    levelPixel.brick = {type: "power", powerable: true, status: "off"}
+                                } else if (logicBrick.asciiCode == 87) { // Initially ON Switch
+                                    levelPixel.brick = {type: "switch", status: "on", userActivable: true}
+                                } else if (logicBrick.asciiCode == 88) { // Initially OFF Switch
+                                    levelPixel.brick = {type: "switch", status: "off", userActivable: true}
+                                } else if (logicBrick.asciiCode == 82) { // Pressure plate
+                                    levelPixel.brick = {type: "switch", status: "off", walkActivable: true}
+                                    
+                                    if ((logicBrick.fg.g == 255) && (logicBrick.fg.r == 0)) {
+                                        levelPixel.brick.onlyon = true
+                                    } else if ((logicBrick.fg.g == 0) && (logicBrick.fg.r == 255)) {
+                                        levelPixel.brick.onlyoff = true
+                                        levelPixel.brick.status = "on"
+                                    }
+                                } else if (logicBrick.asciiCode == 83) { // Fire trap right
+                                    levelPixel.brick = {type: "fire", status: "off", dx: 1, dy: 0, cooldown: 3, weapon: "H80 RPG Launcher", ammo: "infinite"}
+                                } else if (logicBrick.asciiCode == 84) { // Fire trap left
+                                    levelPixel.brick = {type: "fire", status: "off", dx: -1, dy: 0, cooldown: 3, weapon: "H80 RPG Launcher", ammo: "infinite"}
+                                } else if (logicBrick.asciiCode == 85) { // Fire trap down
+                                    levelPixel.brick = {type: "fire", status: "off", dx: 0, dy: 1, cooldown: 3, weapon: "H80 RPG Launcher", ammo: "infinite"}
+                                } else if (logicBrick.asciiCode == 86) { // Fire trap up
+                                    levelPixel.brick = {type: "fire", status: "off", dx: 0, dy: -1, cooldown: 3, weapon: "H80 RPG Launcher", ammo: "infinite"}
                                 }
                             }
                         }

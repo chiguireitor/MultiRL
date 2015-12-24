@@ -558,7 +558,17 @@ function processSemiturn(params) {
             somethingHappened = true
             
             var t = level[cli.player.pos.y][cli.player.pos.x]
-            if (t.tile in usableTiles) {
+            if ((typeof(t.brick) !== "undefined") && (t.brick.userActivable)) {
+                if (t.brick.onlyoff) {
+                    t.brick.status = "off"
+                } else if (t.brick.onlyon) {
+                    t.brick.status = "on"
+                } else if ((typeof(t.brick.status) === "undefined") || (t.brick.status === "off")) {
+                    t.brick.status = "on"
+                } else {
+                    t.brick.status = "off"
+                }
+            } else if (t.tile in usableTiles) {
                 usableTiles[t.tile](t, cli)
             }
         } else if ((typeof(cli.grabTile) != "undefined") && (cli.grabTile)) {
@@ -645,7 +655,17 @@ function processSemiturn(params) {
             var ctl = level[cli.player.pos.y][cli.player.pos.x]
             cli.player.idleCounter++
             
-            if (ctl.tile in activableTiles) {
+            if ((typeof(ctl.brick) !== "undefined") && (ctl.brick.walkActivable)) {
+                if (ctl.brick.onlyoff) {
+                    ctl.brick.status = "off"
+                } else if (ctl.brick.onlyon) {
+                    ctl.brick.status = "on"
+                } else if ((typeof(ctl.brick.status) === "undefined") || (ctl.brick.status === "off")) {
+                    ctl.brick.status = "on"
+                } else {
+                    ctl.brick.status = "off"
+                }
+            } else if (ctl.tile in activableTiles) {
                 somethingHappened = true
                 activableTiles[ctl.tile](ctl, cli)
             } else if ((cli.player.idleCounter > gameDefs.spyIdleCounter) && (cli.player.player_class == 'spy')) {
@@ -915,6 +935,8 @@ function bresenhamsEvaluate(level, x0, y0, x1, y1, energy, callback) {
     
     if (isNaN(lx) || isNaN(ly)) {
         console.log("NaN on failover tracing " + lx + " " + ly + "; Path: " + path + "; NRG: " + initialEnergy)
+    } else if (result.length == 0) {
+        result.push({x: lx, y: ly})
     }
     
     return result

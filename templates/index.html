@@ -609,6 +609,12 @@ function mixRGB(a, b, t) {
     }
 }
 
+function sumRGB(a, b) {
+    if ((typeof(a) !== "undefined") && (typeof(b) !== "undefined") && a.map && b.map) {
+        return a.map(function(x, i) { return Math.min(255, x + b[i]) })
+    }
+}
+
 function hexToRGBArr(hex) {
     if (typeof(hex) !== "undefined") {
         var v = parseInt(hex, 16)
@@ -689,19 +695,192 @@ var keybindingsMenuIdentifier = ["Left", "Right", "Up", "Down", "UpLeft", "DownL
 var keyBindingNames = ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
             
 var playerClasses = [
-        {id: "marine", name: "Marine", description: "Most versatile class, without too much bonuses"},
-        {id: "heavy", name: "Heavy Weapons", description: "Has bonuses on chainguns and rocket launchers"},
-        {id: "swords", name: "Swordmaster", description: "Masters all knife-like weapons, from a butter knife to a lightsaber"},
-        {id: "melee", name: "Melee", description: "Pipes, bats, power-fists and bare fists. Everything that's close up and personal is best suited for this one"},
-        {id: "tech", name: "Technician", description: "Can repair doors and computers"},
-        {id: "engy", name: "Engineer", description: "Can hack computers and robots"},
-        {id: "medic", name: "Medic", description: "Can heal nearby party members"},
-        {id: "spy", name: "Spy", description: "Disappears when not moving for 3 turns"},
-        {id: "explo", name: "Explosives", description: "Can arm/disarm bombs, mines and explosive traps"},
-        {id: "sniper", name: "Sniper", description: "Can see farther than any class and has natural precision"},
-        {id: "psychic", name: "Psychic", description: "Can resist psychic attacks and in some cases, control enemies"},
-        {id: "civil", name: "Civilian", description: "Hardest, craziest way to play the game"},
+        {id: "marine", name: "Marine", description: "Sturdy marines are hard to come by, most people that get enlisted have low IQs and are rather dumb, they think this job is just pulling the trigger and kissing your day bye bye. You have trained to the point that reloading and firing is second nature to you. Also, you ate all your veggies as a kid and so have great health."},
+        {id: "heavy", name: "Heavy Weapons", description: "A powered suit needs a lot of strength and a good body build. These qualities, plus the fact that you love barbeque, made you a perfect fit for heavy weaponry. Also, you spent like half a day on the gym for 5 years, so if you say the ammo fits, it fits. Besides, this was the armor that had included 'bathroom' in it, so you don't have to go to the potty so frequently."},
+        {id: "swords", name: "Swordmaster", description: "Sushi was your preferred food back on Earth, and you worked on a meat processing factory before enlisting. Cutting things in half was your thing even as a teenager, when you loved to cut open animals to check their internals and identify weak spots. This, coupled with the fact that you're nimble and fast makes you deadly with a sword."},
+        {id: "melee", name: "Melee", description: "After winning the triple crown in your league's baseball team, little was left to you to get into the big leagues, however, you had this itch to scratch blunting peeps with a bat, and enlisting was your perfect excuse to batter brains and electronics for a living. Your hobby was watching over-the top anime fights, and so you love hurdling your enemies around."},
+        {id: "tech", name: "Technician", description: "Tinkering with clocks, radios and toys was your thing. A toy didn't last much on your hands, as your curiosity was above all your other needs. Good thing there's a lot of sites currently that let you indulge in teardowns and photos of things you can't buy now since you enlisted. Also, implanting that Electromagnetic sensor on your head was good for your survival so far."},
+        {id: "engy", name: "Engineer", description: "You enlisted just to be sure that the weapons being used and the computers were up to standard. Turns out, you found out some corrupt superior official smuggling weapons to terrorists and got sent to this hell hole to shut your mouth. After finishing here, you will have a word or two with the general commander, as it seems corruption is the most widespread problem affecting militia."},
+        {id: "medic", name: "Medic", description: "When you were a teenager your mom died to cancer and your dad went full depressive and ended with a shotgun on his mouth. This marked you for life and made you take the decision to get on the medical school. Problem is, you didn't have a way to keep paying for the tuition and went on and enlisted to get higher education without paying for it. Now you're on hell. Hindsight is 20/20 they say."},
+        {id: "spy", name: "Spy", description: "You left your mother land because you worked on the construction of a tokamak that was a 'strategic' target. Turns out, you love spilling the beans on these strategic stuff, and so, you went undercover in several missions before volunteering to get here, as someone outside the militia offered a nice retirement-leve pay for the secrets of the operation in Ganymede."},
+        {id: "explo", name: "Explosives", description: "Festivities where the best for you, specially when they involved fireworks. You loved letting things go boom, so much that your car went boom and you were left severely injured. Your only way to heal was through military-only equipment, and your budget didn't allow private payment hence you enlisted. Now you've got a new spine and a twitch on your remote-trigger."},
+        {id: "sniper", name: "Sniper", description: "'Eagle-eye' or 'Bullseye' were your common nicks growing up, because you had this uncanny precision and good long range vision. Your dad tells you to enjoy your vision while you can, as the 40s make everyone's vision go to the dumpster, specially on your family. You're 2 payments ahead on your pair of BioNanotech(c) NuEyes already, and have eyed already some robotic arms for increased precision."},
+        {id: "psychic", name: "Psychic", description: "You were born to a weird mix of parents: your mother was a tarot reader and your father an accomplished scientist, or so your mom said. Turns out your father was absent all along, and apparently he did some experiments on you while you were still a fetus, or so you read from your momma's mind, because you have uncanny psychic abilities."},
+        {id: "civil", name: "Civilian", description: "A millionaire playboy, a philantropist, an arrogant wunderkind. Those are words that describe perfectly your dad. You've been spoiled beyond repair and you decided it was time to prove yourself, by going into this hell with your trusty 9mm gun. Heh, these golden cradle kids.... Can they ever learn?"},
     ]
+var charAttrs = {
+    "marine": {
+        "HP": {starting: 130, max: 130},
+        "AR": {starting: 0, max: 100},
+        "ST": {starting: 100, max: 100},
+        "PR": {starting: 100, max: 100},
+        "SP": {starting: 100, max: 100},
+        "Weapon": "MP9 Submachinegun",
+        "perks": [
+            {txt: "Fast shoot: Shoots without waiting", attr: ["Adrenaline", "Passive"]},
+            {txt: "Auto reload: Reloads weapon automatically", attr: ["Adrenaline", "Passive"]},
+            {txt: "Free shot: one shot without using ammo", attr: ["Adrenaline", "Active"]},
+            {txt: "Free omnishot: shot visibles without using ammo", attr: ["FullAdrenaline", "Active"]}
+        ]
+    },
+    "heavy": {
+        "HP": {starting: 120, max: 120},
+        "AR": {starting: 50, max: 200},
+        "ST": {starting: 30, max: 100},
+        "PR": {starting: 0, max: 50},
+        "SP": {starting: 0, max: 30},
+        "Weapon": "Flamethrower",
+        "perks": [
+            {txt: "Piercing: bullets pierce targets", attr: ["Adrenaline", "Passive"]},
+            {txt: "Overloading: reloads weapon beyond capacity", attr: ["Adrenaline", "Passive"]},
+            {txt: "Next critical: next shot is critical", attr: ["Adrenaline", "Active"]},
+            {txt: "Critical streak: 10 turns of 100% criticals", attr: ["FullAdrenaline", "Active"]}
+        ]
+    },
+    "swords": {
+        "HP": {starting: 100, max: 100},
+        "AR": {starting: 25, max: 50},
+        "ST": {starting: 30, max: 100},
+        "PR": {starting: 0, max: 30},
+        "SP": {starting: 50, max: 200},
+        "Weapon": "Katana",
+        "perks": [
+            {txt: "Super dash: dashes long distance", attr: ["Adrenaline", "Passive"]},
+            {txt: "Surround melee: attacks surroinding enemies", attr: ["Adrenaline", "Passive"]},
+            {txt: "Directed stab: critical attack on arbitrary target", attr: ["Adrenaline", "Active"]},
+            {txt: "Omnislash: slash visibles with 10x critical", attr: ["FullAdrenaline", "Active"]}
+        ]
+    },
+    "melee": {
+        "HP": {starting: 100, max: 100},
+        "AR": {starting: 60, max: 200},
+        "ST": {starting: 50, max: 200},
+        "PR": {starting: 0, max: 20},
+        "SP": {starting: 0, max: 50},
+        "Weapon": "9mm pistol",
+        "perks": [
+            {txt: "Great dash: dashes extra distance", attr: ["Adrenaline", "Passive"]},
+            {txt: "Super knockback: knocks enemies through walls", attr: ["Adrenaline", "Passive"]},
+            {txt: "Ki blast: near targets get knocked back", attr: ["Adrenaline", "Active"]},
+            {txt: "Super Ki blast: visibles 2x knockback + 10x crit.", attr: ["FullAdrenaline", "Active"]}
+        ]
+    },
+    "tech": {
+        "HP": {starting: 80, max: 80},
+        "AR": {starting: 0, max: 80},
+        "ST": {starting: 0, max: 80},
+        "PR": {starting: 0, max: 100},
+        "SP": {starting: 0, max: 100},
+        "Weapon": "Gatling laser",
+        "perks": [
+            {txt: "Comms detect: Detects near enemy comms", attr: ["Adrenaline", "Passive"]},
+            {txt: "Wire detect: Detects gadgets' connections", attr: ["Adrenaline", "Passive"]},
+            {txt: "Trap detect: Detects traps inside FOV", attr: ["Adrenaline", "Active"]},
+            {txt: "Trap steal: Takes ownership of all traps in FOV", attr: ["FullAdrenaline", "Active"]}
+        ]
+    },
+    "engy": {
+        "HP": {starting: 80, max: 80},
+        "AR": {starting: 0, max: 80},
+        "ST": {starting: 0, max: 80},
+        "PR": {starting: 0, max: 100},
+        "SP": {starting: 0, max: 100},
+        "Weapon": "xM3 Shotgun",
+        "perks": [
+            {txt: "CPU Detector: Detects near robotics", attr: ["Adrenaline", "Passive"]},
+            {txt: "Comms jamming: Jams enemies' comms", attr: ["Adrenaline", "Passive"]},
+            {txt: "Robot hack: Changes faction of one target robot", attr: ["Adrenaline", "Active"]},
+            {txt: "Robot worm: Changes faction of robots in 2x FOV", attr: ["FullAdrenaline", "Active"]}
+        ]
+    },
+    "medic": {
+        "HP": {starting: 80, max: 80},
+        "AR": {starting: 100, max: 200},
+        "ST": {starting: 0, max: 50},
+        "PR": {starting: 0, max: 100},
+        "SP": {starting: 0, max: 100},
+        "Weapon": "9mm pistol",
+        "perks": [
+            {txt: "Regeneration: Regenerates health over time", attr: ["Adrenaline", "Passive"]},
+            {txt: "Resistance: Gives resistances to near allies", attr: ["Adrenaline", "Passive"]},
+            {txt: "Heal: Heals one target to 100% health", attr: ["Adrenaline", "Active"]},
+            {txt: "Channel: Allies heal + resist / Enemies weakened", attr: ["FullAdrenaline", "Active"]}
+        ]
+    },
+    "spy": {
+        "HP": {starting: 80, max: 80},
+        "AR": {starting: 0, max: 50},
+        "ST": {starting: 0, max: 100},
+        "PR": {starting: 0, max: 50},
+        "SP": {starting: 0, max: 200},
+        "Weapon": "9mm pistol",
+        "perks": [
+            {txt: "Extra FOV: 20% bigger field of view", attr: ["Passive"]},
+            {txt: "Expansive FOV: Field of view expands further", attr: ["Adrenaline", "Passive"]},
+            {txt: "Cloaking: Move undetected by enemies", attr: ["Adrenaline", "Passive"]},
+            {txt: "Disguise: Changes faction for 10 turns", attr: ["Adrenaline", "Active"]},
+            {txt: "Double agent: Changes faction for 100 turns", attr: ["FullAdrenaline", "Active"]}
+        ]
+    },
+    "explo": {
+        "HP": {starting: 110, max: 110},
+        "AR": {starting: 50, max: 200},
+        "ST": {starting: 50, max: 100},
+        "PR": {starting: 0, max: 30},
+        "SP": {starting: 0, max: 50},
+        "Weapon": "H80 RPG",
+        "perks": [
+            {txt: "Trap detection: Detects near traps", attr: ["Adrenaline", "Passive"]},
+            {txt: "???: ???", attr: ["Adrenaline", "Passive"]},
+            {txt: "Mine: Drops one mine trap", attr: ["Adrenaline", "Active"]},
+            {txt: "Cluster mine: Drops 15 mines in FOV", attr: ["FullAdrenaline", "Active"]}
+        ]
+    },
+    "sniper": {
+        "HP": {starting: 80, max: 80},
+        "AR": {starting: 0, max: 100},
+        "ST": {starting: 0, max: 100},
+        "PR": {starting: 75, max: 200},
+        "SP": {starting: 0, max: 50},
+        "Weapon": "xM50 Rifle",
+        "perks": [
+            {txt: "Super FOV: 60% bigger field of view", attr: ["Passive"]},
+            {txt: "Expansive FOV: Field of view expands further", attr: ["Adrenaline", "Passive"]},
+            {txt: "Extra precision: Precision enhanced significantly", attr: ["Adrenaline", "Passive"]},
+            {txt: "Aim: 100% precision + 100% critical on next shot", attr: ["Adrenaline", "Active"]},
+            {txt: "Bullseye: Shots 5 targets in FOV / 100% precision", attr: ["FullAdrenaline", "Active"]}
+        ]
+    },
+    "psychic": {
+        "HP": {starting: 70, max: 70},
+        "AR": {starting: 0, max: 50},
+        "ST": {starting: 0, max: 100},
+        "PR": {starting: 0, max: 130},
+        "SP": {starting: 0, max: 200},
+        "Weapon": "9mm pistol",
+        "perks": [
+            {txt: "Clairvoyance: Can see through walls", attr: ["Adrenaline", "Passive"]},
+            {txt: "Sould detect: Detects near organics", attr: ["Adrenaline", "Passive"]},
+            {txt: "Hypnosis: Changes faction of a organic enemy", attr: ["Adrenaline", "Active"]},
+            {txt: "Omen: Changes faction of organics in 2x FOV", attr: ["FullAdrenaline", "Active"]}
+        ]
+    },
+    "civil": {
+        "HP": {starting: 50, max: 50},
+        "AR": {starting: 0, max: 25},
+        "ST": {starting: 0, max: 25},
+        "PR": {starting: 0, max: 25},
+        "SP": {starting: 0, max: 25},
+        "Weapon": "9mm pistol",
+        "perks": [
+            {txt: "Crappy FOV: 33% smaller field of view", attr: ["Passive"]},
+            {txt: "???: ???", attr: ["Adrenaline", "Passive"]},
+            {txt: "???: ???", attr: ["Adrenaline", "Passive"]},
+            {txt: "Reveal: Reveals position to enemies 2x FOV", attr: ["Adrenaline", "Active"]},
+            {txt: "Berserk: Autoshoots everything in sight", attr: ["FullAdrenaline", "Active"]}
+        ]
+    }
+}
 var itemsPerMenu = [(typeof(require) !== "undefined")?5:4, playerClasses.length + 2, 6, 1, 3, 20]
 var menuOptionsNumber = itemsPerMenu[0]
 
@@ -764,10 +943,14 @@ var announcements = []
 var lastAnnTmstmp = 0
 
 var descriptions = []
+var warnings = []
+var justWarned = false
 var actionMenuShown = false
 var actionMenuCenter = [0, 0]
 var actionMenuActions
 var askingShortcutIndex
+
+var UI_ALPHA = 0.8
 
 var currentPkts = []
 
@@ -1115,6 +1298,7 @@ function bresenhamsEvaluate(x0, y0, x1, y1, energy, callback) {
 
 function start() {
     descriptions = []
+    warnings = []
     displaySuPow = 0
     
     localStorage.username = ownUsername
@@ -1136,6 +1320,7 @@ function start() {
 function pos(ndx, ndy, shifted) {
     clearLastTracedPath()
     descriptions = []
+    warnings = []
     
     var npos = {x: player.pos.x, y: player.pos.y}
     if (typeof(ndx) != 'undefined') {
@@ -1154,13 +1339,13 @@ function pos(ndx, ndy, shifted) {
 }
 
 function describe(x, y) {
-    /*send ({
-        type: 'describe',
-        pos: {x: x, y: y}
-    })*/
     var desc = {}
-    
     descriptions = []
+    if (justWarned) {
+        justWarned = false
+    } else {
+        warnings = []
+    }
     
     if ((y >= 0) && (y < level.length)) {
         var row = level[y]
@@ -1302,6 +1487,7 @@ function describe(x, y) {
 
 function prone() {
     descriptions = []
+    warnings = []
     
 	send({
         type: 'prone'
@@ -1310,6 +1496,7 @@ function prone() {
 
 function crouch() {
     descriptions = []
+    warnings = []
     
 	send({
         type: 'crouch'
@@ -1338,8 +1525,10 @@ function collectVisibleEnemies() {
 var expectedPlayerPos
 var onReachCallback
 var lastEnemies = {}
+var lastPosTryMove = [-1, -1]
 function tryMoveTowardsDestination() {
     descriptions = []
+    warnings = []
     
     if ((typeof(destinationPath) !== "undefined") && (destinationPath.length > 0)) {
         // Retrace the path, everything could have changed
@@ -1419,11 +1608,75 @@ function tryMoveTowardsDestination() {
         }
         
         if ((dx != 0) || (dy != 0)) {
+            var newLastPosTryMove = [destinationMovement.x, destinationMovement.y]
+            var tile = level[destinationMovement.y][destinationMovement.x]
+            
+            if ((typeof(tile.damage) !== "undefined") && (tile.damage > 0)) {
+
+                if ((newLastPosTryMove[0] != lastPosTryMove[0]) ||
+                    (newLastPosTryMove[1] != lastPosTryMove[1])) {
+                    console.log('Prompting confirmation from the player for walking over hazard')
+                    destinationMovement = undefined
+                    expectedPlayerPos = undefined
+                    lastPosTryMove = newLastPosTryMove
+                    
+                    var descX = lastPosTryMove[0] - player.pos.x + player.cpos.x
+                    var descY = lastPosTryMove[1] - player.pos.y + player.cpos.y
+                    var arrowPrex = " "
+                    var arrowSufx = " "
+                    
+                    if (lastPosTryMove[1] != player.pos.y) {
+                        if ((lastPosTryMove[0] + 31) < displaySizeX) {
+                            descX += 1
+                            arrowPrex = "\u2190"
+                        } else {
+                            descX -= 30
+                            arrowSufx = "\u2192"
+                        }
+                    } else {
+                        if ((lastPosTryMove[0] + 31) < displaySizeX) {
+                            if (lastPosTryMove[0] == 0) {
+                                descY += 1
+                                arrowPrex = "\u2191"
+                            } else {
+                                descY -= 1
+                                arrowPrex = "\u2193"
+                            }
+                        } else {
+                            descX -= 29
+                            if (lastPosTryMove[0] == 0) {
+                                descY += 1
+                                arrowSufx = "\u2191"
+                            } else {
+                                descY -= 1
+                                arrowSufx = "\u2193"
+                            }
+                        }
+                    }
+                    
+                    var warn = {}
+                    warn.pos = [descX, descY]
+                    warn.lines = [{text: arrowPrex + "Confirm walking over hazard!" + arrowSufx}]
+                    
+                    warnings.push(warn)
+                    justWarned = true
+                    
+                    if (onReachCallback) {
+                        onReachCallback("damage")
+                        onReachCallback = undefined
+                    }
+                    
+                    return
+                }
+            }
+            
+            lastPosTryMove = [destinationMovement.x, destinationMovement.y]
+            
             expectedPlayerPos = [player.pos.x + dx, player.pos.y + dy]
             pos(dx, dy)
         } else {
             destinationMovement = undefined
-            delete expectedPlayerPos
+            expectedPlayerPos = undefined
             
             if (onReachCallback) {
                 onReachCallback()
@@ -1433,6 +1686,11 @@ function tryMoveTowardsDestination() {
     } else {
         expectedPlayerPos = undefined
         destinationMovement = undefined
+        
+        if (onReachCallback) {
+            onReachCallback("unexpected")
+            onReachCallback = undefined
+        }
     }
 }
 
@@ -1448,6 +1706,7 @@ function activateMenuAction(i) {
 
 function use() {
     descriptions = []
+    warnings = []
     
     if (gameStarted) {
         if (showingInventory) {
@@ -1515,6 +1774,7 @@ function askShortcut(idx) {
 
 function grab() {
     descriptions = []
+    warnings = []
     
     send({
         type: 'grab'
@@ -1524,6 +1784,7 @@ function grab() {
 function fire(alternate, pos) {
     var ret
     descriptions = []
+    warnings = []
     
     if (alternate && ((typeof(player.firing) == "undefined") || (player.firing != 'alternate'))) {
         player.firing = 'alternate'
@@ -1588,6 +1849,7 @@ function cheat(fn, data) {
 
 function reload(alternate) {
     descriptions = []
+    warnings = []
     
     send({
         type: 'reload',
@@ -1597,6 +1859,7 @@ function reload(alternate) {
 
 function updateInventory() {
     descriptions = []
+    warnings = []
     
     send({
         type: 'inventory'
@@ -1605,6 +1868,7 @@ function updateInventory() {
 
 function activateInventory(idx) {
     descriptions = []
+    warnings = []
 
     var actions = []
     
@@ -1621,6 +1885,7 @@ function activateInventory(idx) {
 
 function clearTips() {
     descriptions = []
+    warnings = []
 }
 
 function showTips() {
@@ -1673,6 +1938,7 @@ function showTips() {
 
 function toggleInventory() {
     descriptions = []
+    warnings = []
     actionMenuShown = false
     lastClick = [-1, -1]
     
@@ -1888,6 +2154,7 @@ function waitTarget(fn) {
 
 function moveToDest(cx, cy, reachCallback) {
     descriptions = []
+    warnings = []
     
     if (player.cpos) {
         var x = player.pos.x + (cx - player.cpos.x)
@@ -2120,6 +2387,21 @@ function drawBox(x, y, w, h, col) {
     for (var j=y0; j < y1; j++) {
         for (var i=x0; i < x1; i++) {
             terminal.setPixel(i, j, 0, col, col)
+        }
+    }
+}
+
+function drawBoxAlpha(x, y, w, h, col, a) {
+    var y0 = Math.max(y, 0)
+    var x0 = Math.max(x, 0)
+    
+    var y1 = Math.min(y + h, displaySizeY)
+    var x1 = Math.min(x + w, displaySizeX)
+    
+    for (var j=y0; j < y1; j++) {
+        for (var i=x0; i < x1; i++) {
+            var cl = mixRGB(terminal.getPixelBg(i, j), col, a)
+            terminal.setPixel(i, j, 0, cl, cl)
         }
     }
 }
@@ -2374,12 +2656,19 @@ function updateDisplayMenu() {
 }
 
 var charSprites = {}
+var perkColors = {
+    "Adrenaline": [255, 0, 0],
+    "Passive": [0, 255, 0],
+    "Active": [0, 0, 255],
+    "FullAdrenaline": [64, 64, 128]
+}
 function updateCharMenu() {
     terminal.clear()
     drawStarsAndGanymede()
     
     drawAsciiText(1, 1, "Pick your class", [192, 255, 192])
-    
+
+    drawBoxAlpha(17, 3, 76, 36, [0, 0, 0], UI_ALPHA)
     for (var i=0; i < playerClasses.length; i++) {
         var selected = menuSel == i
         var name = playerClasses[i].name
@@ -2409,9 +2698,69 @@ function updateCharMenu() {
                 f(id)
             }
             
-            drawAsciiText(18, 27, description, [224, 244, 244], [0,0,0], [0,0,0])
+            var statX = 40
+            var statY = 3
+            var attrTxtFG = [255, 255, 64]
+            var attrTxtBG = [0, 0, 0]
+            
+            drawAsciiText(statX, statY, "Health", [64, 255, 64], [0, 0, 0])
+            drawAsciiText(statX + 10, statY, charAttrs[id].HP.starting + "/" + charAttrs[id].HP.max, attrTxtFG, attrTxtBG)
+            drawConsoleBar(statX + 22, statY, 30, 1, charAttrs[id].HP.max/200)
+            statY += 2
+            
+            drawAsciiText(statX, statY, "Armor", [64, 255, 64], [0, 0, 0])
+            drawAsciiText(statX + 10, statY, charAttrs[id].AR.starting + "/" + charAttrs[id].AR.max, attrTxtFG, attrTxtBG)
+            drawConsoleBar(statX + 22, statY, 30, 1, charAttrs[id].AR.max/200)
+            statY += 2
+            
+            drawAsciiText(statX, statY, "Strength", [64, 255, 64], [0, 0, 0])
+            drawAsciiText(statX + 10, statY, charAttrs[id].ST.starting + "/" + charAttrs[id].ST.max, attrTxtFG, attrTxtBG)
+            drawConsoleBar(statX + 22, statY, 30, 1, charAttrs[id].ST.max/200)
+            statY += 2
+            
+            drawAsciiText(statX, statY, "Precision", [64, 255, 64], [0, 0, 0])
+            drawAsciiText(statX + 10, statY, charAttrs[id].PR.starting + "/" + charAttrs[id].PR.max, attrTxtFG, attrTxtBG)
+            drawConsoleBar(statX + 22, statY, 30, 1, charAttrs[id].PR.max/200)
+            statY += 2
+            
+            drawAsciiText(statX, statY, "Speed", [64, 255, 64], [0, 0, 0])
+            drawAsciiText(statX + 10, statY, charAttrs[id].SP.starting + "/" + charAttrs[id].SP.max, attrTxtFG, attrTxtBG)
+            drawConsoleBar(statX + 22, statY, 30, 1, charAttrs[id].SP.max/200)
+            statY += 2
+            
+            drawAsciiText(statX, statY, "Weapon", [64, 255, 64], [0, 0, 0])
+            drawAsciiText(statX + 10, statY, charAttrs[id].Weapon, attrTxtFG, attrTxtBG)
+            statY += 2
+            
+            drawAsciiText(statX, statY, "Special perks", [64, 255, 64], [0, 0, 0])
+            statY += 2
+            
+            for (var prk=0; prk < charAttrs[id].perks.length; prk++) {
+                var color = [128, 128, 128]
+                
+                for (var x=0; x < charAttrs[id].perks[prk].attr.length; x++) {
+                    var prkAttr = charAttrs[id].perks[prk].attr[x]
+                    
+                    color = sumRGB(perkColors[prkAttr], color)
+                }
+                
+                drawAsciiText(statX + 2, statY, charAttrs[id].perks[prk].txt, color, attrTxtBG)
+                statY += 2
+            }
+            
+            //drawAsciiText(18, 27, description, [224, 244, 244], [0,0,0], [0,0,0])
+            
+            drawBoxedAsciiText(18, 27, 75, 20, description, [224, 244, 244], [0,0,0], [0,0,0], 2)
         }
     }
+    
+    drawBoxAlpha(1, 40, 34, 13, [0, 0, 0], UI_ALPHA)
+    drawAsciiText(2, 41, "Perk color legend:", [0, 255, 0], [0,0,0], [0,0,0])
+    drawAsciiText(4, 43, "Adrenaline based, passive perk", sumRGB(sumRGB([128, 128, 128], perkColors["Adrenaline"]), perkColors["Passive"]), [0,0,0], [0,0,0])
+    drawAsciiText(4, 45, "Adrenaline based, active perk", sumRGB(sumRGB([128, 128, 128], perkColors["Adrenaline"]), perkColors["Active"]), [0,0,0], [0,0,0])
+    drawAsciiText(4, 47, "Full Adrenaline, active perk", sumRGB(sumRGB([128, 128, 128], perkColors["FullAdrenaline"]), perkColors["Active"]), [0,0,0], [0,0,0])
+    drawAsciiText(4, 49, "Passive perk", sumRGB([128, 128, 128], perkColors["Passive"]), [0,0,0], [0,0,0])
+    drawAsciiText(4, 51, "Active perk", sumRGB([128, 128, 128], perkColors["Active"]), [0,0,0], [0,0,0])
     
     if (drawEditWithHint(((displaySizeX - 32)/2), displaySizeY - 10, ownUsername, "Player's name", 32, opsColsFg[menuSel == playerClasses.length], opsColsBg[menuSel == playerClasses.length], playerClasses.length)) {
         menuUse(playerClasses.length)
@@ -2804,6 +3153,7 @@ function updateDisplayGameStarted() {
 
     if (showingInventory) {
         descriptions = []
+        warnings = []
         drawInventory()
     } else {
         for (var y=0; y < displaySizeY; y++) {
@@ -3042,6 +3392,42 @@ function updateDisplayGameStarted() {
         }
     }
     
+    for (var i=0; i < warnings.length; i++) {
+        var warn = warnings[i]
+        if (warn.lines.length >= 1) {
+            for (var j=0; j < warn.lines.length; j++) {
+                var fg = [192,192,192]
+                var bg = [32,32,32]
+                var luma = [0,0,0]
+                var d = warn.lines[j]
+                
+                if ("cssClass" in d) {
+                    if (d.cssClass in colorMap) {
+                        var rule = colorMap[d.cssClass]
+                        
+                        if ((!tile.fg)&&("color" in rule)) {
+                            fg = fgColorFromColorMapRule(rule, x*y)
+                        }
+                        
+                        if ((!tile.bg)&&("backgroundColor" in rule)) {
+                            bg = rule.backgroundColor
+                        }
+                        
+                        if ((!tile.luma)&&("luma" in rule)) {
+                            luma = rule.luma
+                        }
+                    }
+                }
+                
+                if ("fg" in d) {
+                    fg = d.fg
+                }
+                
+                drawAsciiText(warn.pos[0], warn.pos[1] + j, d.text, fg, bg, luma)
+            }
+        }
+    }
+    
     for (var i=0; i < currentPkts.length; i++) {
         var pkt = currentPkts[i]
         
@@ -3166,6 +3552,32 @@ function drawAsciiText(x, y, txt, fg, bg, luma) {
         if (c in asciiMapping) {
             terminal.setPixel(x + i, y, asciiMapping[c], fg, bg, luma)
         }
+    }
+}
+
+function drawBoxedAsciiText(x, y, w, h, txt, fg, bg, luma, separation) {
+    var words = txt.split(" ")
+    
+    if (typeof(separation) === "undefined") {
+        separation = 1
+    }
+    
+    var px = x
+    var py = y
+    for (var i=0; i < words.length; i++) {
+        var word = words[i]
+        
+        if ((word.length + px - x) >= w) {
+            px = x
+            py += separation
+        }
+        
+        if ((py - y) >= h) {
+            return
+        }
+        
+        drawAsciiText(px, py, word, fg, bg, luma)
+        px += word.length + 1
     }
 }
 
@@ -3315,7 +3727,7 @@ function updateAttrs() {
         })
         
         testAttrBeforeDraw("speed", playerAttrs.speed.pos + "/" + playerAttrs.speed.max, function(alpha) {
-            drawAsciiText(attrsDisplayX, y, "PR " + pad(playerAttrs.speed.pos, 3) + "/" + playerAttrs.speed.max, modulateAlpha([0, 255, 0], alpha), [0, 0, 0])
+            drawAsciiText(attrsDisplayX, y, "SP " + pad(playerAttrs.speed.pos, 3) + "/" + playerAttrs.speed.max, modulateAlpha([0, 255, 0], alpha), [0, 0, 0])
             drawConsoleBar(attrsDisplayX + 13, y, 12, 1, playerAttrs.speed.pos / playerAttrs.speed.max, alpha)
             y += 2
         })

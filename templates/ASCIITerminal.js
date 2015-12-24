@@ -450,6 +450,14 @@ function hexToColor(h) {
     }
 }
 
+ASCIITerminal.prototype.getPixelBg = function(x, y) {
+    var p = (x + y * this.texw) * 3
+    
+    return [this.gl.backTextureData[p],
+        this.gl.backTextureData[p + 1],
+        this.gl.backTextureData[p + 2]]
+}
+
 ASCIITerminal.prototype.setPixel = function(x, y, glyph, fgcol, bgcol, luma, modulate) {
     var p = x + y * this.texw //this.gl.texw // this.console.width
     

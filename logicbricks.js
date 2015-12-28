@@ -44,18 +44,12 @@
  
 var passable
 var items = require('./items.js')
+var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
+
+var itemGenerator
  
 var brickFuncs = {
     "button": function(level, x, y, tile, turn) {
-        /*if ((tile.brick.status == "on") && (tile.brick.powerturn >= turn-1) && (typeof(tile.brick.generator) !== "undefined") && (tile.brick.generator.status === "on")) {
-            tile.brick.status = "off"
-            return [
-                {type: "addpower", x: x-1, y: y, generator: tile.brick.generator},
-                {type: "addpower", x: x+1, y: y, generator: tile.brick.generator},
-                {type: "addpower", x: x, y: y-1, generator: tile.brick.generator},
-                {type: "addpower", x: x, y: y+1, generator: tile.brick.generator}
-            ]
-        }*/
         var ret = [
             {type: "switch", x: x-1, y: y, status: tile.brick.status},
             {type: "switch", x: x+1, y: y, status: tile.brick.status},
@@ -63,7 +57,17 @@ var brickFuncs = {
             {type: "switch", x: x, y: y+1, status: tile.brick.status}
         ]
         
-        tile.brick.status = "off"
+        if ((tile.brick.status === "on") && (typeof(tile.brick.waitoff) === "undefined")) {
+            tile.brick.waitoff = tile.brick.timeOn
+        } else if (typeof(tile.brick.waitoff) !== "undefined") {
+            tile.brick.waitoff--
+            
+            if (tile.brick.waitoff <= 0) {
+                tile.brick.status = "off"
+                tile.brick.waitoff = undefined
+                tile.brick.status = "off"
+            }
+        }
         
         return ret
     },
@@ -82,7 +86,7 @@ var brickFuncs = {
         if (tile.brick.powerturn >= turn-1) {
             tile.tile = 208
             tile.fg = "ff0000"
-            tile.damage = 20
+            tile.damage = tile.brick.damage
             
             return [
                 {type: "addpower", x: x-1, y: y, generator: tile.brick.generator},
@@ -102,8 +106,6 @@ var brickFuncs = {
                 {type: "addpower", x: x, y: y+1, generator: tile.brick.generator}
             ]
         }
-    },
-    "itemdisp": function(level, x, y, tile, turn) {
     },
     "recycler": function(level, x, y, tile, turn) {
         if ((tile.brick.powerturn >= turn-1) && (typeof(tile.brick.generator) !== "undefined") && (tile.brick.generator.status === "on")) {
@@ -125,7 +127,34 @@ var brickFuncs = {
     },
     "terminal": function(level, x, y, tile, turn) {
     },
+    "itemdisp": function(level, x, y, tile, turn) {
+        if ((tile.brick.powerturn >= turn-1) &&
+            ((typeof(tile.item) === "undefined") || (tile.item === null)) &&
+            (typeof(tile.brick.generator) !== "undefined") && (tile.brick.generator.status === "on") &&
+            (tile.brick.amount > 0)) {
+            var item = items[Math.floor(itemGenerator.random() * items.length)].clone()
+            if (item.type == 'weapon') {
+                item.findChargerAndAssign(items)
+            }
+            
+            tile.item = item
+            
+            tile.brick.amount--
+        }
+    },
     "itemopt": function(level, x, y, tile, turn) {
+        if (typeof(tile.brick.used) === "undefined") {
+            tile.brick.used = true
+            
+            if (itemGenerator.eventOccurs(tile.brick.prob)) {
+                var item = items[Math.floor(itemGenerator.random() * items.length)].clone()
+                if (item.type == 'weapon') {
+                    item.findChargerAndAssign(items)
+                }
+                
+                tile.item = item
+            }
+        }
     },
     "wire": function(level, x, y, tile, turn) {
         if ((tile.brick.powerturn >= turn-1) && (typeof(tile.brick.generator) !== "undefined") && (tile.brick.generator.status === "on")) {
@@ -179,6 +208,15 @@ var brickFuncs = {
             (tile.brick.onlyoff && (tile.brick.status == "off")) ||
             ((typeof(tile.brick.onlyon) === "undefined") &&
              (typeof(tile.brick.onlyoff) === "undefined"))) {
+            
+            if (tile.brick.walkActivable && (tile.tile !== asciiMapping["^"])) {
+                tile.tile = asciiMapping["^"]
+                if ((typeof(tile.character) !== "undefined") && (tile.character != null) &&
+                    (typeof(tile.character.messages) !== "undefined")) {
+                    tile.character.messages.push('You hear a click as you step')
+                }
+            }
+            
             return [
                 {type: "switch", x: x-1, y: y, status: tile.brick.status},
                 {type: "switch", x: x+1, y: y, status: tile.brick.status},
@@ -210,12 +248,41 @@ var brickFuncs = {
                 }
                 
                 tile.brick.weaponInstance.fire(x + tile.brick.dx * 3, y + tile.brick.dy * 3, proxyAgent, {})
-                tile.brick.wait = tile.brick.cooldown
                 
-                if (tile.brick.ammo === "infinite") {
-                    tile.brick.weaponInstance.ammo = tile.brick.weaponInstance.ammoUse * 3
+                if (typeof(tile.brick) !== "undefined") {
+                    tile.brick.wait = tile.brick.cooldown
+                    
+                    if (tile.brick.ammo === "infinite") {
+                        tile.brick.weaponInstance.ammo = tile.brick.weaponInstance.ammoUse * 3
+                    }
                 }
             }
+        }
+    },
+    "telesrc": function(level, x, y, tile, turn) {
+        if (typeof(tile.brick.target) === "undefined") {
+            tile.brick.target = findBrickFollowingWire(level, x, y, "teletgt")
+        } else if ((typeof(tile.character) !== "undefined") && (tile.character != null) && 
+                   (tile.brick.target !== "invalid") && (tile.brick.status === "on")) {
+            var tgt = tile.brick.target
+            var dest = level[tgt.y][tgt.x]
+            
+            // TODO: Spawn particles
+            
+            if ((typeof(dest.character) !== "undefined") && (dest.character != null)) {
+                var agent = dest.character
+                var dmg = agent.attrs.hp.pos * 2
+                agent.attrs.hp.pos -= dmg
+            
+                if (typeof(agent.attrs.hp.onchange) != "undefined") {
+                    agent.attrs.hp.onchange.call(agent, "telefrag", dmg)
+                }
+            }
+            
+            dest.character = tile.character
+            tile.character.pos.x = tgt.x
+            tile.character.pos.y = tgt.y
+            tile.character = null
         }
     }
 }
@@ -232,8 +299,13 @@ var actionFuncs = {
                     if (tile.brick.type === "power") {
                         tile.brick.status = "on"
                     } else {
-                        tile.brick.powerturn = turn
                         tile.brick.generator = spec.generator
+                        if ((typeof(tile.brick.powerturn) === "undefined") || (tile.brick.powerturn < turn)) {
+                            tile.brick.powerturn = turn
+                            if (tile.brick.type === "wire") {
+                                return brickFuncs[tile.brick.type](level, spec.x, spec.y, tile, turn)
+                            }
+                        }
                     }
                 }
             }
@@ -424,7 +496,7 @@ var actionFuncs = {
                             }
                         } else if (pss == 2) {
                             // Damage both
-                            console.log("TODO: Kill agents, logicbricks:331")
+                            console.log("TODO: Kill agents, logicbricks:499")
                         }
                     }
                     
@@ -448,6 +520,44 @@ var actionFuncs = {
             }
         }
     }
+}
+
+function findBrickFollowingWire(level, x, y, tgtType) {
+    var openNodes = []
+    var visitedNodes = []
+    var tgtFound = "invalid"
+    
+    var expandNode = function(px, py) {
+        if ((py >= 0) && (py < level.length) &&
+            (px >= 0) && (px < level[0].length) &&
+            (tgtFound === "invalid")) {
+            var tile = level[py][px]
+            
+            if ((typeof(tile.brick) !== "undefined") && (typeof(tile.brick._fbfw) === "undefined")) {
+                if (tile.brick.type === "wire") {
+                    tile.brick._fbfw = true
+                    visitedNodes.push(tile)
+                    openNodes.push({x: px, y: py})
+                } else if (tile.brick.type === tgtType) {
+                    tgtFound = {x: px, y: py}
+                }
+            }
+        }
+    }
+    
+    level[y][x].brick._fbfw = true
+    openNodes.push({x: x, y: y})
+    while ((openNodes.length > 0) && (tgtFound === "invalid")) {
+        var pos = openNodes.shift()
+        
+        expandNode(pos.x + 1, pos.y)
+        expandNode(pos.x - 1, pos.y)
+        expandNode(pos.x, pos.y + 1)
+        expandNode(pos.x, pos.y - 1)
+    }
+    
+    visitedNodes.map(function(n) { delete n.brick._fbfw })
+    return tgtFound
 }
 
 function processBrick(level, x, y, tile, turn) {
@@ -488,12 +598,16 @@ function processLevel(level, turn) {
     actionList.sort(function (a, b) {
         return actionPriorities[a.type] - actionPriorities[b.type]
     })
-    
-    for (var i=0; i < actionList.length; i++) {
-        var action = actionList[i]
+
+    while (actionList.length > 0) {
+        var action = actionList.shift()
         if (action.type in actionFuncs) {
-            actionFuncs[action.type](level, turn, action)
-        }
+            var rets = actionFuncs[action.type](level, turn, action)
+            
+            if ((typeof(rets) !== "undefined") && (typeof(rets.concat) !== "undefined")) {
+                actionList = rets.concat(actionList)
+            }
+        } 
     }
 }
 
@@ -501,7 +615,12 @@ function registerPassableFn(fnc) {
     passable = fnc
 }
 
+function registerItemGenerator(gen) {
+    itemGenerator = gen
+}
+
 module.exports = {
     processLevel: processLevel,
-    registerPassableFn: registerPassableFn
+    registerPassableFn: registerPassableFn,
+    registerItemGenerator: registerItemGenerator
 }

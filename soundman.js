@@ -53,15 +53,20 @@ SoundManager.prototype.endTurn = function(id) {
     this.soundsList = []
 }
 
-SoundManager.prototype.addSound = function(x, y, radius, sound, delay) {
+SoundManager.prototype.addSound = function(x, y, radius, sound, delay, pitchShift) {
     if (sound.length > 0) {
+        var ps = 0
+        if (Number.isFinite(pitchShift)) {
+            ps = (Math.random() * 2 - 1) * pitchShift + 1
+        }
         this.soundsList.push({
             x: x,
             y: y,
             r: radius,
             r2: radius * radius,
             s: sound,
-            d: delay
+            d: delay,
+            ps: ps
         })
     }
 }
@@ -80,12 +85,58 @@ SoundManager.prototype.collectSounds = function(x, y) {
                 v: Math.floor((1.0 - d2 / snd.r2) * 128),
                 p: Math.floor((dx * (1.0 + (Math.random()*0.2 - 0.1))) / snd.r * 128), // This needs to be determinist?
                 s: snd.s,
-                d: snd.d
+                d: snd.d,
+                ps: snd.ps
             })
         }
     }
     
     return col
+}
+
+function diffuseAmbientSound(level, xc, yc, r2, nextTurnId, snd) {
+    var x0 = Math.max(0, xc - r2)
+    var xn = Math.min(level[0].length, xc + r2)
+    
+    var y0 = Math.max(0, yc - r2)
+    var yn = Math.min(level.length, yc + r2)
+    
+    for (var y=y0; y < yn; y++) {
+        var row = level[y]
+        
+        for (var x=x0; x < xn; x++) {
+            var tile = row[x]
+            var dx = x - xc
+            var dy = y - yc
+            var d2 = dx * dx + dy * dy
+            
+            if (d2 <= r2) {
+                if (typeof(tile.asnd) === "undefined") {
+                    tile.asnd = {}
+                }
+                
+                var d2_d_r2 = d2/r2
+                if (!(snd in tile.asnd) || (tile.asnd[snd].dst2 > d2_d_r2)) {
+                    tile.asnd[snd] = {dst2: d2_d_r2, snd: snd}
+                }
+            }
+        }
+    }
+}
+
+SoundManager.prototype.calculateAmbientSounds = function(level, nextTurnId, classWhitelist) {
+    for (var y=0; y < level.length; y++) {
+        var row = level[y]
+        
+        for (var x=0; x < row.length; x++) {
+            var tile = row[x]
+            
+            if ((typeof(tile.cssClass) !== "undefined") && (classWhitelist.indexOf(tile.cssClass) >= 0)) {
+                var radiisq = 16
+                diffuseAmbientSound(level, x, y, radiisq, nextTurnId, tile.cssClass)
+            }
+        }
+    }
 }
 
 var singletonManager = new SoundManager()

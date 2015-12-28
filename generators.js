@@ -820,7 +820,11 @@ function testLevel(generator, level, floor, wall, door) {
     drawSpecificRoom(level, 10, 20, "middleplatecompactrap")
     
     drawSpecificRoom(level, 10, 45, "spikedaltar")
+    drawSpecificRoom(level, 30, 45, "containeditems")
     drawSpecificRoom(level, 10, 54, "fireballstation")
+    drawSpecificRoom(level, 35, 40, "northturret")
+    drawSpecificRoom(level, 15, 40, "itemprinter")
+    
     
     drawSpecificRoom(level, 50, 20, "compactor")
 }

@@ -1095,6 +1095,7 @@ function init(session) {
     weapons.registerLevel(level)
     weapons.registerGenerator(sessionRandom.child('weapons'))
     logicBricks.registerPassableFn(passable)
+    logicBricks.registerItemGenerator(sessionRandom.child('items'))
     util.registerGenerator(sessionRandom.child('util'))
     effects.registerGenerator(sessionRandom.child('effects'))
     items.registerGenerator(sessionRandom.child('level').child('items'))
@@ -1122,7 +1123,7 @@ function resetLevel() {
 
     lightmanager.assignLevel(level)
     
-    var levelType = -1 //sessionRandom.child('level-session').randomIntRange(3)
+    var levelType = sessionRandom.child('level-session').randomIntRange(3)
     if (levelType == -1) {
         levelTileset = "base"
         generators.testLevel(sessionRandom.child('level'), level,
@@ -1326,6 +1327,7 @@ function resetLevel() {
         numEnemies--
     }
     
+    soundManager.calculateAmbientSounds(level, nextTurnId, ['water', 'acid', 'lava', 'plasma', 'fire'])
     lightmanager.calculateLighting(nextTurnId)
 }
 
@@ -1838,7 +1840,8 @@ function traceable(x0, y0, x1, y1) {
 }
 
 var trimTileProperties = ["astarIteration", "forcePassable", "lightsource"]
-function tidyTile(tl, player) {
+var explosivesDetectableTraps = ["switch", "fire", "compactor"]
+function tidyTile(tl, player, d2) {
     var o = {}
     for (k in tl) {
         if (tl.hasOwnProperty(k) && (trimTileProperties.indexOf(k) < 0)) {
@@ -1862,7 +1865,29 @@ function tidyTile(tl, player) {
                     }
                 } else if (k == "brick") {
                     // Can see only if certain class with certain attributes
-                    // TODO: Tech must transmit bricks
+                    var isTech = player.player_class === 'tech'
+                    var isExplosives = player.player_class === 'explo'
+                    if (isTech || isExplosives) {
+                        var wireSense = Math.max(0, Math.min(100, player.attrs.suPow))/2 + 4
+
+                        if (d2 <= wireSense) {
+                            if ((v.type === "wire") && isTech) {
+                                o[k] = {
+                                    type: "wire"
+                                }
+                                
+                                if (typeof(v.generator) !== "undefined") {
+                                    o[k].status = v.generator.status
+                                }
+                            } else if (isExplosives && (explosivesDetectableTraps.indexOf(v.type) >= 0)) {
+                                if (!((v.type === "switch") && !v.walkActivable)) {
+                                    o[k] = {
+                                        type: "trap"
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } else {
                     o[k] = v
                 }
@@ -1965,12 +1990,12 @@ function sendScopeToClient(ws) {
             
             if (dd <= tfov_sq) {
                 if ((dd <= clairvoyanceDistSq) || traceable(x, y, ws.player.pos.x, ws.player.pos.y)) {
-                    row[x - (ws.player.pos.x - tfov)] = tidyTile(tile, ws.player)
+                    row[x - (ws.player.pos.x - tfov)] = tidyTile(tile, ws.player, dd)
                 }
             } else if ((dd <= organicSense) && (typeof(tile.character) !== "undefined") && (tile.character != null) && (tile.character.attrs.kind == "organic")) {
-                row[x - (ws.player.pos.x - tfov)] = tidyTile(tile, ws.player)
+                row[x - (ws.player.pos.x - tfov)] = tidyTile(tile, ws.player, dd)
             } else if ((dd <= roboticSense) && (typeof(tile.character) !== "undefined") && (tile.character != null) && (tile.character.attrs.kind == "robotic")) {
-                row[x - (ws.player.pos.x - tfov)] = tidyTile(tile, ws.player)
+                row[x - (ws.player.pos.x - tfov)] = tidyTile(tile, ws.player, dd)
             }
         }
         

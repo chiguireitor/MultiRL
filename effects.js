@@ -46,12 +46,15 @@ var particles = require('./particles.js')
 var soundManager = require('./soundman.js').getManager()
 var lightmanager = require('./lightmanager.js')
 var asciiMapping = require('./templates/ascii_mapping.js') // Code shared between client and server
+var levelutil = require('./levelutil.js')
 
 var PHASE_SOURCE = 0
 var PHASE_TARGET = 1
 var PHASE_STICKY = 2
 
 var generator
+
+
 
 function efc(character, cell) {
     return function(subject, phase, x, y, expd, origin) {
@@ -291,7 +294,7 @@ var effectFunction = {
             }
             
             if (expd < 0.5) {
-                cell.tile = asciiMapping["."]
+                levelutil.destroyCell(cell)
             }
         }
     }),

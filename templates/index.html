@@ -683,6 +683,8 @@ var destinationMovement
 var destinationPath
 var tutorialSeen = false
 var tutorialPage = 0
+var loopingAmbientSound
+var currentLoopingAmbientSoundName
 
 var inspectKeyboardIndex = -1
 var inspectKeyboardIdentifier = ""
@@ -933,7 +935,9 @@ var currentTips = []
 var clearTipsTimeout = null
 var showingInventory = false
 var inventoryIndex = 0
+var highlightShortcut = 0
 var inventoryList
+var shortcutList = new Array(10)
 var opsColsFg = {true: [0, 255, 0], false: [64, 96, 64]}
 var opsColsBg = {true: [64, 64, 128], false: [32, 32, 32]}
 var opsColsLuma = {true: [255, 255, 255], false: [16, 16, 16]}
@@ -1454,6 +1458,18 @@ function describe(x, y) {
                 }
             }
             
+            if ("brick" in tile) {
+                if (tile.brick.type === "wire") {
+                    if (tile.brick.status === "on") {
+                        description.push({text: "Powered Wire", fg: [64, 192, 255]})
+                    } else {
+                        description.push({text: "Unpowered Wire", fg: [32, 64, 160]})
+                    }
+                } else if (tile.brick.type === "trap") {
+                    description.push({text: "Possible trap", fg: [255, 192, 64]})
+                }
+            }
+            
             desc.pos = [lastMove[0], lastMove[1] - description.length - 1]
             desc.lines = description
             
@@ -1704,13 +1720,36 @@ function activateMenuAction(i) {
     }
 }
 
+function activateShortcut(idx) {
+    if (typeof(askingShortcutIndex) !== "undefined") {
+        shortcutList[idx - 1] = inventoryList[inventoryIndex].name || inventoryList[inventoryIndex].ammoType
+        askingShortcutIndex = undefined
+    } else if (!showingInventory) {
+        var nameUse = shortcutList[idx - 1]
+        
+        if (typeof(inventoryList) !== "undefined") {
+            for (var i=0; i < inventoryList.length; i++) {
+                var item = inventoryList[i]
+                if (nameUse === (item.name || item.ammoType)) {
+                    useInventory(i)
+                    break
+                }
+            }
+        }
+    }
+}
+
 function use() {
     descriptions = []
     warnings = []
     
     if (gameStarted) {
         if (showingInventory) {
-            if ((actionMenuShown) && (actionMenuActions) && (menuSel >= 0) && (menuSel < actionMenuActions.length)) {
+            if (typeof(askingShortcutIndex) !== "undefined") {
+                console.log("Assign shortcut", highlightShortcut, "to inventory", inventoryList[inventoryIndex])
+                shortcutList[highlightShortcut] = inventoryList[inventoryIndex].name || inventoryList[inventoryIndex].ammoType
+                askingShortcutIndex = undefined
+            } else if ((actionMenuShown) && (actionMenuActions) && (menuSel >= 0) && (menuSel < actionMenuActions.length)) {
                 // Activate the option
                 activateMenuAction(menuSel)
             } else {
@@ -1770,6 +1809,7 @@ function inspect(idx) {
 
 function askShortcut(idx) {
     askingShortcutIndex = idx
+    highlightShortcut = 0
 }
 
 function grab() {
@@ -1954,8 +1994,9 @@ function drawInventory() {
     drawAsciiText(1, 0, 'Inventory', [0, 255, 0], [0, 0, 0])
     if (inventoryList) {
         inventoryIndex = Math.min(Math.max(0, inventoryIndex), inventoryList.length - 1)
+        var isShortcutMenuOpen = typeof(askingShortcutIndex) !== "undefined"
         
-        if (!actionMenuShown && (lastMove[1] >= 2) && (lastMove[0] >= 1) && (lastMove[0] < 64)) {
+        if (!isShortcutMenuOpen && !actionMenuShown && (lastMove[1] >= 2) && (lastMove[0] >= 1) && (lastMove[0] < 64)) {
             var ni = Math.floor((lastMove[1] - 2)/2)
             
             if (ni < 0) {
@@ -2010,7 +2051,7 @@ function drawInventory() {
             drawAsciiText(1, 2 + i * 2, txt, fgcol, bgCol)
             terminal.setPixel(2, 2 + i * 2, item.pix, fgcol, bgCol)
             
-            if (!actionMenuShown && (lastClick[0] != -1) && (lastClick[1] != -1) &&
+            if (!isShortcutMenuOpen && !actionMenuShown && (lastClick[0] != -1) && (lastClick[1] != -1) &&
                 (lastClick[0] == lastMove[0]) && (lastClick[1] == lastMove[1])&&
                 (inventoryIndex == i)) {
                 use()
@@ -2024,6 +2065,7 @@ function drawInventory() {
             var fgcol = [96, 255, 96]
             var altfgcol = [96, 128, 255]
             var bgcol = [32, 32, 32]
+            var selbgcol = [128, 128, 32]
             
             var pulseVal = Math.floor((Math.sin(Date.now() / 100) +  1) * 24)
             var pulseColor = [pulseVal, 32 + pulseVal, 32]
@@ -2033,17 +2075,39 @@ function drawInventory() {
             
             drawAsciiText(displaySizeX/2 - 8, by + 1, "Select a Number:", fgcol, bgcol)
             
+            if (highlightShortcut < 0) {
+                highlightShortcut += 11
+            } else if (highlightShortcut >= 11) {
+                highlightShortcut -= 11
+            }
+            
             for (var i=1; i <= 10; i++) {
                 var shrtItemName = "-- No item selected --"
-                drawAsciiText(displaySizeX/2 - 22, by + 3 + i * 2, "[" + (i % 10) + "] " + shrtItemName, fgcol, bgcol)
+                var useBgCol = bgcol
+                
+                if (typeof(shortcutList[i - 1]) !== "undefined") {
+                    shrtItemName = shortcutList[i - 1]
+                }
+                
+                if ((i-1) == highlightShortcut) {
+                    useBgCol = selbgcol
+                }
+                
+                drawAsciiText(displaySizeX/2 - 22, by + 3 + i * 2, "[" + (i % 10) + "] " + shrtItemName, fgcol, useBgCol)
                 drawAsciiText(displaySizeX/2 - 22, by + 3 + i * 2, "[" + (i % 10) + "]", altfgcol, pulseColor)
+            }
+            
+            if (drawButtonWithText(((displaySizeX + 32)/2) - 24, by + 32 - 4, "Close", 16, opsColsFg, opsColsBg, 10, highlightShortcut)) {
+                askingShortcutIndex = undefined
             }
         }
     }
     
-    if (drawButtonWithText(((displaySizeX + 32)/2) - 24, displaySizeY - 4, "Close", 16, opsColsFg, opsColsBg, 0)) {
-        showingInventory = false
-        actionMenuShown = false
+    if ((typeof(askingShortcutIndex) === "undefined") && !actionMenuShown) {
+        if (drawButtonWithText(((displaySizeX + 32)/2) - 24, displaySizeY - 4, "Close", 16, opsColsFg, opsColsBg, 0)) {
+            showingInventory = false
+            actionMenuShown = false
+        }
     }
 }
 
@@ -2406,15 +2470,21 @@ function drawBoxAlpha(x, y, w, h, col, a) {
     }
 }
 
-function drawButtonWithText(x, y, txt, width, fg, bg, menuOp) {
+function drawButtonWithText(x, y, txt, width, fg, bg, menuOp, altMenuSel) {
     var vpadtxt = Array(width + 1).join(" ")
     var dw = width - txt.length
     var lpad = Math.ceil(dw / 2) + 1
     var rpad = Math.floor(dw / 2) + 1
     
-    var luma = (menuSel == menuOp)?[255,255,255]:[0,0,0]
+    var curMenuSel = menuSel
     
-    var moveWithinBounds = (lastMove[0] >= x)&&(lastMove[0] <= (x + width))&&(lastMove[1] >= y)&&(lastMove[1] < (y + 3))
+    if (typeof(altMenuSel) !== "undefined") {
+        curMenuSel = altMenuSel
+    }
+    
+    var luma = (curMenuSel == menuOp)?[255,255,255]:[0,0,0]
+    
+    var moveWithinBounds = (lastMove[0] >= x)&&(lastMove[0] <= (x + width))&&(lastMove[1] >= y)&&(lastMove[1] < (y + 3)) || (curMenuSel == menuOp)
     
     if (!Array.isArray(fg)) {
         fg = fg[moveWithinBounds]
@@ -3212,6 +3282,43 @@ function updateDisplayGameStarted() {
                         fgAssigned = true
                         if ((player.pos.x == x + sx0)&&(player.pos.y == y +sy0)) {
                             player.cpos = {x: x, y: y}
+                            // Play the ambient sound
+                            
+                            if (typeof(tile.asnd) !== "undefined") {
+                                var snds = []
+                                for (p in tile.asnd) {
+                                    if (tile.asnd.hasOwnProperty(p)) {
+                                        snds.push(tile.asnd[p])
+                                    }
+                                }
+                                
+                                if (snds.length > 0) {
+                                    snds = snds.sort(function(a, b) {
+                                        return a.dst2 - b.dst2
+                                    })
+                                    
+                                    var snd = snds[0]
+                                    
+                                    if (currentLoopingAmbientSoundName !== snd.snd) {
+                                        if (typeof(loopingAmbientSound) !== "undefined") {
+                                            loopingAmbientSound.stop()
+                                        }
+                                        currentLoopingAmbientSoundName = snd.snd
+                                        
+                                        loopingAmbientSound = createjs.Sound.play(snd.snd + '_ambient', {
+                                            volume: 1 - snd.dst2,
+                                            pan: 0,
+                                            loop: -1
+                                        })
+                                    } else {
+                                        loopingAmbientSound.volume = 1 - snd.dst2
+                                    }
+                                }
+                            } else if (typeof(loopingAmbientSound) !== "undefined") {
+                                loopingAmbientSound.stop()
+                                currentLoopingAmbientSoundName = ""
+                                delete loopingAmbientSound
+                            }
                         }
                         
                         glyph = tile.character.pix
@@ -3223,12 +3330,18 @@ function updateDisplayGameStarted() {
                         fgAssigned = true
                         glyph = tile.item.pix
                         fg = tile.item.color
-                        cssClass = tile.item.cssClass
+                        if ((typeof(tile.item.cssClass) !== "undefined") && (tile.item.cssClass !== "")) {
+                            cssClass = tile.item.cssClass
+                            fg = fgColorFromColorMapRule(colorMap[cssClass], x*y)
+                        }
                     } else if (tile.debris) {
                         fgAssigned = true
                         glyph = tile.debris.pix
                         fg = tile.debris.color
-                        cssClass = tile.debris.cssClass
+                        if ((typeof(tile.debris.cssClass) !== "undefined") && (tile.debris.cssClass !== "")) {
+                            cssClass = tile.debris.cssClass
+                            fg = fgColorFromColorMapRule(colorMap[cssClass], x*y)
+                        }
                     } 
                     
                     if (tile.tile) {
@@ -3262,7 +3375,7 @@ function updateDisplayGameStarted() {
                     if (cssClass in colorMap) {
                         var rule = colorMap[cssClass]
                         
-                        if ((!tile.fg)&&("color" in rule)) {
+                        if (!fgAssigned && !tile.fg &&("color" in rule)) {
                             fg = fgColorFromColorMapRule(rule, x*y)
                         }
                         
@@ -3276,7 +3389,7 @@ function updateDisplayGameStarted() {
                     } else if (cssClass in cssRules) {
                         var rule = cssRules[cssClass]
                         
-                        if ((!tile.fg)&&(rule.style.color.length > 0)) {
+                        if (!fgAssigned && (!tile.fg)&&(rule.style.color.length > 0)) {
                             fg = rule.style.color
                         }
                         
@@ -3318,6 +3431,29 @@ function updateDisplayGameStarted() {
                         
                         lgt = {color: ncol, intensity: 0}
                     }
+                } else if (typeof(tile.brick) !== "undefined") {
+                    var wireCol
+                    var s = (Math.sin(Date.now()/100) + 1)/2.0
+                    
+                    if (tile.brick.type === "wire") {
+                        if (tile.brick.status === "on") {
+                            wireCol = [32 + Math.round(32 * s), 100 + Math.round(96 * s), 200 + Math.round(55 * s)]
+                        } else {
+                            wireCol = [Math.round(16 * s), Math.round(32 * s), 64 + Math.round(64 * s)]
+                        }
+                    } else if (tile.brick.type === "trap") {
+                        wireCol = [200 + Math.round(55 * s), 100 + Math.round(96 * s), 32 + Math.round(32 * s)]
+                    }
+                    
+                    fg = mixRGB(fg, wireCol, 0.5)
+                    bg = mixRGB(bg, wireCol, 0.5)
+                    
+                    var ncol = wireCol
+                    if (typeof(lgt) !== "undefined") {
+                        ncol = mixRGB(lgt.color, ncol, 0.5)
+                    }
+                    
+                    lgt = {color: ncol, intensity: 0}
                 }
                 
                 terminal.setPixel(x, y, glyph, fg, bg, luma, lgt)
@@ -3343,6 +3479,7 @@ function updateDisplayGameStarted() {
             lastClick = [-1, -1]
             lastMove = [-1, -1]
             destinationMovement = undefined
+            createjs.Sound.stop()
             
             level = []
             queuedAnns = []
@@ -4133,11 +4270,15 @@ var handlers = {
             for (var i=0; i < obj.snds.length; i++) {
                 var snd = obj.snds[i]
                 
-                createjs.Sound.play(snd.s, {
+                var sndInstance = createjs.Sound.play(snd.s, {
                     volume: snd.v/128.0,
                     pan: snd.p/128.0,
                     delay: snd.d
                 })
+                
+                if (Number.isFinite(snd.ps) && (snd.ps > 0) && (typeof(sndInstance.sourceNode) !== "undefined")) {
+                    sndInstance.sourceNode.playbackRate.value = snd.ps
+                }
             }
         }
         
@@ -4338,7 +4479,11 @@ var fnCommands = {
                     menuSel += actionMenuActions.length
                 }
             } else if (showingInventory) {
-                inventoryIndex--
+                if (typeof(askingShortcutIndex) === "undefined") {
+                    inventoryIndex--
+                } else {
+                    highlightShortcut--
+                }
             } else if (keyboardLook) {
                 moveCell(lastMove[0], Math.max(0, lastMove[1] - 1))
                 return "cursor"
@@ -4358,7 +4503,11 @@ var fnCommands = {
             if (actionMenuShown) {
                 menuSel = (menuSel + 1) % actionMenuActions.length
             } else if (showingInventory) {
-                inventoryIndex++
+                if (typeof(askingShortcutIndex) === "undefined") {
+                    inventoryIndex++
+                } else {
+                    highlightShortcut++
+                }
             } else if (keyboardLook) {
                 moveCell(lastMove[0], Math.min(displaySizeY - 1, lastMove[1] + 1))
                 return "cursor"
@@ -4488,11 +4637,16 @@ function shutdownKeyboardLook() {
 }
 
 function cancelEverything() {
-    shutdownKeyboardLook()
-    cancelTarget()
-    finishEditText()
-    showingInventory = false
-    actionMenuShown = false
+    if (typeof(askingShortcutIndex) !== "undefined") {
+        askingShortcutIndex = undefined
+    } else if (actionMenuShown) {
+        actionMenuShown = false
+    } else {
+        shutdownKeyboardLook()
+        cancelTarget()
+        finishEditText()
+        showingInventory = false
+    }
 }
 
 function showAllHud() {
@@ -4507,6 +4661,12 @@ function showAllHud() {
             n--
             i--
         }
+    }
+}
+
+function fnActivateShortcut(idx) {
+    return function() {
+        activateShortcut(idx)
     }
 }
 
@@ -4604,6 +4764,17 @@ var kb_hnd = {
     
     "U+001B": cancelEverything,
     "U+00DB": showAllHud,
+    
+    "U+0030": fnActivateShortcut(10),"0": fnActivateShortcut(10),
+    "U+0031": fnActivateShortcut(1), "1": fnActivateShortcut(1),
+    "U+0032": fnActivateShortcut(2), "2": fnActivateShortcut(2),
+    "U+0033": fnActivateShortcut(3), "3": fnActivateShortcut(3),
+    "U+0034": fnActivateShortcut(4), "4": fnActivateShortcut(4),
+    "U+0035": fnActivateShortcut(5), "5": fnActivateShortcut(5),
+    "U+0036": fnActivateShortcut(6), "6": fnActivateShortcut(6),
+    "U+0037": fnActivateShortcut(7), "7": fnActivateShortcut(7),
+    "U+0038": fnActivateShortcut(8), "8": fnActivateShortcut(8),
+    "U+0039": fnActivateShortcut(9), "9": fnActivateShortcut(9),
 }
 
 function render() {
@@ -5074,6 +5245,12 @@ $(document).ready(function () {
     createjs.Sound.registerSound("./sounds/radio002.wav", "radio002")
     createjs.Sound.registerSound("./sounds/radio003.wav", "radio003")
     createjs.Sound.registerSound("./sounds/radio004.wav", "radio004")
+    
+    createjs.Sound.registerSound("./sounds/water_ambient.wav", "water_ambient")
+    createjs.Sound.registerSound("./sounds/acid_ambient.wav", "acid_ambient")
+    createjs.Sound.registerSound("./sounds/lava_ambient.wav", "lava_ambient")
+    createjs.Sound.registerSound("./sounds/plasma_ambient.wav", "plasma_ambient")
+    createjs.Sound.registerSound("./sounds/compresor_sound.wav", "compresor_ambient")
     
     createjs.Sound.on("fileload", function() {
         setupMusic()
